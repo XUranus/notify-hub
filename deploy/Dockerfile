@@ -21,6 +21,7 @@ COPY packages/shared/package.json packages/shared/
 RUN pnpm install --frozen-lockfile --filter @notify-hub/server...
 COPY packages/shared packages/shared/
 COPY packages/server packages/server/
+RUN cd packages/shared && pnpm build
 RUN cd packages/server && pnpm build
 
 # ── Stage 3: Production ──
