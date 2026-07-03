@@ -72,18 +72,9 @@ class MainActivity : ComponentActivity() {
                 var showQrScanner by remember { mutableStateOf(false) }
                 var pendingQrData by remember { mutableStateOf<QrConnectData?>(null) }
                 var showSettings by remember { mutableStateOf(false) }
+                var qrScanTarget by remember { mutableStateOf<String?>(null) } // "config" or "settings"
 
                 when {
-                    showQrScanner -> {
-                        BackHandler { showQrScanner = false }
-                        QrScannerScreen(
-                            onResult = { data ->
-                                pendingQrData = data
-                                showQrScanner = false
-                            },
-                            onBack = { showQrScanner = false }
-                        )
-                    }
                     !configured -> {
                         ConfigScreen(
                             onSaved = { config ->
@@ -92,8 +83,8 @@ class MainActivity : ComponentActivity() {
                                 configured = true
                                 startPollService()
                             },
-                            onScanQr = { showQrScanner = true },
-                            qrData = pendingQrData,
+                            onScanQr = { qrScanTarget = "config"; showQrScanner = true },
+                            qrData = if (qrScanTarget == "config") pendingQrData else null,
                             onQrDataConsumed = { pendingQrData = null }
                         )
                     }
@@ -101,8 +92,8 @@ class MainActivity : ComponentActivity() {
                         BackHandler { showSettings = false }
                         SettingsScreen(
                             currentConfig = currentConfig,
-                            onScanQr = { showQrScanner = true },
-                            qrData = pendingQrData,
+                            onScanQr = { qrScanTarget = "settings"; showQrScanner = true },
+                            qrData = if (qrScanTarget == "settings") pendingQrData else null,
                             onQrDataConsumed = { pendingQrData = null },
                             onBack = { showSettings = false },
                             onSave = { newConfig ->
@@ -120,6 +111,18 @@ class MainActivity : ComponentActivity() {
                             onOpenSettings = { showSettings = true }
                         )
                     }
+                }
+
+                // QR Scanner overlay - shown on top of any screen
+                if (showQrScanner) {
+                    BackHandler { showQrScanner = false }
+                    QrScannerScreen(
+                        onResult = { data ->
+                            pendingQrData = data
+                            showQrScanner = false
+                        },
+                        onBack = { showQrScanner = false }
+                    )
                 }
             }
         }

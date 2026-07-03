@@ -579,7 +579,12 @@ private fun ServerConfigSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+                .padding(horizontal = 24.dp)
+                .navigationBarsPadding()
+                .imePadding()
         ) {
             Text(i18n("settings_server"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(16.dp))
