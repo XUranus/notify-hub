@@ -34,6 +34,7 @@ COPY --from=frontend-builder /app/packages/web/dist ./public
 # Copy the full node_modules (with workspace symlinks) and server artifacts
 COPY --from=backend-builder /app/node_modules ./node_modules
 COPY --from=backend-builder /app/packages ./packages
+COPY --from=backend-builder /app/packages/server/drizzle ./drizzle
 COPY --from=backend-builder /app/package.json ./
 COPY --from=backend-builder /app/pnpm-workspace.yaml ./
 COPY --from=backend-builder /app/pnpm-lock.yaml ./
