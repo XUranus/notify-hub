@@ -15,7 +15,7 @@ FROM node:20-alpine AS backend-builder
 RUN corepack enable && corepack prepare pnpm@9 --activate
 RUN apk add --no-cache python3 make g++ # for better-sqlite3
 WORKDIR /app
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY packages/server/package.json packages/server/
 COPY packages/shared/package.json packages/shared/
 RUN pnpm install --frozen-lockfile --filter @notify-hub/server...
