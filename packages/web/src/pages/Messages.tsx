@@ -83,7 +83,7 @@ function toCsv(messages: Message[]): string {
     const s = v == null ? '' : String(v)
     return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
   }
-  const rows = messages.map((m) => headers.map((h) => escape((m as Record<string, unknown>)[h])).join(','))
+  const rows = messages.map((m) => headers.map((h) => escape((m as unknown as Record<string, unknown>)[h])).join(','))
   return [headers.join(','), ...rows].join('\n')
 }
 
@@ -96,7 +96,7 @@ function toXml(messages: Message[]): string {
   const fields = ['id', 'channelType', 'channelName', 'toAddress', 'subject', 'body', 'status', 'retryCount', 'errorMessage', 'ipAddress', 'ipLocation', 'app', 'createdAt', 'sentAt', 'tags', 'priority', 'url', 'attachment', 'format']
   const items = messages.map((m) => {
     const inner = fields.map((f) => {
-      const v = (m as Record<string, unknown>)[f]
+      const v = (m as unknown as Record<string, unknown>)[f]
       return `    <${f}>${v != null ? escape(String(v)) : ''}</${f}>`
     }).join('\n')
     return `  <message>\n${inner}\n  </message>`
