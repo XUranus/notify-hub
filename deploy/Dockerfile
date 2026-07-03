@@ -39,7 +39,7 @@ COPY --from=backend-builder /app/packages/server/package.json ./
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/server/package.json packages/server/
-RUN pnpm install --frozen-lockfile --prod --filter @notify-hub/server...
+RUN pnpm install --frozen-lockfile --prod
 
 # Data volume for database
 VOLUME /app/data
