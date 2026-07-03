@@ -25,21 +25,17 @@ RUN cd packages/server && pnpm build
 
 # ── Stage 3: Production ──
 FROM node:20-alpine AS production
-RUN corepack enable && corepack prepare pnpm@9 --activate
-RUN apk add --no-cache python3 make g++ # for better-sqlite3
 WORKDIR /app
 
-# Copy built artifacts
+# Copy built frontend
 COPY --from=frontend-builder /app/packages/web/dist ./public
-COPY --from=backend-builder /app/packages/server/dist ./dist
-COPY --from=backend-builder /app/packages/server/drizzle ./drizzle
-COPY --from=backend-builder /app/packages/server/package.json ./
 
-# Install production dependencies only
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
-COPY packages/shared/package.json packages/shared/
-COPY packages/server/package.json packages/server/
-RUN pnpm install --frozen-lockfile --prod
+# Copy the full node_modules (with workspace symlinks) and server artifacts
+COPY --from=backend-builder /app/node_modules ./node_modules
+COPY --from=backend-builder /app/packages ./packages
+COPY --from=backend-builder /app/package.json ./
+COPY --from=backend-builder /app/pnpm-workspace.yaml ./
+COPY --from=backend-builder /app/pnpm-lock.yaml ./
 
 # Data volume for database
 VOLUME /app/data
