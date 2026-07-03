@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NotifyHub Client</title>
+  <style>
+    :root {
+      --bg: #f4f5f7; --card: #fff; --border: #e2e4e8;
+      --text: #1a1d23; --text2: #6b7280; --text3: #9ca3af;
+      --accent: #4f46e5; --accent-hover: #4338ca; --accent-soft: #eef2ff;
+      --success: #16a34a; --success-soft: #f0fdf4;
+      --error: #dc2626; --error-soft: #fef2f2;
+      --warn: #d97706; --warn-soft: #fffbeb;
+      --debug: #7c3aed; --debug-soft: #f5f3ff;
+      --input-bg: #fff; --badge-bg: #f3f4f6; --badge-border: #d1d5db; --badge-text: #374151;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06); --radius: 8px;
+      --overlay: rgba(0,0,0,0.3);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111318; --card: #1a1d24; --border: #2d313a;
+        --text: #e5e7eb; --text2: #9ca3af; --text3: #6b7280;
+        --accent: #818cf8; --accent-hover: #6366f1; --accent-soft: #1e1b4b;
+        --success: #4ade80; --success-soft: #052e16;
+        --error: #f87171; --error-soft: #450a0a;
+        --warn: #fbbf24; --warn-soft: #451a03;
+        --debug: #a78bfa; --debug-soft: #1e1533;
+        --input-bg: #22252e; --badge-bg: #22252e; --badge-border: #3f4550; --badge-text: #d1d5db;
+        --shadow: 0 1px 3px rgba(0,0,0,0.3);
+        --overlay: rgba(0,0,0,0.6);
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    .view { display: none; padding: 20px; }
+    .view.active { display: block; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .header-left svg { color: var(--accent); flex-shrink: 0; }
+    .header-left h1 { font-size: 17px; font-weight: 600; }
+    .header-actions { display: flex; gap: 6px; align-items: center; }
+    .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text2); cursor: pointer; transition: all 0.15s; }
+    .icon-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+    .icon-btn.danger:hover { background: var(--error-soft); border-color: var(--error); color: var(--error); }
+    .icon-btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+    .card-header-left { display: flex; align-items: center; gap: 8px; }
+    .card-header-left svg { color: var(--text2); flex-shrink: 0; }
+    .card-header h2 { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; }
+    .card-body { padding: 14px 16px; }
+    .field { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label { flex-shrink: 0; width: 72px; font-size: 13px; font-weight: 500; color: var(--text2); text-align: right; }
+    .field .fv { flex: 1; font-size: 13px; color: var(--text); }
+    .field input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; color: var(--text); background: var(--input-bg); }
+    .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+    .field input::placeholder { color: var(--text3); }
+    .uuid-row { display: flex; align-items: center; gap: 8px; flex: 1; }
+    .uuid-badge { display: inline-flex; align-items: center; font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 11.5px; color: var(--badge-text); background: var(--badge-bg); border: 1px solid var(--badge-border); border-radius: 6px; padding: 4px 10px; word-break: break-all; flex: 1; }
+    .copy-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text2); cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
+    .copy-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+    .copy-btn.copied { background: var(--success-soft); border-color: var(--success); color: var(--success); }
+    .sysinfo-row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .sysinfo-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+    .si-label { color: var(--text3); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+    .si-value { color: var(--text); font-weight: 500; }
+    .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
+    .status-dot.on { background: var(--success); }
+    .status-dot.off { background: var(--error); }
+    .status-dot.wait { background: var(--text3); animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+    .curl-block { margin: 0; padding: 14px 16px; font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 11.5px; line-height: 1.6; color: var(--text); background: var(--badge-bg); white-space: pre-wrap; word-break: break-all; overflow-x: auto; max-height: 260px; overflow-y: auto; }
+    .curl-block .kw { color: var(--accent); }
+    .curl-block .str { color: var(--success); }
+    .curl-block .flag { color: var(--warn); }
+    .curl-block .val { color: var(--error); }
+    .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--accent); color: #fff; border: none; padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s; width: 100%; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Search & Filter Bar ── */
+    .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .search-box { flex: 1; min-width: 180px; display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); }
+    .search-box input { flex: 1; border: none; outline: none; background: transparent; font-size: 13px; color: var(--text); }
+    .search-box input::placeholder { color: var(--text3); }
+    .search-box svg { color: var(--text3); flex-shrink: 0; }
+    .filter-chips { display: flex; gap: 4px; }
+    .chip { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid var(--border); background: var(--card); color: var(--text2); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .chip:hover { border-color: var(--accent); color: var(--accent); }
+    .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* ── Unread Badge ── */
+    .unread-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--error); color: #fff; font-size: 10px; font-weight: 700; margin-left: 6px; }
+
+    /* ── Message List (Virtual Scroll) ── */
+    .msg-scroll { max-height: calc(7 * 80px); overflow-y: auto; position: relative; }
+    .msg-empty { padding: 48px 32px; text-align: center; color: var(--text3); font-size: 14px; }
+    .msg-empty-icon { font-size: 40px; margin-bottom: 12px; }
+    .msg-viewport { position: relative; width: 100%; }
+    .msg-card { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; position: absolute; left: 0; right: 0; }
+    .msg-card:hover { background: var(--accent-soft); }
+    .msg-card.unread { background: var(--accent-soft); }
+    .msg-card.selected { background: var(--accent-soft); border-left: 3px solid var(--accent); }
+    .msg-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+    .msg-dot.info { background: var(--accent); }
+    .msg-dot.warning { background: var(--warn); }
+    .msg-dot.error { background: var(--error); }
+    .msg-dot.critical { background: var(--error); }
+    .msg-dot.debug { background: var(--debug); }
+    .msg-content { flex: 1; min-width: 0; }
+    .msg-title-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+    .msg-title-text { font-size: 13px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 400px; }
+    .msg-card.unread .msg-title-text { font-weight: 800; color: var(--text); }
+    .msg-body-preview { font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 500px; }
+    .msg-card.unread .msg-body-preview { font-weight: 700; color: var(--text); }
+    .msg-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+    .msg-time { font-size: 11px; color: var(--text3); }
+    .msg-card.unread .msg-time { color: var(--accent); font-weight: 700; }
+    .msg-level-badge { font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; }
+    .msg-level-badge.info { background: var(--accent-soft); color: var(--accent); }
+    .msg-level-badge.warning { background: var(--warn-soft); color: var(--warn); }
+    .msg-level-badge.error { background: var(--error-soft); color: var(--error); }
+    .msg-level-badge.critical { background: var(--error-soft); color: var(--error); }
+    .msg-level-badge.debug { background: var(--debug-soft); color: var(--debug); }
+    .msg-tag { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--badge-bg); border: 1px solid var(--badge-border); color: var(--badge-text); }
+    .msg-flags { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .msg-flag-icon { font-size: 15px; cursor: pointer; opacity: 0.5; transition: opacity 0.15s; padding: 2px; }
+    .msg-flag-icon:hover { opacity: 1; }
+    .msg-flag-icon.flagged { opacity: 1; color: var(--accent); }
+    .msg-att-icon { font-size: 11px; color: var(--text3); }
+    .msg-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+    .msg-del-btn { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; border-radius: 4px; opacity: 0; transition: all 0.15s; }
+    .msg-card:hover .msg-del-btn { opacity: 1; }
+    .msg-del-btn:hover { color: var(--error); background: var(--error-soft); }
+
+    /* ── Multi-select ── */
+    .msg-checkbox { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; margin-top: 4px; flex-shrink: 0; }
+    .select-bar { display: none; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--accent-soft); border-bottom: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; }
+    .select-bar.visible { display: flex; }
+    .select-bar-left { font-size: 13px; font-weight: 600; color: var(--accent); }
+    .select-bar-actions { display: flex; gap: 6px; }
+
+    /* ── Message Detail Overlay ── */
+    .detail-overlay { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 90; overflow-y: auto; }
+    .detail-overlay.open { display: block; }
+    .detail-header { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--card); position: sticky; top: 0; z-index: 2; }
+    .detail-header h2 { font-size: 14px; font-weight: 600; flex: 1; }
+    .detail-body { max-width: 720px; margin: 0 auto; padding: 20px; }
+    .detail-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .detail-title { font-size: 18px; font-weight: 700; color: var(--text); }
+    .detail-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .detail-time { font-size: 13px; color: var(--text2); }
+    .detail-url-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: var(--accent); cursor: pointer; background: var(--card); text-decoration: none; margin-bottom: 16px; }
+    .detail-url-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+    .detail-content-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; }
+    .detail-content-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; border-bottom: 1px solid var(--border); }
+    .detail-content-header span { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; }
+    .detail-content-body { padding: 14px; font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+    .detail-content-body.markdown { font-family: inherit; }
+    .detail-content-body.json { font-family: 'SF Mono','Fira Code',monospace; font-size: 12px; background: var(--badge-bg); border-radius: 6px; padding: 12px; }
+    .detail-content-body.html-content { font-family: inherit; padding: 16px 20px; }
+    .detail-section-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.05em; }
+    .detail-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+    .detail-tag { font-size: 12px; padding: 3px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+    .detail-att-card { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; margin-bottom: 16px; }
+    .detail-att-card:hover { background: var(--accent-soft); border-color: var(--accent); }
+    .detail-att-info { flex: 1; }
+    .detail-att-name { font-size: 13px; font-weight: 500; color: var(--text); }
+    .detail-att-size { font-size: 11px; color: var(--text3); }
+
+    /* ── JSON Syntax Highlight ── */
+    .json-key { color: #7c3aed; }
+    .json-str { color: #16a34a; }
+    .json-num { color: #d97706; }
+    .json-bool { color: #2563eb; }
+    .json-null { color: var(--text3); }
+    .json-bracket { color: var(--text3); }
+
+    /* ── Markdown Rendering ── */
+    .md-h1 { font-size: 20px; font-weight: 700; margin: 12px 0 6px; }
+    .md-h2 { font-size: 17px; font-weight: 700; margin: 10px 0 4px; }
+    .md-h3 { font-size: 15px; font-weight: 600; margin: 8px 0 4px; }
+    .md-bold { font-weight: 700; }
+    .md-italic { font-style: italic; }
+    .md-code { font-family: 'SF Mono','Fira Code',monospace; font-size: 12px; background: var(--badge-bg); padding: 1px 5px; border-radius: 3px; }
+    .md-code-block { font-family: 'SF Mono','Fira Code',monospace; font-size: 12px; background: var(--badge-bg); padding: 10px; border-radius: 6px; margin: 6px 0; display: block; overflow-x: auto; }
+    .md-blockquote { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--text2); margin: 6px 0; }
+    .md-link { color: var(--accent); text-decoration: underline; cursor: pointer; }
+    .md-list-item { padding-left: 16px; position: relative; margin: 2px 0; }
+    .md-list-item::before { content: '•'; position: absolute; left: 4px; color: var(--text3); }
+    .md-checkbox { margin-right: 6px; }
+
+    /* ── Undo Snackbar ── */
+    .snackbar { display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 20px; border-radius: 8px; font-size: 13px; z-index: 200; box-shadow: 0 4px 16px rgba(0,0,0,0.2); align-items: center; gap: 12px; }
+    .snackbar.visible { display: flex; }
+    .snackbar-undo { background: none; border: none; color: var(--accent); font-weight: 700; cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 4px; }
+    .snackbar-undo:hover { background: rgba(255,255,255,0.1); }
+
+    /* ── Toast ── */
+    .toast { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); padding: 12px 20px; border-radius: 8px; font-size: 13px; z-index: 300; box-shadow: 0 4px 16px rgba(0,0,0,0.15); align-items: center; gap: 10px; max-width: 400px; }
+    .toast.visible { display: flex; }
+    .toast-icon { font-size: 18px; flex-shrink: 0; }
+    .toast-text { flex: 1; color: var(--text); }
+    .toast-close { background: none; border: none; color: var(--text3); cursor: pointer; padding: 2px; flex-shrink: 0; }
+    .toast-close:hover { color: var(--text); }
+    .toast.success { border-left: 3px solid var(--success); }
+    .toast.error { border-left: 3px solid var(--error); }
+    .toast.info { border-left: 3px solid var(--accent); }
+
+    /* ── Modal ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: var(--overlay); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.2); width: 800px; max-width: 90vw; }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+    .modal-header h3 { font-size: 14px; font-weight: 600; }
+    .modal-close { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; }
+    .modal-close:hover { color: var(--text); }
+    .modal-body { padding: 18px; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border); }
+    .btn-cancel { background: var(--card); color: var(--text2); border: 1px solid var(--border); padding: 7px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+    .btn-cancel:hover { background: var(--bg); }
+    .btn-save { background: var(--accent); color: #fff; border: none; padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; }
+    .btn-save:hover { background: var(--accent-hover); }
+    .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+    .tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 18px; }
+    .tab { background: none; border: none; padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+    .tab:hover { color: var(--text2); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+    .info-list { margin-bottom: 16px; }
+    .info-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { font-size: 13px; color: var(--text2); }
+    .info-value { font-size: 13px; color: var(--text); font-weight: 500; max-width: 60%; text-align: right; word-break: break-all; }
+    .info-value.mono { font-family: 'SF Mono','Fira Code',monospace; font-size: 11px; color: var(--text2); }
+    .autostart-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; }
+    .toggle-label { font-size: 13px; color: var(--text2); }
+    .toggle { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: var(--border); border-radius: 22px; cursor: pointer; transition: background 0.2s; }
+    .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: transform 0.2s; }
+    .toggle input:checked + .toggle-slider { background: var(--accent); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════ CONNECT VIEW ═══════ -->
+  <div class="view active" id="viewConnect">
+    <div class="header">
+      <div class="header-left">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <h1>NotifyHub Client</h1>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-left">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
+          <h2 id="t-server-config">Server Configuration</h2>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="field"><label for="c-url">URL</label><input type="text" id="c-url" placeholder="http://localhost:4321"></div>
+        <div class="field"><label for="c-apiKey">API Key</label><input type="text" id="c-apiKey" placeholder="nfkey_xxxxx"></div>
+        <div class="field"><label for="c-name" id="t-name-label">Name</label><input type="text" id="c-name" placeholder="My Desktop"></div>
+        <button class="btn-primary" id="connectBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          <span id="t-connect-btn">Connect</span>
+        </button>
+        <div class="status" id="connectStatus" style="margin-top:10px;font-size:13px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ DASHBOARD VIEW ═══════ -->
+  <div class="view" id="viewDashboard">
+    <div class="header">
+      <div class="header-left">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <h1 id="t-messages-hdr">Messages<span class="unread-badge" id="unreadBadge" style="display:none">0</span></h1>
+      </div>
+      <div class="header-actions">
+        <span id="connStatus" style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:4px;"><span class="status-dot wait"></span><span id="connText">—</span></span>
+        <button class="icon-btn" id="editConfigBtn" title="Settings">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-left">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <h2 id="t-messages">Messages<span class="unread-badge" id="headerUnreadBadge" style="display:none">0</span></h2>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button class="icon-btn" id="markAllReadBtn" title="Mark All Read">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </button>
+          <button class="icon-btn danger" id="clearMsgsBtn" title="Clear All">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </div>
+      </div>
+      <!-- Multi-select bar -->
+      <div class="select-bar" id="selectBar">
+        <div class="select-bar-left"><span id="selectCount">0</span> selected</div>
+        <div class="select-bar-actions">
+          <button class="icon-btn" id="selectAllBtn" title="Select All"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></button>
+          <button class="icon-btn danger" id="deleteSelectedBtn" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+          <button class="icon-btn" id="cancelSelectBtn" title="Cancel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+      </div>
+      <!-- Toolbar: search + filter -->
+      <div style="padding:10px 14px;border-bottom:1px solid var(--border);">
+        <div class="toolbar">
+          <div class="search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="searchInput" placeholder="Search messages...">
+          </div>
+          <div class="filter-chips">
+            <span class="chip active" data-filter="all" id="t-filter-all">All</span>
+            <span class="chip" data-filter="unread" id="t-filter-unread">Unread</span>
+            <span class="chip" data-filter="read" id="t-filter-read">Read</span>
+            <span class="chip" data-filter="flagged" id="t-filter-flagged">Flagged</span>
+          </div>
+        </div>
+      </div>
+      <div class="msg-scroll" id="msgListBody">
+        <div class="msg-viewport" id="msgViewport">
+          <div class="msg-empty" id="t-no-messages"><div class="msg-empty-icon">📭</div>No messages received yet.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ MESSAGE DETAIL OVERLAY ═══════ -->
+  <div class="detail-overlay" id="detailOverlay">
+    <div class="detail-header">
+      <button class="icon-btn" id="detailBackBtn" title="Back">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <h2 id="t-detail-title">Message Detail</h2>
+      <button class="copy-btn" id="detailCopyTitleBtn" title="Copy Title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </button>
+    </div>
+    <div class="detail-body" id="detailContent"></div>
+  </div>
+
+  <!-- ═══════ SETTINGS MODAL ═══════ -->
+  <div class="modal-overlay" id="configModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="t-edit-config">Settings</h3>
+        <button class="modal-close" id="modalCloseBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-tab="tab-server" id="t-tab-server">Server</button>
+        <button class="tab" data-tab="tab-system" id="t-tab-system">System</button>
+        <button class="tab" data-tab="tab-data" id="t-tab-data">Data</button>
+        <button class="tab" data-tab="tab-tools" id="t-tab-tools">Tools</button>
+      </div>
+      <div class="tab-pane active" id="tab-server">
+        <div class="modal-body">
+          <div class="field"><label for="m-url">URL</label><input type="text" id="m-url" placeholder="http://localhost:4321"></div>
+          <div class="field"><label for="m-apiKey">API Key</label><input type="text" id="m-apiKey" placeholder="nfkey_xxxxx"></div>
+          <div class="field"><label for="m-name" id="t-m-name-label">Name</label><input type="text" id="m-name" placeholder="My Desktop"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" id="modalCancelBtn">Cancel</button>
+          <button class="btn-save" id="modalSaveBtn"><span id="t-save-btn">Save &amp; Reconnect</span></button>
+        </div>
+      </div>
+      <div class="tab-pane" id="tab-system">
+        <div class="modal-body">
+          <div class="info-list">
+            <div class="info-row"><span class="info-label">UUID</span><span class="info-value mono" id="info-uuid">—</span></div>
+            <div class="info-row"><span class="info-label" id="t-system-label">System</span><span class="info-value" id="info-sysinfo">—</span></div>
+            <div class="info-row"><span class="info-label" id="t-msgs-label">Messages</span><span class="info-value" id="info-msg-count">0</span></div>
+            <div class="info-row"><span class="info-label" id="t-app-version">App Version</span><span class="info-value" id="info-app-version">—</span></div>
+            <div class="info-row"><span class="info-label" id="t-config-path-label">Config File</span><span class="info-value mono" id="info-config-path">—</span></div>
+            <div class="info-row"><span class="info-label" id="t-msg-path-label">Messages File</span><span class="info-value mono" id="info-msg-path">—</span></div>
+          </div>
+          <div class="autostart-row">
+            <label class="toggle-label" id="t-autostart-label">Launch on startup</label>
+            <label class="toggle"><input type="checkbox" id="autostartToggle"><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+      </div>
+      <div class="tab-pane" id="tab-data">
+        <div class="modal-body">
+          <div style="margin-bottom:16px">
+            <div class="detail-section-title" style="margin-bottom:10px" id="t-backup-restore">Backup & Restore</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn-primary" style="flex:1;min-width:120px" id="backupBtn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span id="t-backup-btn">Backup</span>
+              </button>
+              <button class="btn-primary" style="flex:1;min-width:120px;background:var(--success)" id="restoreBtn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span id="t-restore-btn">Restore</span>
+              </button>
+            </div>
+          </div>
+          <div>
+            <div class="detail-section-title" style="margin-bottom:10px" id="t-export">Export Messages</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn-cancel" style="flex:1;min-width:80px" id="exportCsvBtn">CSV</button>
+              <button class="btn-cancel" style="flex:1;min-width:80px" id="exportXmlBtn">XML</button>
+              <button class="btn-cancel" style="flex:1;min-width:80px" id="exportJsonBtn">JSON</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="tab-pane" id="tab-tools">
+        <div class="modal-body">
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <span class="detail-section-title" style="margin:0" id="t-quick-send">Quick Send</span>
+              <button class="copy-btn" id="copyCurlBtn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+            </div>
+            <pre class="curl-block" id="curlExample" style="max-height:260px"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ DELETE CONFIRM MODAL ═══════ -->
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3 id="t-delete-confirm-title">Confirm Delete</h3>
+        <button class="modal-close" id="deleteModalClose"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <p id="deleteModalText" style="font-size:14px;color:var(--text);">Are you sure you want to delete all messages?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" id="deleteModalCancel">Cancel</button>
+        <button class="btn-save" id="deleteModalConfirm" style="background:var(--error);">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ UNDO SNACKBAR ═══════ -->
+  <div class="snackbar" id="undoSnackbar">
+    <span id="snackbarText">Message deleted</span>
+    <button class="snackbar-undo" id="undoBtn">Undo</button>
+  </div>
+
+  <!-- ═══════ TOAST NOTIFICATION ═══════ -->
+  <div class="toast" id="toast">
+    <span class="toast-icon" id="toastIcon">✓</span>
+    <span class="toast-text" id="toastText"></span>
+    <button class="toast-close" id="toastClose"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+
+<script>
+const invoke = window.__TAURI_INTERNALS__.invoke;
+
+/* ── i18n ── */
+const I18N = {
+  en: { serverConfig:'Server Configuration',clientInfo:'Client Info',system:'System',os:'OS',arch:'Arch',de:'DE',name:'Name',connectBtn:'Connect',connecting:'Connecting...',connected:'Connected',disconnected:'Disconnected',lastPoll:'Last Poll',messages:'Messages',noMessages:'No messages yet.',editConfig:'Settings',saveBtn:'Save & Reconnect',saving:'Saving...',saved:'Saved!',reconnected:'Reconnected!',cancel:'Cancel',status:'Status',copyUuid:'Copy UUID',copied:'Copied!',error:'Error',clearAll:'Clear All',clearConfirm:'Delete all messages?',deleteConfirmTitle:'Confirm Delete',markAllRead:'Mark All Read',backupRestore:'Backup & Restore',backup:'Backup',restore:'Restore',export:'Export Messages',backupSuccess:'Backup saved successfully',restoreConfirm:'Restore from backup? This will replace all current messages.',restoreSuccess:'Restored {count} messages',restoreFailed:'Restore failed',exportSuccess:'Exported to {format}',server:'Server',quickSend:'Quick Send',copyCurl:'Copy',tabServer:'Server',tabSystem:'System',tabData:'Data',tabTools:'Tools',appVersion:'App Version',configFile:'Config File',messagesFile:'Messages File',autostart:'Launch on startup',settings:'Settings',close:'Close',priority:'Pri',tags:'Tags',format:'Fmt',search:'Search',filterAll:'All',filterUnread:'Unread',filterRead:'Read',filterFlagged:'Flagged',untitled:'Untitled',msgDetail:'Message Detail',msgDeleted:'Message deleted',undo:'Undo',selected:'selected',flag:'Flag',unflag:'Unflag',delete:'Delete',copy:'Copy',copyTitle:'Copy title',download:'Download',justNow:'just now',minAgo:'min ago',hrAgo:'hr ago',daysAgo:'days ago',noUrl:'No download URL' },
+  zh: { serverConfig:'服务器配置',clientInfo:'客户端信息',system:'系统',os:'系统',arch:'架构',de:'桌面环境',name:'名称',connectBtn:'连接',connecting:'连接中...',connected:'已连接',disconnected:'已断开',lastPoll:'上次轮询',messages:'消息记录',noMessages:'暂无消息。',editConfig:'设置',saveBtn:'保存并重连',saving:'保存中...',saved:'已保存！',reconnected:'已重连！',cancel:'取消',status:'状态',copyUuid:'复制 UUID',copied:'已复制！',error:'错误',clearAll:'清空',clearConfirm:'确定删除所有消息？',deleteConfirmTitle:'确认删除',markAllRead:'全部已读',backupRestore:'备份与恢复',backup:'备份',restore:'恢复',export:'导出消息',backupSuccess:'备份保存成功',restoreConfirm:'从备份恢复？这将替换所有当前消息。',restoreSuccess:'已恢复 {count} 条消息',restoreFailed:'恢复失败',exportSuccess:'已导出为 {format}',server:'服务器',quickSend:'快速发送',copyCurl:'复制',tabServer:'服务器',tabSystem:'系统',tabData:'数据',tabTools:'工具',appVersion:'应用版本',configFile:'配置文件',messagesFile:'消息文件',autostart:'开机自启动',settings:'设置',close:'关闭',priority:'优先级',tags:'标签',format:'格式',search:'搜索',filterAll:'全部',filterUnread:'未读',filterRead:'已读',filterFlagged:'已标记',untitled:'无标题',msgDetail:'消息详情',msgDeleted:'消息已删除',undo:'撤销',selected:'已选择',flag:'标记',unflag:'取消标记',delete:'删除',copy:'复制',copyTitle:'复制标题',download:'下载',justNow:'刚刚',minAgo:'分钟前',hrAgo:'小时前',daysAgo:'天前',noUrl:'无下载链接' },
+  ja: { serverConfig:'サーバー設定',clientInfo:'クライアント情報',system:'システム',os:'OS',arch:'アーキテクチャ',de:'デスクトップ',name:'名前',connectBtn:'接続',connecting:'接続中...',connected:'接続済み',disconnected:'切断',lastPoll:'最終ポーリング',messages:'メッセージ',noMessages:'メッセージはまだありません。',editConfig:'設定',saveBtn:'保存して再接続',saving:'保存中...',saved:'保存済み！',reconnected:'再接続済み！',cancel:'キャンセル',status:'ステータス',copyUuid:'UUID をコピー',copied:'コピーしました！',error:'エラー',clearAll:'すべて削除',clearConfirm:'すべてのメッセージを削除しますか？',deleteConfirmTitle:'削除の確認',markAllRead:'すべて既読にする',backupRestore:'バックアップと復元',backup:'バックアップ',restore:'復元',export:'メッセージをエクスポート',backupSuccess:'バックアップを保存しました',restoreConfirm:'バックアップから復元しますか？現在のすべてのメッセージが置き換えられます。',restoreSuccess:'{count} 件のメッセージを復元しました',restoreFailed:'復元に失敗しました',exportSuccess:'{format} にエクスポートしました',server:'サーバー',quickSend:'クイック送信',copyCurl:'コピー',tabServer:'サーバー',tabSystem:'システム',tabData:'データ',tabTools:'ツール',appVersion:'アプリバージョン',configFile:'設定ファイル',messagesFile:'メッセージファイル',autostart:'起動時に自動開始',settings:'設定',close:'閉じる',priority:'優先度',tags:'タグ',format:'フォーマット',search:'検索',filterAll:'すべて',filterUnread:'未読',filterRead:'既読',filterFlagged:'フラグ',untitled:'無題',msgDetail:'メッセージ詳細',msgDeleted:'メッセージを削除しました',undo:'元に戻す',selected:'選択中',flag:'フラグ',unflag:'フラグ解除',delete:'削除',copy:'コピー',copyTitle:'タイトルをコピー',download:'ダウンロード',justNow:'たった今',minAgo:'分前',hrAgo:'時間前',daysAgo:'日前',noUrl:'ダウンロードURLなし' },
+  ko: { serverConfig:'서버 설정',clientInfo:'클라이언트 정보',system:'시스템',os:'OS',arch:'아키텍처',de:'데스크톱',name:'이름',connectBtn:'연결',connecting:'연결 중...',connected:'연결됨',disconnected:'연결 끊김',lastPoll:'마지막 폴링',messages:'메시지',noMessages:'수신된 메시지가 없습니다.',editConfig:'설정',saveBtn:'저장 후 재연결',saving:'저장 중...',saved:'저장 완료！',reconnected:'재연결 완료！',cancel:'취소',status:'상태',copyUuid:'UUID 복사',copied:'복사됨！',error:'오류',clearAll:'모두 삭제',clearConfirm:'모든 메시지를 삭제하시겠습니까?',deleteConfirmTitle:'삭제 확인',markAllRead:'모두 읽음으로 표시',backupRestore:'백업 및 복원',backup:'백업',restore:'복원',export:'메시지 내보내기',backupSuccess:'백업이 저장되었습니다',restoreConfirm:'백업에서 복원하시겠습니까? 현재 모든 메시지가 대체됩니다.',restoreSuccess:'{count}개의 메시지를 복원했습니다',restoreFailed:'복원에 실패했습니다',exportSuccess:'{format}(으)로 내보냈습니다',server:'서버',quickSend:'빠른 전송',copyCurl:'복사',tabServer:'서버',tabSystem:'시스템',tabData:'데이터',tabTools:'도구',appVersion:'앱 버전',configFile:'설정 파일',messagesFile:'메시지 파일',autostart:'시작 시 자동 실행',settings:'설정',close:'닫기',priority:'우선순위',tags:'태그',format:'형식',search:'검색',filterAll:'전체',filterUnread:'안 읽음',filterRead:'읽음',filterFlagged:'플래그',untitled:'제목 없음',msgDetail:'메시지 상세',msgDeleted:'메시지 삭제됨',undo:'실행 취소',selected:'선택됨',flag:'플래그',unflag:'플래그 해제',delete:'삭제',copy:'복사',copyTitle:'제목 복사',download:'다운로드',justNow:'방금',minAgo:'분 전',hrAgo:'시간 전',daysAgo:'일 전',noUrl:'다운로드 URL 없음' },
+};
+function detectLang() { const c=(navigator.language||'en').split('-')[0].toLowerCase(); return I18N[c]?c:'en'; }
+const LANG=detectLang(); const T=I18N[LANG];
+
+function applyI18n() {
+  const m = {
+    't-server-config':T.serverConfig,'t-system-label':T.system,'t-name-label':T.name,
+    't-connect-btn':T.connectBtn,'t-msgs-label':T.messages,
+    't-no-messages':T.noMessages,'t-edit-config':T.settings,'t-save-btn':T.saveBtn,
+    't-m-name-label':T.name,'t-quick-send':T.quickSend,'t-tab-server':T.tabServer,
+    't-tab-system':T.tabSystem,'t-tab-data':T.tabData,'t-tab-tools':T.tabTools,
+    't-app-version':T.appVersion,'t-config-path-label':T.configFile,
+    't-msg-path-label':T.messagesFile,'t-autostart-label':T.autostart,'t-filter-all':T.filterAll,
+    't-filter-unread':T.filterUnread,'t-filter-read':T.filterRead,'t-filter-flagged':T.filterFlagged,
+    't-detail-title':T.msgDetail,
+    't-delete-confirm-title':T.deleteConfirmTitle,
+    't-backup-restore':T.backupRestore,'t-backup-btn':T.backup,'t-restore-btn':T.restore,
+    't-export':T.export,
+  };
+  for (const [id,val] of Object.entries(m)) { const el=document.getElementById(id); if(el) el.textContent=val; }
+  // Preserve badge spans - only update first text node
+  ['t-messages','t-messages-hdr'].forEach(id => {
+    const el=document.getElementById(id);
+    if(el){ const tn=document.createTextNode(T.messages); if(el.firstChild) el.replaceChild(tn,el.firstChild); else el.appendChild(tn); }
+  });
+  document.getElementById('editConfigBtn').title=T.settings;
+  document.getElementById('markAllReadBtn').title=T.markAllRead;
+  document.getElementById('clearMsgsBtn').title=T.clearAll;
+  document.getElementById('modalCancelBtn').textContent=T.cancel;
+  document.getElementById('copyCurlBtn').title=T.copyCurl;
+  document.getElementById('searchInput').placeholder=T.search;
+}
+applyI18n();
+
+/* ── State ── */
+let allMessages = [];
+let currentFilter = 'all';
+let searchQuery = '';
+let selectedIds = new Set();
+let selectMode = false;
+let lastDeletedMsg = null;
+let lastDeletedIdx = -1;
+let undoTimer = null;
+let detailMsg = null;
+let toastTimer = null;
+
+/* ── Toast Notification ── */
+function showToast(text, type = 'info') {
+  const toast = document.getElementById('toast');
+  const icon = document.getElementById('toastIcon');
+  const textEl = document.getElementById('toastText');
+  textEl.textContent = text;
+  toast.className = 'toast visible ' + type;
+  icon.textContent = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.classList.remove('visible'); }, 3000);
+}
+document.getElementById('toastClose').addEventListener('click', () => {
+  document.getElementById('toast').classList.remove('visible');
+  if (toastTimer) clearTimeout(toastTimer);
+});
+
+/* ── Helpers ── */
+function escHtml(s) { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+function formatRelativeTime(dateStr) {
+  try {
+    const date = new Date(dateStr.replace(' ', 'T'));
+    const diff = Date.now() - date.getTime();
+    if (diff < 60000) return T.justNow;
+    if (diff < 3600000) return Math.floor(diff/60000) + ' ' + T.minAgo;
+    if (diff < 86400000) return Math.floor(diff/3600000) + ' ' + T.hrAgo;
+    if (diff < 2592000000) return Math.floor(diff/86400000) + ' ' + T.daysAgo;
+    const m = date.getMonth()+1, d = date.getDate();
+    return (m<10?'0':'')+m+'/'+(d<10?'0':'')+d;
+  } catch { return dateStr; }
+}
+
+function parseTags(m) {
+  try { if (m.tags) { const t = JSON.parse(m.tags); return Array.isArray(t) ? t : []; } } catch {} return [];
+}
+function parseAttachment(m) {
+  try { if (m.attachment) return JSON.parse(m.attachment); } catch {} return null;
+}
+
+function getFilteredMessages() {
+  return allMessages.filter(m => {
+    const matchesSearch = !searchQuery || (m.title||'').toLowerCase().includes(searchQuery) || (m.body||'').toLowerCase().includes(searchQuery);
+    const matchesFilter = currentFilter === 'all' || (currentFilter === 'unread' && !m.read) || (currentFilter === 'read' && m.read) || (currentFilter === 'flagged' && m.flagged);
+    return matchesSearch && matchesFilter;
+  });
+}
+
+/* ── JSON Syntax Highlighting ── */
+function highlightJson(str) {
+  try {
+    const obj = JSON.parse(str);
+    str = JSON.stringify(obj, null, 2);
+  } catch {}
+  return escHtml(str).replace(
+    /(&quot;)(.*?)(&quot;)\s*:/g, '<span class="json-key">$1$2$3</span>:'
+  ).replace(
+    /:\s*(&quot;)(.*?)(&quot;)/g, ': <span class="json-str">$1$2$3</span>'
+  ).replace(
+    /:\s*(\d+\.?\d*)/g, ': <span class="json-num">$1</span>'
+  ).replace(
+    /:\s*(true|false)/g, ': <span class="json-bool">$1</span>'
+  ).replace(
+    /:\s*(null)/g, ': <span class="json-null">$1</span>'
+  );
+}
+
+/* ── Markdown Rendering ── */
+function renderMarkdown(text) {
+  let html = escHtml(text);
+  // Code blocks
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<span class="md-code-block">$2</span>');
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<span class="md-code">$1</span>');
+  // Headers
+  html = html.replace(/^### (.+)$/gm, '<div class="md-h3">$1</div>');
+  html = html.replace(/^## (.+)$/gm, '<div class="md-h2">$1</div>');
+  html = html.replace(/^# (.+)$/gm, '<div class="md-h1">$1</div>');
+  // Bold + italic
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<span class="md-bold">$1</span>');
+  html = html.replace(/\*(.+?)\*/g, '<span class="md-italic">$1</span>');
+  // Strikethrough
+  html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a class="md-link" href="#" onclick="event.preventDefault();invoke(\'open_url\',{url:\'$2\'})">$1</a>');
+  // Blockquote
+  html = html.replace(/^&gt; (.+)$/gm, '<div class="md-blockquote">$1</div>');
+  // Checkboxes
+  html = html.replace(/^- \[x\] (.+)$/gm, '<div class="md-list-item"><input type="checkbox" checked disabled class="md-checkbox">$1</div>');
+  html = html.replace(/^- \[ \] (.+)$/gm, '<div class="md-list-item"><input type="checkbox" disabled class="md-checkbox">$1</div>');
+  // Unordered list
+  html = html.replace(/^- (.+)$/gm, '<div class="md-list-item">$1</div>');
+  // Ordered list
+  html = html.replace(/^\d+\. (.+)$/gm, '<div class="md-list-item">$1</div>');
+  // Horizontal rule
+  html = html.replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:8px 0">');
+  // Table (simple)
+  html = html.replace(/\|(.+)\|/g, (match) => {
+    const cells = match.split('|').filter(c => c.trim());
+    if (cells.every(c => /^[\s-:]+$/.test(c))) return ''; // separator row
+    return '<div style="display:flex;gap:12px;padding:2px 0">' + cells.map(c => '<span style="flex:1">'+c.trim()+'</span>').join('') + '</div>';
+  });
+  return html;
+}
+
+/* ── Render HTML content ── */
+function renderHtmlContent(text) {
+  // Strip dangerous tags but keep safe formatting
+  const tmp = document.createElement('div');
+  tmp.innerHTML = text;
+  // Remove script/style
+  tmp.querySelectorAll('script,style,iframe,object,embed').forEach(el => el.remove());
+  return tmp.innerHTML;
+}
+
+/* ── Views ── */
+let currentView = 'connect';
+function showView(name) {
+  document.getElementById('viewConnect').classList.toggle('active', name === 'connect');
+  document.getElementById('viewDashboard').classList.toggle('active', name === 'dashboard');
+  currentView = name;
+}
+
+/* ── Virtual Scroll State ── */
+const MSG_HEIGHT = 80; // height per message card
+const BUFFER_COUNT = 5; // extra items above/below viewport
+let virtualFiltered = []; // current filtered messages
+let scrollRafId = null;
+
+/* ── Build single message HTML ── */
+function buildMessageCard(m) {
+  const lvl = (m.level || 'info').toLowerCase();
+  const tags = parseTags(m);
+  const att = parseAttachment(m);
+  const isUnread = !m.read;
+  const isSelected = selectedIds.has(m.id);
+  const title = m.title || T.untitled;
+  const relTime = formatRelativeTime(m.received_at);
+  const classes = ['msg-card'];
+  if (isUnread) classes.push('unread');
+  if (isSelected) classes.push('selected');
+
+  let html = '<div class="' + classes.join(' ') + '" data-id="' + m.id + '">';
+  if (selectMode) {
+    html += '<input type="checkbox" class="msg-checkbox" data-id="' + m.id + '"' + (isSelected ? ' checked' : '') + '>';
+  } else {
+    html += '<div class="msg-dot ' + lvl + '"></div>';
+  }
+  html += '<div class="msg-content" data-id="' + m.id + '">';
+  html += '<div class="msg-title-row"><span class="msg-title-text">' + escHtml(title) + '</span></div>';
+  html += '<div class="msg-body-preview">' + escHtml(m.body).substring(0, 120) + '</div>';
+  html += '<div class="msg-meta">';
+  html += '<span class="msg-time">' + escHtml(relTime) + '</span>';
+  html += '<span class="msg-level-badge ' + lvl + '">' + lvl + '</span>';
+  if (tags.length > 0) {
+    for (const t of tags.slice(0, 3)) html += '<span class="msg-tag">' + escHtml(t) + '</span>';
+  }
+  if (att) html += '<span class="msg-att-icon">📎</span>';
+  if (m.url) html += '<span class="msg-att-icon">🔗</span>';
+  const fmt = m.format || 'text';
+  if (fmt !== 'text') html += '<span class="msg-tag">' + escHtml(fmt) + '</span>';
+  html += '</div></div>';
+  html += '<div class="msg-right">';
+  html += '<div class="msg-flags">';
+  html += '<span class="msg-flag-icon' + (m.flagged ? ' flagged' : '') + '" data-action="flag" data-id="' + m.id + '" title="' + (m.flagged ? T.unflag : T.flag) + '">⚑</span>';
+  html += '<button class="msg-del-btn" data-action="delete" data-id="' + m.id + '" title="' + T.delete + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
+  html += '</div></div></div>';
+  return html;
+}
+
+/* ── Render Message List (Virtual Scroll) ── */
+function renderMessages() {
+  virtualFiltered = getFilteredMessages();
+  const container = document.getElementById('msgListBody');
+  const viewport = document.getElementById('msgViewport');
+
+  if (virtualFiltered.length === 0) {
+    viewport.innerHTML = '<div class="msg-empty"><div class="msg-empty-icon">📭</div>' + T.noMessages + '</div>';
+    viewport.style.height = 'auto';
+    return;
+  }
+
+  // Set total height for scrollbar
+  const totalHeight = virtualFiltered.length * MSG_HEIGHT;
+  viewport.style.height = totalHeight + 'px';
+
+  // Initial render of visible items
+  renderVisibleMessages();
+  updateUnreadBadge();
+}
+
+/* ── Render only visible messages ── */
+function renderVisibleMessages() {
+  const container = document.getElementById('msgListBody');
+  const viewport = document.getElementById('msgViewport');
+  const scrollTop = container.scrollTop;
+  const containerHeight = container.clientHeight;
+
+  // Calculate visible range
+  const startIdx = Math.max(0, Math.floor(scrollTop / MSG_HEIGHT) - BUFFER_COUNT);
+  const endIdx = Math.min(virtualFiltered.length, Math.ceil((scrollTop + containerHeight) / MSG_HEIGHT) + BUFFER_COUNT);
+
+  // Build HTML for visible items only
+  let html = '';
+  for (let i = startIdx; i < endIdx; i++) {
+    const m = virtualFiltered[i];
+    html += '<div style="position:absolute;top:' + (i * MSG_HEIGHT) + 'px;left:0;right:0;height:' + MSG_HEIGHT + 'px">';
+    html += buildMessageCard(m);
+    html += '</div>';
+  }
+  viewport.innerHTML = html;
+
+  // Attach event listeners via delegation on viewport
+  attachMessageListeners();
+}
+
+/* ── Event delegation for messages ── */
+function attachMessageListeners() {
+  const viewport = document.getElementById('msgViewport');
+
+  // Use event delegation - single listener on viewport
+  viewport.onclick = async (e) => {
+    const card = e.target.closest('.msg-card');
+    if (!card) return;
+
+    // Flag action
+    const flagEl = e.target.closest('[data-action="flag"]');
+    if (flagEl) {
+      e.stopPropagation();
+      await invoke('toggle_flag', { id: flagEl.dataset.id });
+      await refreshMessages();
+      return;
+    }
+
+    // Delete action
+    const delEl = e.target.closest('[data-action="delete"]');
+    if (delEl) {
+      e.stopPropagation();
+      await deleteWithUndo(delEl.dataset.id);
+      return;
+    }
+
+    // Checkbox
+    const checkbox = e.target.closest('.msg-checkbox');
+    if (checkbox) {
+      e.stopPropagation();
+      toggleSelect(checkbox.dataset.id);
+      return;
+    }
+
+    // Card click
+    const id = card.dataset.id;
+    if (selectMode) {
+      toggleSelect(id);
+    } else {
+      openDetail(id);
+    }
+  };
+}
+
+/* ── Scroll handler with requestAnimationFrame ── */
+function onMsgScroll() {
+  if (scrollRafId) return;
+  scrollRafId = requestAnimationFrame(() => {
+    scrollRafId = null;
+    renderVisibleMessages();
+  });
+}
+
+// Initialize scroll listener
+document.getElementById('msgListBody').addEventListener('scroll', onMsgScroll, { passive: true });
+
+/* ── Delete with Undo ── */
+async function deleteWithUndo(id) {
+  const msg = await invoke('delete_message_undo', { id });
+  if (msg) {
+    lastDeletedMsg = msg;
+    lastDeletedIdx = allMessages.findIndex(m => m.id === id);
+    showSnackbar(T.msgDeleted);
+  }
+  await refreshMessages();
+}
+
+function showSnackbar(text) {
+  const el = document.getElementById('undoSnackbar');
+  document.getElementById('snackbarText').textContent = text;
+  el.classList.add('visible');
+  if (undoTimer) clearTimeout(undoTimer);
+  undoTimer = setTimeout(() => { el.classList.remove('visible'); lastDeletedMsg = null; }, 5000);
+}
+
+document.getElementById('undoBtn').addEventListener('click', async () => {
+  if (lastDeletedMsg) {
+    await invoke('insert_message', { msg: lastDeletedMsg, index: lastDeletedIdx >= 0 ? lastDeletedIdx : 0 });
+    lastDeletedMsg = null;
+    document.getElementById('undoSnackbar').classList.remove('visible');
+    if (undoTimer) clearTimeout(undoTimer);
+    await refreshMessages();
+  }
+});
+
+/* ── Multi-select ── */
+function toggleSelect(id) {
+  if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+  if (selectedIds.size === 0) exitSelectMode();
+  updateSelectBar();
+  renderMessages();
+}
+function enterSelectMode(id) {
+  selectMode = true;
+  selectedIds.clear();
+  if (id) selectedIds.add(id);
+  updateSelectBar();
+  renderMessages();
+}
+function exitSelectMode() {
+  selectMode = false;
+  selectedIds.clear();
+  document.getElementById('selectBar').classList.remove('visible');
+  renderMessages();
+}
+function updateSelectBar() {
+  const bar = document.getElementById('selectBar');
+  if (selectMode && selectedIds.size > 0) {
+    bar.classList.add('visible');
+    document.getElementById('selectCount').textContent = selectedIds.size + ' ' + T.selected;
+  } else {
+    bar.classList.remove('visible');
+  }
+}
+document.getElementById('selectAllBtn').addEventListener('click', () => {
+  const filtered = getFilteredMessages();
+  if (selectedIds.size === filtered.length) { selectedIds.clear(); } else { filtered.forEach(m => selectedIds.add(m.id)); }
+  updateSelectBar(); renderMessages();
+});
+document.getElementById('deleteSelectedBtn').addEventListener('click', async () => {
+  for (const id of selectedIds) await invoke('delete_message', { id });
+  exitSelectMode(); await refreshMessages();
+});
+document.getElementById('cancelSelectBtn').addEventListener('click', exitSelectMode);
+
+/* ── Detail View ── */
+function openDetail(id) {
+  const m = allMessages.find(x => x.id === id);
+  if (!m) return;
+  detailMsg = m;
+  // Mark as read
+  if (!m.read) { invoke('mark_as_read', { id }); m.read = true; updateUnreadBadge(); }
+  const title = m.title || T.untitled;
+  const lvl = (m.level || 'info').toLowerCase();
+  const tags = parseTags(m);
+  const att = parseAttachment(m);
+  const fmt = m.format || 'text';
+
+  let html = '';
+  // Title
+  html += '<div class="detail-title-row"><span class="detail-title">' + escHtml(title) + '</span></div>';
+  // Meta
+  html += '<div class="detail-meta">';
+  html += '<span class="detail-time">' + escHtml(m.received_at) + '</span>';
+  html += '<span class="msg-level-badge ' + lvl + '">' + lvl + '</span>';
+  html += '</div>';
+  // URL
+  if (m.url) {
+    html += '<a class="detail-url-btn" href="#" onclick="event.preventDefault();invoke(\'open_url\',{url:\'' + escHtml(m.url) + '\'})">🔗 ' + escHtml(m.url) + '</a>';
+  }
+  // Body card
+  html += '<div class="detail-content-card">';
+  html += '<div class="detail-content-header"><span>' + (fmt === 'text' ? 'Content' : fmt.toUpperCase()) + '</span>';
+  html += '<button class="copy-btn" id="detailCopyBodyBtn" title="' + T.copy + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>';
+  html += '<div class="detail-content-body' + (fmt === 'json' ? ' json' : '') + (fmt === 'html' ? ' html-content' : '') + (fmt === 'markdown' ? ' markdown' : '') + '">';
+  if (fmt === 'json') html += highlightJson(m.body);
+  else if (fmt === 'markdown') html += renderMarkdown(m.body);
+  else if (fmt === 'html') html += renderHtmlContent(m.body);
+  else html += escHtml(m.body).replace(/\n/g, '<br>');
+  html += '</div></div>';
+  // Tags
+  if (tags.length > 0) {
+    html += '<div class="detail-section-title">' + T.tags + '</div>';
+    html += '<div class="detail-tags">' + tags.map(t => '<span class="detail-tag">' + escHtml(t) + '</span>').join('') + '</div>';
+  }
+  // Attachment
+  if (att) {
+    const sizeStr = att.size ? (att.size > 1048576 ? (att.size/1048576).toFixed(1)+'MB' : att.size > 1024 ? (att.size/1024).toFixed(1)+'KB' : att.size+'B') : '';
+    html += '<div class="detail-section-title">Attachment</div>';
+    html += '<div class="detail-att-card" onclick="' + (att.url ? "invoke('open_url',{url:'" + escHtml(att.url) + "'})" : "alert('" + T.noUrl + "')") + '">';
+    html += '<span style="font-size:20px">📎</span><div class="detail-att-info"><div class="detail-att-name">' + escHtml(att.name || 'attachment') + '</div>';
+    if (sizeStr) html += '<div class="detail-att-size">' + sizeStr + '</div>';
+    html += '</div><span style="font-size:12px;color:var(--accent)">' + T.download + ' →</span></div>';
+  }
+  document.getElementById('detailContent').innerHTML = html;
+  document.getElementById('detailOverlay').classList.add('open');
+
+  // Copy body button
+  const copyBodyBtn = document.getElementById('detailCopyBodyBtn');
+  if (copyBodyBtn) copyBodyBtn.addEventListener('click', () => copyToClipboard(m.body, copyBodyBtn));
+  // Long-press for multi-select
+  renderMessages();
+}
+
+function closeDetail() {
+  document.getElementById('detailOverlay').classList.remove('open');
+  detailMsg = null;
+  refreshMessages();
+}
+document.getElementById('detailBackBtn').addEventListener('click', closeDetail);
+document.getElementById('detailCopyTitleBtn').addEventListener('click', () => {
+  if (detailMsg) copyToClipboard(detailMsg.title || T.untitled, document.getElementById('detailCopyTitleBtn'));
+});
+
+function copyToClipboard(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    btn.classList.add('copied');
+    setTimeout(() => btn.classList.remove('copied'), 1500);
+  }).catch(() => {});
+}
+
+/* ── Unread Badge ── */
+function updateUnreadBadge() {
+  const count = allMessages.filter(m => !m.read).length;
+  // Update header badge (in Messages header)
+  const headerBadge = document.getElementById('headerUnreadBadge');
+  if (headerBadge) {
+    if (count > 0) { headerBadge.textContent = count; headerBadge.style.display = 'inline-flex'; }
+    else { headerBadge.style.display = 'none'; }
+  }
+  // Update title badge (in view title)
+  const badge = document.getElementById('unreadBadge');
+  if (badge) {
+    if (count > 0) { badge.textContent = count; badge.style.display = 'inline-flex'; }
+    else { badge.style.display = 'none'; }
+  }
+  // Update filter chip counts
+  updateFilterCounts();
+}
+
+/* ── Filter Chip Counts ── */
+function updateFilterCounts() {
+  const total = allMessages.length;
+  const unread = allMessages.filter(m => !m.read).length;
+  const read = allMessages.filter(m => m.read).length;
+  const flagged = allMessages.filter(m => m.flagged).length;
+
+  document.getElementById('t-filter-all').textContent = T.filterAll + '(' + total + ')';
+  document.getElementById('t-filter-unread').textContent = T.filterUnread + '(' + unread + ')';
+  document.getElementById('t-filter-read').textContent = T.filterRead + '(' + read + ')';
+  document.getElementById('t-filter-flagged').textContent = T.filterFlagged + '(' + flagged + ')';
+}
+
+/* ── Filter Chips ── */
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    currentFilter = chip.dataset.filter;
+    renderMessages();
+  });
+});
+
+/* ── Search ── */
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  searchQuery = e.target.value.toLowerCase();
+  renderMessages();
+});
+
+/* ── Refresh Messages ── */
+async function refreshMessages() {
+  try {
+    allMessages = await invoke('get_messages');
+    renderMessages();
+  } catch {}
+}
+
+/* ── Status Polling ── */
+let statusTimer = null;
+function startStatusPolling() {
+  if (statusTimer) clearInterval(statusTimer);
+  refreshStatus();
+  statusTimer = setInterval(refreshStatus, 3000);
+}
+async function refreshStatus() {
+  try {
+    const state = await invoke('get_poll_state');
+    const dot = document.querySelector('#connStatus .status-dot');
+    const text = document.getElementById('connText');
+    if (state.error) {
+      dot.className = 'status-dot off'; text.textContent = T.disconnected;
+    } else if (state.last_poll) {
+      dot.className = 'status-dot on'; text.textContent = T.connected + ' ' + state.last_poll;
+    } else {
+      dot.className = 'status-dot wait'; text.textContent = T.connecting;
+    }
+  } catch {}
+}
+
+/* ── Copy UUID (in settings) ── */
+document.getElementById('info-uuid')?.addEventListener('click', async () => {
+  const txt = document.getElementById('info-uuid').textContent;
+  if (txt && txt !== '—') { try { await navigator.clipboard.writeText(txt); } catch {} }
+});
+
+/* ── Connect View ── */
+document.getElementById('connectBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('connectBtn');
+  const statusEl = document.getElementById('connectStatus');
+  const label = document.getElementById('t-connect-btn');
+  btn.disabled = true; label.textContent = T.saving;
+  try {
+    const cfg = await invoke('get_config');
+    const newCfg = { server:{ url:document.getElementById('c-url').value, api_key:document.getElementById('c-apiKey').value }, client:{ uuid:cfg.client.uuid, name:document.getElementById('c-name').value }, autostart:cfg.autostart||false };
+    await invoke('save_config', { cfg: newCfg });
+    statusEl.innerHTML = '<span style="color:var(--success)"><span class="status-dot on"></span>' + T.connecting + '</span>';
+    await invoke('reconnect');
+    await enterDashboard();
+  } catch (e) {
+    statusEl.innerHTML = '<span style="color:var(--error)"><span class="status-dot off"></span>' + T.error + ': ' + e + '</span>';
+    btn.disabled = false; label.textContent = T.connectBtn;
+  }
+});
+
+/* ── Dashboard ── */
+function buildCurlExample(url, apiKey, uuid) {
+  return `curl -X POST ${url}/api/v1/send \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "channel": "push",
+    "to": "${uuid}",
+    "subject": "Hello from NotifyHub",
+    "body": "Welcome! This is a test notification"
+  }'`;
+}
+function renderCurl(url, apiKey, uuid) {
+  const el = document.getElementById('curlExample');
+  const raw = buildCurlExample(url, apiKey, uuid);
+  let html = escHtml(raw).replace(/^(curl)/m,'<span class="kw">$1</span>').replace(/(-X\s+\S+)/g,'<span class="flag">$1</span>').replace(/(-H\s+)/g,'<span class="flag">$1</span>').replace(/(-d\s+)/g,'<span class="flag">$1</span>').replace(/(&quot;[^&]*?&quot;)/g,'<span class="str">$1</span>');
+  el.innerHTML = html;
+}
+let _curlRaw = '';
+document.getElementById('copyCurlBtn').addEventListener('click', () => { navigator.clipboard.writeText(_curlRaw).then(()=>{ const b=document.getElementById('copyCurlBtn'); b.classList.add('copied'); setTimeout(()=>b.classList.remove('copied'),1500); }).catch(()=>{}); });
+
+async function enterDashboard() {
+  showView('dashboard');
+  await refreshMessages();
+  startStatusPolling();
+}
+
+/* ── Clear messages ── */
+let deleteModalCallback = null;
+function showDeleteModal(text, onConfirm) {
+  document.getElementById('deleteModalText').textContent = text;
+  document.getElementById('deleteModal').classList.add('open');
+  deleteModalCallback = onConfirm;
+}
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.remove('open');
+  deleteModalCallback = null;
+}
+document.getElementById('clearMsgsBtn').addEventListener('click', () => {
+  showDeleteModal(T.clearConfirm, async () => {
+    await invoke('clear_messages');
+    await refreshMessages();
+  });
+});
+/* ── Mark All Read ── */
+document.getElementById('markAllReadBtn').addEventListener('click', async () => {
+  const unreadMsgs = allMessages.filter(m => !m.read);
+  for (const m of unreadMsgs) {
+    await invoke('mark_as_read', { id: m.id });
+    m.read = true;
+  }
+  await refreshMessages();
+});
+document.getElementById('deleteModalClose').addEventListener('click', closeDeleteModal);
+document.getElementById('deleteModalCancel').addEventListener('click', closeDeleteModal);
+document.getElementById('deleteModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeDeleteModal(); });
+document.getElementById('deleteModalConfirm').addEventListener('click', async () => {
+  if (deleteModalCallback) await deleteModalCallback();
+  closeDeleteModal();
+});
+
+/* ── Settings Modal ── */
+function switchTab(tabId) { document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tabId)); document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id===tabId)); }
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));
+function closeModal(){ document.getElementById('configModal').classList.remove('open'); }
+async function loadSystemTab() {
+  let serverUrl = '';
+  try {
+    const cfg = await invoke('get_config');
+    if (cfg) {
+      document.getElementById('info-uuid').textContent = cfg.client.uuid;
+      serverUrl = cfg.server.url || '';
+    }
+  } catch {}
+  try {
+    const info = await invoke('get_system_info');
+    document.getElementById('info-sysinfo').textContent = info.os + ' / ' + info.arch + ' / ' + info.desktop_env;
+  } catch {}
+  document.getElementById('info-msg-count').textContent = allMessages.length;
+  try { const i = await invoke('get_app_info'); document.getElementById('info-app-version').textContent = i.version; document.getElementById('info-config-path').textContent = i.config_path; document.getElementById('info-msg-path').textContent = i.messages_path; } catch {}
+  _curlRaw = buildCurlExample(
+    serverUrl,
+    (await invoke('get_config').catch(()=>({})))?.server?.api_key || '',
+    document.getElementById('info-uuid').textContent || ''
+  );
+  renderCurl(
+    serverUrl,
+    (await invoke('get_config').catch(()=>({})))?.server?.api_key || '',
+    document.getElementById('info-uuid').textContent || ''
+  );
+  try { document.getElementById('autostartToggle').checked = !!(await invoke('get_autostart')); } catch { document.getElementById('autostartToggle').checked = false; }
+}
+document.getElementById('editConfigBtn').addEventListener('click', async()=>{ try{const c=await invoke('get_config');if(c){document.getElementById('m-url').value=c.server.url;document.getElementById('m-apiKey').value=c.server.api_key;document.getElementById('m-name').value=c.client.name;}}catch{} switchTab('tab-server'); document.getElementById('configModal').classList.add('open'); });
+document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+document.getElementById('configModal').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeModal(); });
+document.querySelector('[data-tab="tab-system"]').addEventListener('click', loadSystemTab);
+document.querySelector('[data-tab="tab-tools"]').addEventListener('click', loadToolsTab);
+
+async function loadToolsTab() {
+  let serverUrl = '';
+  let apiKey = '';
+  let uuid = '';
+  try {
+    const cfg = await invoke('get_config');
+    if (cfg) {
+      serverUrl = cfg.server.url || '';
+      apiKey = cfg.server.api_key || '';
+      uuid = cfg.client.uuid || '';
+    }
+  } catch {}
+  if (!uuid) {
+    try { uuid = document.getElementById('info-uuid').textContent || ''; } catch {}
+  }
+  _curlRaw = buildCurlExample(serverUrl, apiKey, uuid);
+  renderCurl(serverUrl, apiKey, uuid);
+}
+document.getElementById('autostartToggle').addEventListener('change', async e=>{ try{await invoke('set_autostart',{enabled:e.target.checked});}catch(err){e.target.checked=!e.target.checked;alert(T.error+': '+err);} });
+document.getElementById('modalSaveBtn').addEventListener('click', async()=>{
+  const btn=document.getElementById('modalSaveBtn'), label=document.getElementById('t-save-btn'); btn.disabled=true; label.textContent=T.saving;
+  try{const cfg=await invoke('get_config');const newCfg={server:{url:document.getElementById('m-url').value,api_key:document.getElementById('m-apiKey').value},client:{uuid:cfg.client.uuid,name:document.getElementById('m-name').value},autostart:cfg.autostart||false}; await invoke('save_config',{cfg:newCfg}); await invoke('reconnect'); closeModal(); }catch(e){alert(T.error+': '+e);} finally{btn.disabled=false; label.textContent=T.saveBtn;}
+});
+
+/* ── Backup & Restore ── */
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('backupBtn').addEventListener('click', async () => {
+  try {
+    const json = await invoke('backup_messages_json');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filePath = await invoke('plugin:dialog|save', {
+      options: {
+        title: T.backup,
+        defaultPath: `notifyhub_backup_${ts}.json`,
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      }
+    });
+    if (filePath) {
+      await invoke('plugin:fs|writeTextFile', { path: filePath, contents: json });
+      showToast(T.backupSuccess, 'success');
+    }
+  } catch (e) { showToast(T.error + ': ' + e, 'error'); }
+});
+
+document.getElementById('restoreBtn').addEventListener('click', async () => {
+  if (!confirm(T.restoreConfirm)) return;
+  try {
+    const filePath = await invoke('plugin:dialog|open', {
+      options: {
+        title: T.restore,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        multiple: false
+      }
+    });
+    if (filePath) {
+      const text = await invoke('plugin:fs|readTextFile', { path: filePath });
+      const count = await invoke('restore_messages_json', { json: text });
+      showToast(T.restoreSuccess.replace('{count}', count), 'success');
+      await refreshMessages();
+      loadSystemTab();
+    }
+  } catch (e) { showToast(T.restoreFailed + ': ' + e, 'error'); }
+});
+
+document.getElementById('exportCsvBtn').addEventListener('click', async () => {
+  try {
+    const csv = await invoke('export_messages_csv');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filePath = await invoke('plugin:dialog|save', {
+      options: {
+        title: T.export,
+        defaultPath: `notifyhub_messages_${ts}.csv`,
+        filters: [{ name: 'CSV', extensions: ['csv'] }]
+      }
+    });
+    if (filePath) {
+      await invoke('plugin:fs|writeTextFile', { path: filePath, contents: csv });
+      showToast(T.exportSuccess.replace('{format}', 'CSV'), 'success');
+    }
+  } catch (e) { showToast(T.error + ': ' + e, 'error'); }
+});
+
+document.getElementById('exportXmlBtn').addEventListener('click', async () => {
+  try {
+    const xml = await invoke('export_messages_xml');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filePath = await invoke('plugin:dialog|save', {
+      options: {
+        title: T.export,
+        defaultPath: `notifyhub_messages_${ts}.xml`,
+        filters: [{ name: 'XML', extensions: ['xml'] }]
+      }
+    });
+    if (filePath) {
+      await invoke('plugin:fs|writeTextFile', { path: filePath, contents: xml });
+      showToast(T.exportSuccess.replace('{format}', 'XML'), 'success');
+    }
+  } catch (e) { showToast(T.error + ': ' + e, 'error'); }
+});
+
+document.getElementById('exportJsonBtn').addEventListener('click', async () => {
+  try {
+    const json = await invoke('export_messages_json');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filePath = await invoke('plugin:dialog|save', {
+      options: {
+        title: T.export,
+        defaultPath: `notifyhub_messages_${ts}.json`,
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      }
+    });
+    if (filePath) {
+      await invoke('plugin:fs|writeTextFile', { path: filePath, contents: json });
+      showToast(T.exportSuccess.replace('{format}', 'JSON'), 'success');
+    }
+  } catch (e) { showToast(T.error + ': ' + e, 'error'); }
+});
+
+/* ── Keyboard shortcuts ── */
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('detailOverlay').classList.contains('open')) closeDetail();
+    else if (selectMode) exitSelectMode();
+    else if (document.getElementById('configModal').classList.contains('open')) closeModal();
+  }
+});
+
+/* ── Init ── */
+(async()=>{
+  try{const cfg=await invoke('get_config');if(cfg&&cfg.server.api_key){document.getElementById('c-url').value=cfg.server.url;document.getElementById('c-apiKey').value=cfg.server.api_key;document.getElementById('c-name').value=cfg.client.name;await enterDashboard();}else{if(cfg){document.getElementById('c-url').value=cfg.server.url;document.getElementById('c-name').value=cfg.client.name;}showView('connect');}}catch{showView('connect')}
+})();
+setInterval(()=>{ if(currentView==='dashboard'&&!detailMsg) refreshMessages(); }, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+node_modules/
+dist/
+*.db
+*.db-journal
+*.db-wal
+.env
+.env.local
+.DS_Store
+*.log
+data/
+deploy/.env
+
+# Android build artifacts
+android/.gradle/
+android/.idea/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+*.apk
+*.aab
+
+# Desktop
+desktop/target/

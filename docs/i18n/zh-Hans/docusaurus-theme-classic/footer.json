@@ -1,0 +1,30 @@
+{
+  "link.title.Documentation": {
+    "message": "文档",
+    "description": "The title of the footer links column: Documentation"
+  },
+  "link.title.Community": {
+    "message": "社区",
+    "description": "The title of the footer links column: Community"
+  },
+  "link.item.label.Getting Started": {
+    "message": "快速开始",
+    "description": "The label of footer link with label=Getting Started linking to /getting-started"
+  },
+  "link.item.label.API Reference": {
+    "message": "API 参考",
+    "description": "The label of footer link with label=API Reference linking to /api/send"
+  },
+  "link.item.label.Channels": {
+    "message": "渠道",
+    "description": "The label of footer link with label=Channels linking to /channels/overview"
+  },
+  "link.item.label.GitHub": {
+    "message": "GitHub",
+    "description": "The label of footer link with label=GitHub linking to https://github.com/notifyhub/notifyhub"
+  },
+  "copyright": {
+    "message": "Copyright © 2025 NotifyHub. 基于 Docusaurus 构建。",
+    "description": "The footer copyright"
+  }
+}

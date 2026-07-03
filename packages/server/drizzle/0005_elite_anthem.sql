@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `channels_name_unique` ON `channels` (`name`);

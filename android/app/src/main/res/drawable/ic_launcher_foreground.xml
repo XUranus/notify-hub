@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Bell icon centered in the safe zone (centered at 54,54, ~30dp radius) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,76c3.3,0 6,-2.7 6,-6h-12c0,3.3 2.7,6 6,6zM69,59v-15c0,-9.2 -4.9,-16.9 -13.5,-19V22c0,-2.5 -2,-4.5 -4.5,-4.5s-4.5,2 -4.5,4.5v3c-8.6,2.1 -13.5,9.8 -13.5,19v15l-6,6v3h48v-3l-6,-6z"/>
+</vector>

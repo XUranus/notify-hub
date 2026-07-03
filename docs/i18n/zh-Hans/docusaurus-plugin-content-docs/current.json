@@ -1,0 +1,14 @@
+{
+  "sidebar.docs.category.Channels": {
+    "message": "渠道管理",
+    "description": "The label for category Channels in sidebar docs"
+  },
+  "sidebar.docs.category.API Reference": {
+    "message": "API 参考",
+    "description": "The label for category API Reference in sidebar docs"
+  },
+  "sidebar.docs.category.Deployment": {
+    "message": "部署",
+    "description": "The label for category Deployment in sidebar docs"
+  }
+}

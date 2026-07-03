@@ -1,0 +1,1 @@
+ALTER TABLE `push_clients` ADD `desktop` text;

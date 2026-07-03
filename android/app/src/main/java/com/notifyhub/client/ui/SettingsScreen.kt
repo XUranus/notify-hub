@@ -1,0 +1,643 @@
+package com.notifyhub.client.ui
+
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.notifyhub.client.data.ApiClient
+import com.notifyhub.client.data.AppLogger
+import com.notifyhub.client.data.ClientConfig
+import com.notifyhub.client.data.ConfigStore
+import com.notifyhub.client.data.I18n
+import com.notifyhub.client.data.i18n
+import com.notifyhub.client.ui.theme.palettes
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    currentConfig: ClientConfig,
+    onScanQr: () -> Unit,
+    onBack: () -> Unit,
+    onSave: (ClientConfig) -> Unit
+) {
+    val context = LocalContext.current
+    var showEditSheet by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(i18n("tab_settings"), fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = i18n("qr_back"))
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // ── Server Config (top, editable) ──
+            SettingsSectionHeader(i18n("settings_server"))
+            ListItem(
+                headlineContent = { Text(i18n("settings_server"), fontWeight = FontWeight.Medium) },
+                supportingContent = {
+                    Column {
+                        Text(currentConfig.serverUrl, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${i18n("config_api_key")}: ${currentConfig.apiKey.take(8)}…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+                trailingContent = {
+                    Icon(Icons.Default.ChevronRight, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                },
+                modifier = Modifier.clickable { showEditSheet = true }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+            // ── Scan QR ──
+            ListItem(
+                headlineContent = { Text(i18n("config_scan_qr"), fontWeight = FontWeight.Medium) },
+                leadingContent = {
+                    Icon(Icons.Default.QrCodeScanner, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                },
+                modifier = Modifier.clickable { onScanQr() }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+            // ── Mute Notifications ──
+            SettingsSectionHeader(i18n("settings_mute"))
+            var muteMenuExpanded by remember { mutableStateOf(false) }
+            var isMuted by remember { mutableStateOf(ConfigStore.isMuted(context)) }
+            val muteOptions = listOf(
+                0L to i18n("mute_off"),
+                30 * 60 * 1000L to i18n("mute_30min"),
+                60 * 60 * 1000L to i18n("mute_1h"),
+                4 * 60 * 60 * 1000L to i18n("mute_4h"),
+                8 * 60 * 60 * 1000L to i18n("mute_8h"),
+                24 * 60 * 60 * 1000L to i18n("mute_24h"),
+            )
+            val currentMuteLabel = if (isMuted) {
+                val remain = ConfigStore.getMuteUntil(context) - System.currentTimeMillis()
+                when {
+                    remain > 8 * 3600_000 -> i18n("mute_24h")
+                    remain > 4 * 3600_000 -> i18n("mute_8h")
+                    remain > 3600_000 -> i18n("mute_4h")
+                    remain > 30 * 60_000 -> i18n("mute_1h")
+                    else -> i18n("mute_30min")
+                }
+            } else i18n("mute_off")
+            Box {
+                ListItem(
+                    headlineContent = { Text(currentMuteLabel, fontWeight = FontWeight.Medium) },
+                    leadingContent = {
+                        Icon(
+                            if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                            contentDescription = null,
+                            tint = if (isMuted) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    },
+                    modifier = Modifier.clickable { muteMenuExpanded = true }
+                )
+                DropdownMenu(expanded = muteMenuExpanded, onDismissRequest = { muteMenuExpanded = false }) {
+                    muteOptions.forEach { (duration, label) ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(label, fontWeight = if (
+                                    (duration == 0L && !isMuted) ||
+                                    (duration > 0 && isMuted)
+                                ) FontWeight.Bold else FontWeight.Normal)
+                            },
+                            onClick = {
+                                if (duration == 0L) ConfigStore.clearMute(context)
+                                else ConfigStore.setMute(context, duration)
+                                isMuted = ConfigStore.isMuted(context)
+                                muteMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+            // ── Auto Clean ──
+            SettingsSectionHeader(i18n("settings_auto_clean"))
+            var cleanMenuExpanded by remember { mutableStateOf(false) }
+            val cleanDays = remember { mutableStateOf(ConfigStore.getAutoCleanDays(context)) }
+            val cleanOptions = listOf(
+                0 to i18n("clean_never"),
+                1 to i18n("clean_1day"),
+                3 to i18n("clean_3days"),
+                7 to i18n("clean_1week"),
+                30 to i18n("clean_1month"),
+                90 to i18n("clean_3months"),
+            )
+            val currentCleanLabel = cleanOptions.find { it.first == cleanDays.value }?.second ?: i18n("clean_never")
+            Box {
+                ListItem(
+                    headlineContent = { Text(currentCleanLabel, fontWeight = FontWeight.Medium) },
+                    leadingContent = {
+                        Icon(
+                            Icons.Default.CleaningServices,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    },
+                    modifier = Modifier.clickable { cleanMenuExpanded = true }
+                )
+                DropdownMenu(expanded = cleanMenuExpanded, onDismissRequest = { cleanMenuExpanded = false }) {
+                    cleanOptions.forEach { (days, label) ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(label, fontWeight = if (days == cleanDays.value) FontWeight.Bold else FontWeight.Normal)
+                            },
+                            onClick = {
+                                ConfigStore.setAutoCleanDays(context, days)
+                                cleanDays.value = days
+                                cleanMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+            // ── Language ──
+            SettingsSectionHeader(i18n("settings_language"))
+            var langMenuExpanded by remember { mutableStateOf(false) }
+            val currentLangName = I18n.languages.find { it.first == I18n.lang }?.second ?: "English"
+            Box {
+                ListItem(
+                    headlineContent = { Text(currentLangName, fontWeight = FontWeight.Medium) },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    },
+                    modifier = Modifier.clickable { langMenuExpanded = true }
+                )
+                DropdownMenu(expanded = langMenuExpanded, onDismissRequest = { langMenuExpanded = false }) {
+                    I18n.languages.forEach { (code, name) ->
+                        DropdownMenuItem(
+                            text = { Text(name, fontWeight = if (code == I18n.lang) FontWeight.Bold else FontWeight.Normal) },
+                            onClick = { I18n.setLanguage(context, code); langMenuExpanded = false }
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+            // ── Appearance ──
+            SettingsSectionHeader(i18n("settings_appearance"))
+
+            // Theme mode
+            var themeModeMenuExpanded by remember { mutableStateOf(false) }
+            val themeModes = listOf(
+                0 to i18n("theme_system"),
+                1 to i18n("theme_light"),
+                2 to i18n("theme_dark"),
+            )
+            var currentThemeMode by remember { mutableIntStateOf(ConfigStore.getThemeMode(context)) }
+            val currentThemeLabel = themeModes.find { it.first == currentThemeMode }?.second ?: i18n("theme_system")
+            Box {
+                ListItem(
+                    headlineContent = { Text(currentThemeLabel, fontWeight = FontWeight.Medium) },
+                    supportingContent = { Text(i18n("settings_theme_mode"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    leadingContent = {
+                        Icon(Icons.Default.DarkMode, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    },
+                    modifier = Modifier.clickable { themeModeMenuExpanded = true }
+                )
+                DropdownMenu(expanded = themeModeMenuExpanded, onDismissRequest = { themeModeMenuExpanded = false }) {
+                    themeModes.forEach { (mode, label) ->
+                        DropdownMenuItem(
+                            text = { Text(label, fontWeight = if (mode == currentThemeMode) FontWeight.Bold else FontWeight.Normal) },
+                            onClick = {
+                                ConfigStore.setThemeMode(context, mode)
+                                currentThemeMode = mode
+                                themeModeMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Color scheme
+            var colorMenuExpanded by remember { mutableStateOf(false) }
+            var currentColorIdx by remember { mutableIntStateOf(ConfigStore.getColorScheme(context)) }
+            val colorNames = listOf(
+                i18n("color_indigo"), i18n("color_blue"), i18n("color_teal"),
+                i18n("color_green"), i18n("color_orange"), i18n("color_red"), i18n("color_purple")
+            )
+            Box {
+                ListItem(
+                    headlineContent = { Text(colorNames.getOrElse(currentColorIdx) { colorNames[0] }, fontWeight = FontWeight.Medium) },
+                    supportingContent = { Text(i18n("settings_color_scheme"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    leadingContent = {
+                        Icon(Icons.Default.ColorLens, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    },
+                    modifier = Modifier.clickable { colorMenuExpanded = true }
+                )
+                DropdownMenu(expanded = colorMenuExpanded, onDismissRequest = { colorMenuExpanded = false }) {
+                    palettes.forEachIndexed { idx, (name, palette) ->
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clip(CircleShape)
+                                            .background(palette.primary)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        colorNames.getOrElse(idx) { name },
+                                        fontWeight = if (idx == currentColorIdx) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            },
+                            onClick = {
+                                ConfigStore.setColorScheme(context, idx)
+                                currentColorIdx = idx
+                                colorMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+            // ── Logging ──
+            SettingsSectionHeader(i18n("settings_logging"))
+            var logEnabled by remember { mutableStateOf(ConfigStore.isLogEnabled(context)) }
+            var logLevelMenuExpanded by remember { mutableStateOf(false) }
+            var currentLogLevel by remember { mutableIntStateOf(ConfigStore.getLogLevel(context)) }
+            val logLevels = listOf(
+                0 to "DEBUG",
+                1 to "INFO",
+                2 to "WARN",
+                3 to "ERROR",
+            )
+            ListItem(
+                headlineContent = { Text(i18n("settings_log_enabled"), fontWeight = FontWeight.Medium) },
+                leadingContent = {
+                    Icon(Icons.Default.Description, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                },
+                trailingContent = {
+                    Switch(
+                        checked = logEnabled,
+                        onCheckedChange = {
+                            logEnabled = it
+                            ConfigStore.setLogEnabled(context, it)
+                            AppLogger.refresh(context)
+                        }
+                    )
+                }
+            )
+            if (logEnabled) {
+                Box {
+                    ListItem(
+                        headlineContent = {
+                            Text(logLevels.find { it.first == currentLogLevel }?.second ?: "INFO", fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
+                        },
+                        supportingContent = { Text(i18n("settings_log_level"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        modifier = Modifier.clickable { logLevelMenuExpanded = true }
+                    )
+                    DropdownMenu(expanded = logLevelMenuExpanded, onDismissRequest = { logLevelMenuExpanded = false }) {
+                        logLevels.forEach { (level, name) ->
+                            DropdownMenuItem(
+                                text = { Text(name, fontWeight = if (level == currentLogLevel) FontWeight.Bold else FontWeight.Normal, fontFamily = FontFamily.Monospace) },
+                                onClick = {
+                                    ConfigStore.setLogLevel(context, level)
+                                    currentLogLevel = level
+                                    AppLogger.refresh(context)
+                                    logLevelMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+            // ── Backup & Restore ──
+            SettingsSectionHeader(i18n("settings_backup"))
+            val backupJson = remember { mutableStateOf<String?>(null) }
+            val scope = rememberCoroutineScope()
+
+            val backupLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.CreateDocument("application/json")
+            ) { uri: Uri? ->
+                if (uri != null && backupJson.value != null) {
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            context.contentResolver.openOutputStream(uri)?.use { os ->
+                                os.write(backupJson.value!!.toByteArray())
+                            }
+                        }
+                        Toast.makeText(context, i18n("backup_success"), Toast.LENGTH_SHORT).show()
+                        backupJson.value = null
+                    }
+                }
+            }
+
+            ListItem(
+                headlineContent = { Text(i18n("settings_backup_export"), fontWeight = FontWeight.Medium) },
+                leadingContent = {
+                    Icon(Icons.Default.Backup, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                },
+                modifier = Modifier.clickable {
+                    backupJson.value = ConfigStore.backupToJson(context)
+                    backupLauncher.launch("notifyhub_backup_${System.currentTimeMillis()}.json")
+                }
+            )
+
+            var showRestoreConfirm by remember { mutableStateOf(false) }
+            var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+
+            val restoreLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.OpenDocument()
+            ) { uri: Uri? ->
+                if (uri != null) {
+                    pendingRestoreUri = uri
+                    showRestoreConfirm = true
+                }
+            }
+
+            ListItem(
+                headlineContent = { Text(i18n("settings_backup_restore"), fontWeight = FontWeight.Medium) },
+                leadingContent = {
+                    Icon(Icons.Default.Restore, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                },
+                modifier = Modifier.clickable {
+                    restoreLauncher.launch(arrayOf("application/json"))
+                }
+            )
+
+            if (showRestoreConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showRestoreConfirm = false; pendingRestoreUri = null },
+                    title = { Text(i18n("restore_confirm_title")) },
+                    text = { Text(i18n("restore_confirm_text")) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            scope.launch {
+                                val json = withContext(Dispatchers.IO) {
+                                    pendingRestoreUri?.let { uri ->
+                                        context.contentResolver.openInputStream(uri)?.use { it.bufferedReader().readText() }
+                                    }
+                                }
+                                if (json != null && ConfigStore.restoreFromJson(context, json)) {
+                                    Toast.makeText(context, i18n("restore_success"), Toast.LENGTH_SHORT).show()
+                                    // Reload config and restart
+                                    val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                                    intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(intent)
+                                    Runtime.getRuntime().exit(0)
+                                } else {
+                                    Toast.makeText(context, i18n("restore_failed"), Toast.LENGTH_LONG).show()
+                                }
+                                showRestoreConfirm = false
+                                pendingRestoreUri = null
+                            }
+                        }) {
+                            Text(i18n("confirm"), color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showRestoreConfirm = false; pendingRestoreUri = null }) {
+                            Text(i18n("cancel"))
+                        }
+                    }
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+            // ── Read-only info ──
+            SettingsSectionHeader(i18n("settings_system"))
+            CopyableRow(context, i18n("dash_uuid"), currentConfig.clientUuid, monospace = true)
+            CopyableRow(context, i18n("dash_system"), "Android / ${System.getProperty("os.arch") ?: "arm64"}")
+            CopyableRow(context, i18n("settings_app_version"), "0.2.0")
+            CopyableRow(context, i18n("settings_platform"), "Android ${android.os.Build.VERSION.RELEASE}")
+            CopyableRow(context, i18n("config_device_name"), currentConfig.clientName)
+            CopyableRow(context, i18n("settings_sdk"), "API ${android.os.Build.VERSION.SDK_INT}")
+            CopyableRow(context, i18n("settings_device"), "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+
+    if (showEditSheet) {
+        ServerConfigSheet(
+            currentConfig = currentConfig,
+            onDismiss = { showEditSheet = false },
+            onSaved = { newConfig ->
+                onSave(newConfig)
+                showEditSheet = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun SettingsSectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 2.dp)
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CopyableRow(context: Context, label: String, value: String, monospace: Boolean = false) {
+    ListItem(
+        headlineContent = {
+            Text(value, style = MaterialTheme.typography.bodySmall,
+                fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        },
+        supportingContent = {
+            Text(label, style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.9f)
+        },
+        modifier = Modifier.combinedClickable(
+            onClick = {},
+            onLongClick = {
+                val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cb.setPrimaryClip(ClipData.newPlainText(label, value))
+                Toast.makeText(context, i18n("dash_copied"), Toast.LENGTH_SHORT).show()
+            }
+        ),
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ServerConfigSheet(
+    currentConfig: ClientConfig,
+    onDismiss: () -> Unit,
+    onSaved: (ClientConfig) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var serverUrl by remember { mutableStateOf(currentConfig.serverUrl) }
+    var apiKey by remember { mutableStateOf(currentConfig.apiKey) }
+    var clientName by remember { mutableStateOf(currentConfig.clientName) }
+    var showApiKey by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp)
+        ) {
+            Text(i18n("settings_server"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(16.dp))
+            OutlinedTextField(
+                value = serverUrl, onValueChange = { serverUrl = it },
+                label = { Text(i18n("config_server_url")) },
+                placeholder = { Text("http://192.168.x.x:9527") },
+                modifier = Modifier.fillMaxWidth(), singleLine = true
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = apiKey, onValueChange = { apiKey = it },
+                label = { Text(i18n("config_api_key")) },
+                placeholder = { Text("nfkey_xxxxx") },
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { showApiKey = !showApiKey }) {
+                        Icon(
+                            if (showApiKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = clientName, onValueChange = { clientName = it },
+                label = { Text(i18n("config_device_name")) },
+                modifier = Modifier.fillMaxWidth(), singleLine = true
+            )
+            Spacer(Modifier.height(20.dp))
+            Button(
+                onClick = {
+                    if (serverUrl.isBlank() || apiKey.isBlank()) {
+                        Toast.makeText(context, i18n("settings_err_required"), Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    isSaving = true
+                    scope.launch {
+                        val newConfig = ClientConfig(serverUrl.trim(), apiKey.trim(), currentConfig.clientUuid, clientName.trim())
+                        val ok = withContext(Dispatchers.IO) {
+                            try { ApiClient(newConfig.serverUrl, newConfig.apiKey).register(newConfig.clientUuid, newConfig.clientName) }
+                            catch (e: Exception) { false }
+                        }
+                        isSaving = false
+                        if (ok) {
+                            onSaved(newConfig)
+                            Toast.makeText(context, i18n("settings_saved"), Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, i18n("settings_connect_failed"), Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(), enabled = !isSaving
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(if (isSaving) i18n("settings_testing") else i18n("settings_save"))
+            }
+        }
+    }
+}
