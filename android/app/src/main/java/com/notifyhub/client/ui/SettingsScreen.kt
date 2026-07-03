@@ -60,6 +60,8 @@ import kotlinx.coroutines.withContext
 fun SettingsScreen(
     currentConfig: ClientConfig,
     onScanQr: () -> Unit,
+    qrData: QrConnectData? = null,
+    onQrDataConsumed: () -> Unit = {},
     onBack: () -> Unit,
     onSave: (ClientConfig) -> Unit
 ) {
@@ -104,18 +106,6 @@ fun SettingsScreen(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 },
                 modifier = Modifier.clickable { showEditSheet = true }
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-
-            // ── Scan QR ──
-            ListItem(
-                headlineContent = { Text(i18n("config_scan_qr"), fontWeight = FontWeight.Medium) },
-                leadingContent = {
-                    Icon(Icons.Default.QrCodeScanner, contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                },
-                modifier = Modifier.clickable { onScanQr() }
             )
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
@@ -514,6 +504,9 @@ fun SettingsScreen(
         ServerConfigSheet(
             currentConfig = currentConfig,
             onDismiss = { showEditSheet = false },
+            onScanQr = onScanQr,
+            qrData = qrData,
+            onQrDataConsumed = onQrDataConsumed,
             onSaved = { newConfig ->
                 onSave(newConfig)
                 showEditSheet = false
@@ -562,6 +555,9 @@ private fun CopyableRow(context: Context, label: String, value: String, monospac
 private fun ServerConfigSheet(
     currentConfig: ClientConfig,
     onDismiss: () -> Unit,
+    onScanQr: () -> Unit = {},
+    qrData: QrConnectData? = null,
+    onQrDataConsumed: () -> Unit = {},
     onSaved: (ClientConfig) -> Unit
 ) {
     val context = LocalContext.current
@@ -571,6 +567,15 @@ private fun ServerConfigSheet(
     var clientName by remember { mutableStateOf(currentConfig.clientName) }
     var showApiKey by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
+
+    // Auto-fill from QR data
+    LaunchedEffect(qrData) {
+        if (qrData != null) {
+            serverUrl = qrData.serverUrl
+            apiKey = qrData.apiKey
+            onQrDataConsumed()
+        }
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -606,7 +611,17 @@ private fun ServerConfigSheet(
                 label = { Text(i18n("config_device_name")) },
                 modifier = Modifier.fillMaxWidth(), singleLine = true
             )
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = onScanQr,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSaving
+            ) {
+                Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(i18n("config_scan_qr"))
+            }
+            Spacer(Modifier.height(12.dp))
             Button(
                 onClick = {
                     if (serverUrl.isBlank() || apiKey.isBlank()) {

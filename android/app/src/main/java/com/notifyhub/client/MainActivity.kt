@@ -102,6 +102,8 @@ class MainActivity : ComponentActivity() {
                         SettingsScreen(
                             currentConfig = currentConfig,
                             onScanQr = { showQrScanner = true },
+                            qrData = pendingQrData,
+                            onQrDataConsumed = { pendingQrData = null },
                             onBack = { showSettings = false },
                             onSave = { newConfig ->
                                 ConfigStore.save(this, newConfig)
