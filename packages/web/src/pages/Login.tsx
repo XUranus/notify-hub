@@ -42,7 +42,6 @@ export default function Login() {
             <Bell className="h-10 w-10 text-primary" />
           </div>
           <CardTitle className="text-2xl">{t('login.title')}</CardTitle>
-          <CardDescription>{t('login.desc')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -58,7 +57,6 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={t('login.emailPlaceholder')}
                 required
               />
             </div>
@@ -69,7 +67,6 @@ export default function Login() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={t('login.passwordPlaceholder')}
                 required
               />
             </div>
