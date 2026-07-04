@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import jwt from 'jsonwebtoken'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { customAlphabet } from 'nanoid'
 
 const nanoid = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', 32)
@@ -85,6 +85,18 @@ tokens.post('/', async (c) => {
 
   const { name, scopes, rateLimit, ipWhitelist, expiresIn } = parsed.data
   const db = getDb()
+
+  // Check token limit (max 5 per user)
+  const userId = currentUser?.userId ?? null
+  if (userId) {
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.apiTokens)
+      .where(eq(schema.apiTokens.userId, userId))
+    if (count >= 5) {
+      return c.json({ success: false, error: 'Maximum 5 API keys per user' }, 400)
+    }
+  }
 
   const tokenValue = API_TOKEN_PREFIX + nanoid(32)
 
