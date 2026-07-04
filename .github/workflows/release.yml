@@ -176,12 +176,13 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install Tauri CLI
-        run: npm install -g @tauri-apps/cli@latest
-
       - name: Build
-        working-directory: desktop
-        run: npx tauri build --bundles msi
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          args: --bundles msi
 
       - name: Rename artifact
         shell: bash
@@ -210,8 +211,9 @@ jobs:
 
       - name: Install Android SDK components
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          ANDROID_SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Build APK
         working-directory: android
