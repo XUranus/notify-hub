@@ -181,12 +181,16 @@ jobs:
         with:
           workspaces: desktop
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2" --locked
+        run: npm install -g @tauri-apps/cli
 
       - name: Build
         working-directory: desktop
-        run: cargo tauri build --bundles msi --verbose
+        run: npx tauri build --bundles msi --verbose
 
       - name: Rename artifact
         shell: bash
