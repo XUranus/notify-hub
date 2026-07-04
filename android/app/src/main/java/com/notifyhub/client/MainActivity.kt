@@ -101,15 +101,18 @@ class MainActivity : ComponentActivity() {
                         BackHandler { showSettings = false }
                         SettingsScreen(
                             currentConfig = currentConfig,
-                            onScanQr = { qrScanTarget = "settings"; showQrScanner = true },
-                            qrData = if (qrScanTarget == "settings") pendingQrData else null,
-                            onQrDataConsumed = { pendingQrData = null },
                             onBack = { showSettings = false },
                             onSave = { newConfig ->
-                                ConfigStore.save(this, newConfig)
                                 currentConfig = newConfig
-                                pollService?.restart()
                                 showSettings = false
+                            },
+                            onLogout = {
+                                pollService?.switchAccount()
+                                val stopIntent = Intent(this, PollService::class.java).apply { action = PollService.ACTION_STOP }
+                                startService(stopIntent)
+                                pollService = null
+                                showSettings = false
+                                configured = false
                             }
                         )
                     }

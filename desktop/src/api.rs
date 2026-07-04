@@ -166,6 +166,31 @@ impl ApiClient {
             .unwrap_or_else(|| "ok".to_string()))
     }
 
+    pub async fn update_client(&self, uuid: &str, name: &str) -> Result<bool, String> {
+        let url = format!("{}/api/v1/push/client", self.base_url);
+        let body = serde_json::json!({
+            "uuid": uuid,
+            "name": name,
+        });
+
+        let resp = self
+            .client
+            .patch(&url)
+            .header("Authorization", format!("Bearer {}", self.jwt))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let status = resp.status();
+        let api_resp: ApiResponse<()> = resp.json().await.map_err(|e| e.to_string())?;
+        if !status.is_success() || !api_resp.success {
+            return Err(format!("HTTP {}: update client failed", status));
+        }
+        Ok(true)
+    }
+
     pub async fn list_clients(&self) -> Result<Vec<serde_json::Value>, String> {
         let url = format!("{}/api/v2/clients", self.base_url);
         let resp = self

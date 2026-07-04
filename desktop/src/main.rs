@@ -236,6 +236,41 @@ async fn get_clients() -> Result<Vec<serde_json::Value>, String> {
 }
 
 #[tauri::command]
+async fn update_client_name(name: String) -> Result<(), String> {
+    let cfg = AppConfig::load().ok_or("No config found")?;
+    if cfg.server.jwt.is_empty() {
+        return Err("Not logged in".to_string());
+    }
+    let api = api::ApiClient::new(&cfg.server.url, &cfg.server.jwt);
+    api.update_client(&cfg.client.uuid, &name).await?;
+    // Save locally
+    let mut cfg = cfg;
+    cfg.client.name = name;
+    cfg.save()?;
+    Ok(())
+}
+
+#[tauri::command]
+fn logout(state: tauri::State<'_, Arc<Mutex<PollState>>>) -> Result<(), String> {
+    // Stop polling
+    {
+        let mut s = state.lock().unwrap();
+        s.running = false;
+        s.last_poll = None;
+        s.error = None;
+        s.was_connected = false;
+    }
+    // Clear JWT and credentials from config
+    if let Some(mut cfg) = AppConfig::load() {
+        cfg.server.jwt = String::new();
+        cfg.server.username = String::new();
+        cfg.server.password = String::new();
+        cfg.save()?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn backup_messages_json(store: tauri::State<'_, Arc<MessageStore>>) -> String {
     let msgs = store.get_all();
     serde_json::to_string_pretty(&msgs).unwrap_or_else(|_| "[]".to_string())
@@ -651,6 +686,8 @@ fn main() {
             reconnect,
             send_message,
             get_clients,
+            update_client_name,
+            logout,
             backup_messages_json,
             restore_messages_json,
             export_messages_csv,

@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import com.notifyhub.client.MainActivity
 import com.notifyhub.client.R
 import com.notifyhub.client.data.ApiClient
+import com.notifyhub.client.data.PollException
 import com.notifyhub.client.data.AppLogger
 import com.notifyhub.client.data.ConfigStore
 import com.notifyhub.client.data.I18n
@@ -121,40 +122,24 @@ class PollService : Service() {
 
             var api = ApiClient(config.serverUrl, jwt)
 
-            // Initial registration
+            // Initial registration with retry
             AppLogger.d(TAG, "Attempting register...")
-            val registered = api.register(config.clientUuid, config.clientName)
-            AppLogger.d(TAG, "Register result: $registered")
-            isConnected.value = registered
-            lastError.value = if (registered) null else I18n["notif_conn_failed"]
+            var registered = false
+            for (attempt in 1..3) {
+                registered = api.register(config.clientUuid, config.clientName)
+                AppLogger.d(TAG, "Register attempt $attempt result: $registered")
+                if (registered) break
+                if (attempt < 3) delay(2000)
+            }
+            if (registered) {
+                isConnected.value = true
+                lastError.value = null
+            }
 
             // Poll loop
             while (isActive) {
                 try {
                     val (code, messages) = api.pollRawResponse(config.clientUuid)
-
-                    // Re-login on 401 (JWT expired)
-                    if (code == 401) {
-                        if (config.username.isBlank()) {
-                            AppLogger.w(TAG, "JWT expired (401) and no credentials for re-login")
-                            isConnected.value = false
-                            lastError.value = "JWT expired, please re-login"
-                            delay(POLL_INTERVAL_MS)
-                            continue
-                        }
-                        AppLogger.w(TAG, "JWT expired (401), re-logging in...")
-                        val reloginPair = loginAndCreateApi(config.serverUrl, config.username, config.password)
-                        if (reloginPair != null) {
-                            api = reloginPair.first
-                            jwt = reloginPair.second
-                            AppLogger.d(TAG, "Re-login successful")
-                            api.register(config.clientUuid, config.clientName)
-                            continue
-                        } else {
-                            delay(POLL_INTERVAL_MS)
-                            continue
-                        }
-                    }
 
                     val now = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
                     lastPollTime.value = now
@@ -190,22 +175,24 @@ class PollService : Service() {
                         showOfflineDialog.value = false
                     }
                     wasConnected = true
+                } catch (e: PollException) {
+                    // 401 = JWT expired, try re-login
+                    if (e.code == 401 && config.username.isNotBlank()) {
+                        AppLogger.w(TAG, "JWT expired (401), re-logging in...")
+                        val reloginPair = loginAndCreateApi(config.serverUrl, config.username, config.password)
+                        if (reloginPair != null) {
+                            api = reloginPair.first
+                            jwt = reloginPair.second
+                            AppLogger.d(TAG, "Re-login successful")
+                            api.register(config.clientUuid, config.clientName)
+                            continue
+                        }
+                    }
+                    AppLogger.e(TAG, "Poll HTTP error: ${e.code}", e)
+                    handlePollError(e)
                 } catch (e: Exception) {
                     AppLogger.e(TAG, "Poll error", e)
-                    if (isOfflineMode.value) {
-                        // In offline mode - keep silent, just keep trying
-                        wasConnected = false
-                    } else if (wasConnected) {
-                        // Was connected, now lost - show offline dialog and notification
-                        isConnected.value = false
-                        showOfflineDialog.value = true
-                        showStatusNotification(I18n["notif_disconnected"] ?: "Disconnected", I18n["notif_disconnected_body"] ?: "Connection lost")
-                        wasConnected = false
-                    } else {
-                        // Never connected or already handled
-                        isConnected.value = false
-                        lastError.value = e.message ?: I18n["notif_poll_failed"]
-                    }
+                    handlePollError(e)
                 }
 
                 delay(POLL_INTERVAL_MS)
@@ -231,6 +218,22 @@ class PollService : Service() {
         showOfflineDialog.value = false
         wasConnected = false
         stopPolling()
+    }
+
+    private fun handlePollError(e: Exception) {
+        if (isOfflineMode.value) {
+            wasConnected = false
+        } else {
+            isConnected.value = false
+            lastError.value = e.message ?: I18n["notif_poll_failed"]
+            if (wasConnected) {
+                // Was connected, now lost - send disconnect notification
+                showStatusNotification(I18n["notif_disconnected"] ?: "Disconnected", I18n["notif_disconnected_body"] ?: "Connection lost")
+            }
+            // Show offline dialog for any connection failure
+            showOfflineDialog.value = true
+            wasConnected = false
+        }
     }
 
     /**

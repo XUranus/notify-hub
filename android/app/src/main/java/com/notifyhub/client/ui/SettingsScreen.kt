@@ -10,7 +10,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -27,12 +26,10 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,12 +39,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+import com.notifyhub.client.data.ApiClient
 import com.notifyhub.client.data.AppLogger
 import com.notifyhub.client.data.ClientConfig
 import com.notifyhub.client.data.ConfigStore
@@ -64,14 +60,13 @@ import kotlinx.coroutines.withTimeoutOrNull
 @Composable
 fun SettingsScreen(
     currentConfig: ClientConfig,
-    onScanQr: () -> Unit,
-    qrData: QrConnectData? = null,
-    onQrDataConsumed: () -> Unit = {},
     onBack: () -> Unit,
-    onSave: (ClientConfig) -> Unit
+    onSave: (ClientConfig) -> Unit,
+    onLogout: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    var showEditSheet by remember { mutableStateOf(false) }
+    var showDeviceNameDialog by remember { mutableStateOf(false) }
+    var deviceName by remember { mutableStateOf(currentConfig.clientName) }
 
     Scaffold(
         topBar = {
@@ -92,25 +87,20 @@ fun SettingsScreen(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
         ) {
-            // ── Server Config (top, editable) ──
+            // ── Server Info (read-only) ──
             SettingsSectionHeader(i18n("settings_server"))
+            CopyableRow(context, i18n("config_server_url"), currentConfig.serverUrl, monospace = true)
+            CopyableRow(context, i18n("config_username"), currentConfig.username)
+
+            // ── Device Name (editable) ──
+            SettingsSectionHeader(i18n("config_device_name"))
             ListItem(
-                headlineContent = { Text(i18n("settings_server"), fontWeight = FontWeight.Medium) },
-                supportingContent = {
-                    Column {
-                        Text(currentConfig.serverUrl, style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${i18n("config_username")}: ${currentConfig.username}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
+                headlineContent = { Text(deviceName.ifBlank { android.os.Build.MODEL }, fontWeight = FontWeight.Medium) },
                 trailingContent = {
                     Icon(Icons.Default.ChevronRight, contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 },
-                modifier = Modifier.clickable { showEditSheet = true }
+                modifier = Modifier.clickable { showDeviceNameDialog = true }
             )
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
@@ -517,6 +507,45 @@ fun SettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
 
+            // ── Logout ──
+            SettingsSectionHeader(i18n("logout"))
+            var showLogoutConfirm by remember { mutableStateOf(false) }
+            ListItem(
+                headlineContent = {
+                    Text(i18n("logout"), fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.error)
+                },
+                leadingContent = {
+                    Icon(Icons.Default.ExitToApp, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(22.dp))
+                },
+                modifier = Modifier.clickable { showLogoutConfirm = true }
+            )
+
+            if (showLogoutConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showLogoutConfirm = false },
+                    title = { Text(i18n("logout")) },
+                    text = { Text(i18n("logout_confirm")) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            ConfigStore.clearJwt(context)
+                            showLogoutConfirm = false
+                            onLogout()
+                        }) {
+                            Text(i18n("confirm"), color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showLogoutConfirm = false }) {
+                            Text(i18n("cancel"))
+                        }
+                    }
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
             // ── Clear All Messages ──
             SettingsSectionHeader(i18n("settings_clear_messages"))
             var showClearConfirm by remember { mutableStateOf(false) }
@@ -573,16 +602,62 @@ fun SettingsScreen(
         }
     }
 
-    if (showEditSheet) {
-        ServerConfigSheet(
-            currentConfig = currentConfig,
-            onDismiss = { showEditSheet = false },
-            onScanQr = onScanQr,
-            qrData = qrData,
-            onQrDataConsumed = onQrDataConsumed,
-            onSaved = { newConfig ->
-                onSave(newConfig)
-                showEditSheet = false
+    if (showDeviceNameDialog) {
+        val dialogScope = rememberCoroutineScope()
+        var editName by remember { mutableStateOf(deviceName) }
+        var isSavingName by remember { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = { if (!isSavingName) showDeviceNameDialog = false },
+            title = { Text(i18n("config_device_name")) },
+            text = {
+                OutlinedTextField(
+                    value = editName,
+                    onValueChange = { editName = it },
+                    label = { Text(i18n("config_device_name")) },
+                    singleLine = true,
+                    enabled = !isSavingName,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val newName = editName.trim().ifBlank { android.os.Build.MODEL }
+                        isSavingName = true
+                        dialogScope.launch {
+                            val api = ApiClient(currentConfig.serverUrl, currentConfig.jwtToken)
+                            val ok = withContext(Dispatchers.IO) {
+                                api.updateClient(currentConfig.clientUuid, newName)
+                            }
+                            if (ok) {
+                                deviceName = newName
+                                val newConfig = currentConfig.copy(clientName = newName)
+                                ConfigStore.save(context, newConfig)
+                                onSave(newConfig)
+                                Toast.makeText(context, i18n("settings_saved"), Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, i18n("settings_connect_failed"), Toast.LENGTH_SHORT).show()
+                            }
+                            isSavingName = false
+                            showDeviceNameDialog = false
+                        }
+                    },
+                    enabled = !isSavingName
+                ) {
+                    if (isSavingName) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(i18n("confirm"))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeviceNameDialog = false },
+                    enabled = !isSavingName
+                ) {
+                    Text(i18n("cancel"))
+                }
             }
         )
     }
@@ -623,141 +698,3 @@ private fun CopyableRow(context: Context, label: String, value: String, monospac
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ServerConfigSheet(
-    currentConfig: ClientConfig,
-    onDismiss: () -> Unit,
-    onScanQr: () -> Unit = {},
-    qrData: QrConnectData? = null,
-    onQrDataConsumed: () -> Unit = {},
-    onSaved: (ClientConfig) -> Unit
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var serverUrl by remember { mutableStateOf(currentConfig.serverUrl) }
-    var username by remember { mutableStateOf(currentConfig.username) }
-    var password by remember { mutableStateOf(currentConfig.password) }
-    var clientName by remember { mutableStateOf(currentConfig.clientName) }
-    var showPassword by remember { mutableStateOf(false) }
-    var isSaving by remember { mutableStateOf(false) }
-
-    // Auto-fill from QR data
-    LaunchedEffect(qrData) {
-        if (qrData != null) {
-            serverUrl = qrData.serverUrl
-            if (qrData.jwt != null) {
-                isSaving = true
-                onQrDataConsumed()
-
-                ConnectHelper.connectWithJwt(
-                    context = context,
-                    serverUrl = qrData.serverUrl,
-                    jwt = qrData.jwt,
-                    clientUuid = currentConfig.clientUuid,
-                    clientName = currentConfig.clientName.ifBlank { android.os.Build.MODEL },
-                    onSuccess = { newConfig ->
-                        isSaving = false
-                        onSaved(newConfig)
-                        Toast.makeText(context, i18n("settings_saved"), Toast.LENGTH_SHORT).show()
-                    },
-                    onError = { msg -> isSaving = false; Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
-                )
-            } else {
-                username = qrData.username
-                password = qrData.password
-                onQrDataConsumed()
-            }
-        }
-    }
-
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentHeight()
-                .padding(horizontal = 24.dp)
-                .navigationBarsPadding()
-                .imePadding()
-        ) {
-            Text(i18n("settings_server"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(16.dp))
-            OutlinedTextField(
-                value = serverUrl, onValueChange = { serverUrl = it },
-                label = { Text(i18n("config_server_url")) },
-                placeholder = { Text("http://192.168.x.x:9527") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true
-            )
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = username, onValueChange = { username = it },
-                label = { Text(i18n("config_username")) },
-                placeholder = { Text("admin@example.com") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true
-            )
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = password, onValueChange = { password = it },
-                label = { Text(i18n("config_password")) },
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                trailingIcon = {
-                    IconButton(onClick = { showPassword = !showPassword }) {
-                        Icon(
-                            if (showPassword) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            )
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = clientName, onValueChange = { clientName = it },
-                label = { Text(i18n("config_device_name")) },
-                modifier = Modifier.fillMaxWidth(), singleLine = true
-            )
-            Spacer(Modifier.height(16.dp))
-            OutlinedButton(
-                onClick = onScanQr,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isSaving
-            ) {
-                Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(i18n("config_scan_qr"))
-            }
-            Spacer(Modifier.height(12.dp))
-            Button(
-                onClick = {
-                    if (serverUrl.isBlank() || username.isBlank() || password.isBlank()) {
-                        Toast.makeText(context, i18n("settings_err_required"), Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-                    isSaving = true
-                    ConnectHelper.connectWithCredentials(
-                        context = context,
-                        serverUrl = serverUrl.trim(),
-                        username = username.trim(),
-                        password = password.trim(),
-                        clientUuid = currentConfig.clientUuid,
-                        clientName = clientName.trim().ifBlank { android.os.Build.MODEL },
-                        onSuccess = { newConfig ->
-                            isSaving = false
-                            onSaved(newConfig)
-                            Toast.makeText(context, i18n("settings_saved"), Toast.LENGTH_SHORT).show()
-                        },
-                        onError = { msg -> isSaving = false; Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(), enabled = !isSaving
-            ) {
-                if (isSaving) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary)
-                    Spacer(Modifier.width(8.dp))
-                }
-                Text(if (isSaving) i18n("settings_testing") else i18n("settings_save"))
-            }
-        }
-    }
-}

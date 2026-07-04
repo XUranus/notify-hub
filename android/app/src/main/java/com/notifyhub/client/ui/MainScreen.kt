@@ -135,6 +135,8 @@ fun MainScreen(
 
     val isConnected = pollService?.isConnected?.value == true
     val isOfflineMode = pollService?.isOfflineMode?.value == true
+    val lastError = pollService?.lastError?.value
+    val hasError = !isConnected && !isOfflineMode && lastError != null
     var isMuted by remember { mutableStateOf(ConfigStore.isMuted(context)) }
 
     // Refresh mute state periodically
@@ -228,6 +230,10 @@ fun MainScreen(
                                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
                                 Spacer(Modifier.width(4.dp))
                                 Text(i18n("status_connected"), fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                            } else if (hasError) {
+                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error))
+                                Spacer(Modifier.width(4.dp))
+                                Text(i18n("status_error"), fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
                             } else {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(14.dp),

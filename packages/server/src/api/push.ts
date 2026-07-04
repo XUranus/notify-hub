@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { eq, and, or, lte, sql } from 'drizzle-orm'
-import { dualAuth } from '../auth/index.js'
+import { clientAuth, dualAuth } from '../auth/index.js'
 import { getDb, schema } from '../db/index.js'
 import type { HonoEnv } from '../types.js'
 
@@ -61,6 +61,51 @@ push.post('/register', dualAuth, async (c) => {
       lastSeenAt: now,
     })
   }
+
+  return c.json({ success: true })
+})
+
+/**
+ * PATCH /api/v1/push/client — Update client device info (name, etc.).
+ * JWT auth only. Body: { uuid, name }
+ */
+push.patch('/client', clientAuth, async (c) => {
+  const body = await c.req.json()
+  const { uuid, name } = body
+
+  if (!uuid) {
+    return c.json({ success: false, error: 'uuid is required' }, 400)
+  }
+
+  const user = c.get('currentUser')!
+  const userId = user.userId
+  const db = getDb()
+
+  // Verify ownership
+  const [client] = await db
+    .select({ id: schema.pushClients.id })
+    .from(schema.pushClients)
+    .where(and(
+      eq(schema.pushClients.uuid, uuid),
+      eq(schema.pushClients.userId, userId)
+    ))
+    .limit(1)
+
+  if (!client) {
+    return c.json({ success: false, error: 'Client not found or access denied' }, 403)
+  }
+
+  const updates: Record<string, unknown> = {}
+  if (name !== undefined) updates.name = name
+
+  if (Object.keys(updates).length === 0) {
+    return c.json({ success: false, error: 'No fields to update' }, 400)
+  }
+
+  await db
+    .update(schema.pushClients)
+    .set(updates)
+    .where(eq(schema.pushClients.uuid, uuid))
 
   return c.json({ success: true })
 })
