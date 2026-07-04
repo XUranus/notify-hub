@@ -16,9 +16,6 @@ jobs:
   # ─────────────────────────────────────────────
   deploy-docs:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -40,14 +37,11 @@ jobs:
           BASE_URL: /notify-hub/
         run: pnpm run build
 
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/upload-pages-artifact@v3
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: docs/build
-
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/build
 
   # ─────────────────────────────────────────────
   # 2. Tauri Desktop — Linux amd64
@@ -181,16 +175,12 @@ jobs:
         with:
           workspaces: desktop
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       - name: Install Tauri CLI
-        run: npm install -g @tauri-apps/cli
+        run: cargo install tauri-cli --version "^2"
 
       - name: Build
         working-directory: desktop
-        run: npx tauri build --bundles msi --verbose
+        run: cargo tauri build --bundles msi --verbose
 
       - name: Rename artifact
         shell: bash
