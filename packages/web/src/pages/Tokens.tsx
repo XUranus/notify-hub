@@ -45,19 +45,19 @@ function buildExamples(token: string) {
   const curlSendResp = `{
   "success": true,
   "data": {
-    "messageId": "a1b2c3d4",
+    "messageId": "550e8400-e29b-41d4-a716-446655440000",
     "status": "queued"
   }
 }`
 
   const curlStatus = `# 查询消息状态
-curl ${base}/api/v1/messages/1 \\
+curl ${base}/api/v1/messages/550e8400-e29b-41d4-a716-446655440000 \\
   -H "Authorization: Bearer ${token}"`
 
   const curlStatusResp = `{
   "success": true,
   "data": {
-    "id": "a1b2c3d4",
+    "id": "550e8400-e29b-41d4-a716-446655440000",
     "channel": "email",
     "to": "user@example.com",
     "subject": "Hello from NotifyHub",
