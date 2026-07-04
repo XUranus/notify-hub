@@ -1,0 +1,269 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  # ─────────────────────────────────────────────
+  # 1. Docs → GitHub Pages
+  # ─────────────────────────────────────────────
+  deploy-docs:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: docs
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Build docs
+        working-directory: docs
+        env:
+          SITE_URL: https://xuranus.github.io
+          BASE_URL: /notify-hub/
+        run: pnpm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/build
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # ─────────────────────────────────────────────
+  # 2. Tauri Desktop — Linux amd64
+  # ─────────────────────────────────────────────
+  build-linux-amd64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build
+        working-directory: desktop
+        run: cargo tauri build --bundles appimage --verbose
+
+      - name: Rename artifact
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          APPIMAGE=$(find desktop/target/release/bundle/appimage -name "*.AppImage" | head -1)
+          cp "$APPIMAGE" "NotifyHub-Desktop_${VERSION}_linux-amd64.AppImage"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64
+          path: NotifyHub-Desktop_*_linux-amd64.AppImage
+
+  # ─────────────────────────────────────────────
+  # 3. Tauri Desktop — Linux aarch64
+  # ─────────────────────────────────────────────
+  build-linux-aarch64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build
+        working-directory: desktop
+        run: cargo tauri build --bundles appimage --verbose
+
+      - name: Rename artifact
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          APPIMAGE=$(find desktop/target/release/bundle/appimage -name "*.AppImage" | head -1)
+          cp "$APPIMAGE" "NotifyHub-Desktop_${VERSION}_linux-aarch64.AppImage"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-aarch64
+          path: NotifyHub-Desktop_*_linux-aarch64.AppImage
+
+  # ─────────────────────────────────────────────
+  # 4. Tauri Desktop — macOS arm64
+  # ─────────────────────────────────────────────
+  build-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build
+        working-directory: desktop
+        run: cargo tauri build --bundles dmg --verbose
+
+      - name: Rename artifact
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DMG=$(find desktop/target/release/bundle/dmg -name "*.dmg" | head -1)
+          cp "$DMG" "NotifyHub-Desktop_${VERSION}_macos-arm64.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: NotifyHub-Desktop_*_macos-arm64.dmg
+
+  # ─────────────────────────────────────────────
+  # 5. Tauri Desktop — Windows amd64
+  # ─────────────────────────────────────────────
+  build-windows-amd64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build
+        working-directory: desktop
+        run: cargo tauri build --bundles msi --verbose
+
+      - name: Rename artifact
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          MSI=$(find desktop/target/release/bundle/msi -name "*.msi" | head -1)
+          cp "$MSI" "NotifyHub-Desktop_${VERSION}_windows-amd64.msi"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: NotifyHub-Desktop_*_windows-amd64.msi
+
+  # ─────────────────────────────────────────────
+  # 6. Android APK
+  # ─────────────────────────────────────────────
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      - name: Rename artifact
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          cp "$APK" "NotifyHub-Android_${VERSION}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: NotifyHub-Android_*.apk
+
+  # ─────────────────────────────────────────────
+  # 7. Create GitHub Release
+  # ─────────────────────────────────────────────
+  release:
+    needs:
+      - build-linux-amd64
+      - build-linux-aarch64
+      - build-macos-arm64
+      - build-windows-amd64
+      - build-android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: artifacts
+
+      - name: List release assets
+        run: ls -la artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/NotifyHub-Desktop_*_linux-amd64.AppImage
+            artifacts/NotifyHub-Desktop_*_linux-aarch64.AppImage
+            artifacts/NotifyHub-Desktop_*_macos-arm64.dmg
+            artifacts/NotifyHub-Desktop_*_windows-amd64.msi
+            artifacts/NotifyHub-Android_*.apk

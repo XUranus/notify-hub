@@ -11,8 +11,8 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://notifyhub.dev',
-  baseUrl: '/',
+  url: process.env.SITE_URL || 'https://notifyhub.dev',
+  baseUrl: process.env.BASE_URL || '/',
 
   organizationName: 'notifyhub',
   projectName: 'notifyhub',
