@@ -41,26 +41,6 @@ function buildExamples(token: string) {
     "body": "<h1>Welcome!</h1><p>This is a test notification.</p>"
   }'`
 
-  const curlBatch = `curl -X POST ${base}/api/v1/send/batch \\
-  -H "Authorization: Bearer ${token}" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "messages": [
-      {
-        "channel": "email",
-        "to": "alice@example.com",
-        "subject": "Hello Alice",
-        "body": "<p>Hi Alice!</p>"
-      },
-      {
-        "channel": "sms",
-        "to": "+8613800138000",
-        "template": "verify_code",
-        "variables": { "code": "123456" }
-      }
-    ]
-  }'`
-
   const curlStatus = `# 查询消息状态
 curl ${base}/api/v1/messages/1 \\
   -H "Authorization: Bearer ${token}"
@@ -144,7 +124,7 @@ data = {
 response = requests.post(url, json=data, headers=headers)
 print(response.json())`
 
-  return { curlSend, curlBatch, curlStatus, jsSend, jsTemplate, pySend, pyTemplate }
+  return { curlSend, curlStatus, jsSend, jsTemplate, pySend, pyTemplate }
 }
 
 function ApiExamples({ token }: { token: string }) {
@@ -173,10 +153,6 @@ function ApiExamples({ token }: { token: string }) {
             <div>
               <h4 className="text-sm font-medium mb-2">{t('tokens.exampleSend')}</h4>
               <CodeBlock code={ex.curlSend} language="bash" />
-            </div>
-            <div>
-              <h4 className="text-sm font-medium mb-2">{t('tokens.exampleBatch')}</h4>
-              <CodeBlock code={ex.curlBatch} language="bash" />
             </div>
             <div>
               <h4 className="text-sm font-medium mb-2">{t('tokens.exampleStatus')}</h4>
