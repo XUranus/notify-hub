@@ -516,23 +516,16 @@
       <div class="tab-pane" id="tab-tools">
         <div class="modal-body">
           <div class="detail-section-title" style="margin-bottom:10px" id="t-quick-send">Quick Send</div>
-          <div class="tabs" id="toolsQsTabs" style="padding:0;border-bottom:1px solid var(--border);margin-bottom:0">
-            <button class="tab active" data-tools-tab="tools-curl" id="t-tools-curl">Curl</button>
-            <button class="tab" data-tools-tab="tools-python" id="t-tools-python">Python</button>
-          </div>
-          <div class="tools-tab-pane active" id="tools-curl" style="position:relative">
+          <div style="position:relative">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 0">
               <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase">bash</span>
               <button class="copy-btn" id="toolsCopyCurl" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
             </div>
             <pre class="curl-block" id="toolsCurlCode" style="max-height:220px;margin-top:6px"></pre>
-          </div>
-          <div class="tools-tab-pane" id="tools-python" style="position:relative">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 0">
-              <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase">python</span>
-              <button class="copy-btn" id="toolsCopyPython" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+            <div id="toolsApiKeyHint" style="display:none;padding:6px 0;font-size:12px;color:var(--warn)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span id="toolsApiKeyHintText"></span>
             </div>
-            <pre class="curl-block" id="toolsPythonCode" style="max-height:220px;margin-top:6px"></pre>
           </div>
           <div style="margin-top:12px;display:flex;align-items:center;gap:10px">
             <div class="compose-status" id="toolsQsStatus" style="flex:1"></div>
@@ -1342,32 +1335,28 @@ document.getElementById('connectBtn').addEventListener('click', async () => {
 /* ── Dashboard ── */
 
 /* ── Tools Tab: Quick Send ── */
-let _toolsCurlRaw = '', _toolsPythonRaw = '';
+let _toolsCurlRaw = '';
 
 function renderToolsCode(url, apiKey, uuid) {
   _toolsCurlRaw = buildQsCurl(url, apiKey, uuid);
-  _toolsPythonRaw = buildQsPython(url, apiKey, uuid);
   const curlEl = document.getElementById('toolsCurlCode');
-  const pyEl = document.getElementById('toolsPythonCode');
   if (curlEl) curlEl.innerHTML = highlightBash(_toolsCurlRaw);
-  if (pyEl) pyEl.innerHTML = highlightPython(_toolsPythonRaw);
+  // Show hint if no API key configured
+  const hint = document.getElementById('toolsApiKeyHint');
+  const hintText = document.getElementById('toolsApiKeyHintText');
+  if (hint && hintText) {
+    if (!apiKey) {
+      hintText.textContent = T.qsNoApiKey || 'No API key configured. Create one in the web dashboard: Settings → API Keys.';
+      hint.style.display = 'block';
+    } else {
+      hint.style.display = 'none';
+    }
+  }
 }
-
-document.getElementById('toolsQsTabs')?.addEventListener('click', (e) => {
-  const tab = e.target.closest('[data-tools-tab]');
-  if (!tab) return;
-  document.querySelectorAll('#toolsQsTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.toolsTab === tab.dataset.toolsTab));
-  document.querySelectorAll('.tools-tab-pane').forEach(p => p.classList.toggle('active', p.id === tab.dataset.toolsTab));
-});
 
 document.getElementById('toolsCopyCurl')?.addEventListener('click', () => {
   navigator.clipboard.writeText(_toolsCurlRaw).then(() => {
     const b = document.getElementById('toolsCopyCurl'); b.classList.add('copied'); setTimeout(() => b.classList.remove('copied'), 1500);
-  });
-});
-document.getElementById('toolsCopyPython')?.addEventListener('click', () => {
-  navigator.clipboard.writeText(_toolsPythonRaw).then(() => {
-    const b = document.getElementById('toolsCopyPython'); b.classList.add('copied'); setTimeout(() => b.classList.remove('copied'), 1500);
   });
 });
 
@@ -1608,16 +1597,13 @@ async function loadToolsTab() {
     const cfg = await invoke('get_config');
     if (cfg) {
       serverUrl = cfg.server.url || '';
-      apiKey = cfg.server.jwt || '';
+      apiKey = cfg.server.api_key || '';
       uuid = cfg.client.uuid || '';
     }
   } catch {}
   if (!uuid) {
     try { uuid = document.getElementById('info-uuid').textContent || ''; } catch {}
   }
-  // Reset to curl tab
-  document.querySelectorAll('#toolsQsTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.toolsTab === 'tools-curl'));
-  document.querySelectorAll('.tools-tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tools-curl'));
   const statusEl = document.getElementById('toolsQsStatus');
   if (statusEl) { statusEl.textContent = ''; statusEl.className = 'compose-status'; }
   renderToolsCode(serverUrl, apiKey, uuid);
