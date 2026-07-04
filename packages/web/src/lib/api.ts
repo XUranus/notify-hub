@@ -64,6 +64,10 @@ async function request<T>(
     })
 
     if (response.status === 401) {
+      // Don't redirect on login endpoint — let caller handle the error
+      if (path === '/admin/login') {
+        return await response.json()
+      }
       clearToken()
       window.location.href = '/login'
       return { success: false, error: 'Unauthorized' }
