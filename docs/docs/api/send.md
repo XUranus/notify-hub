@@ -474,6 +474,43 @@ If the `delay` format is invalid, the API returns a `400 Bad Request` with a val
 
 You can attach files to a message using the `attachment` field. The attachment object supports two modes: **URL-based** (the client downloads the file from a URL) and **base64-encoded** (the file data is embedded directly).
 
+### Uploading Files
+
+Before attaching a file via URL, upload it using the Upload API:
+
+```bash
+curl -X POST http://localhost:9527/api/v1/upload \
+  -H "Authorization: Bearer nh_your_token_here" \
+  -F "file=@report.pdf"
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "url": "/uploads/550e8400-e29b-41d4-a716-446655440000.pdf",
+    "filename": "report.pdf",
+    "size": 1048576
+  }
+}
+```
+
+Use the returned `url` (relative) or prepend your server URL to form the full URL for the `attachment.url` field. The uploaded file is accessible without authentication at the returned URL path.
+
+**Upload quota:**
+
+Check your upload quota before uploading:
+
+```bash
+curl http://localhost:9527/api/v1/upload/quota \
+  -H "Authorization: Bearer nh_your_token_here"
+```
+
+Admin users have no quota limits. Regular users have configurable limits for single file size and total storage.
+
 ### Attachment Schema
 
 | Field  | Type     | Required          | Description                          |

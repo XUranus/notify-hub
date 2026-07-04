@@ -108,6 +108,13 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         client_max_body_size 10m;
     }
+
+    # Uploaded files (images, PDFs, etc.)
+    location /uploads/ {
+        proxy_pass http://127.0.0.1:9527;
+        proxy_set_header Host $host;
+        proxy_cache_valid 200 1d;
+    }
 }
 ```
 

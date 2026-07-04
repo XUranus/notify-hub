@@ -68,7 +68,7 @@ Twilio provides a global SMS gateway accessible via REST API with HTTP Basic aut
 3. Create the channel:
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/channels \
+curl -X POST http://localhost:9527/api/admin/channels \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -86,14 +86,14 @@ curl -X POST http://localhost:3000/api/admin/channels \
 4. Test the connection:
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/channels/{channelId}/test \
+curl -X POST http://localhost:9527/api/admin/channels/{channelId}/test \
   -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
 ### Sending via Twilio
 
 ```bash
-curl -X POST http://localhost:3000/api/send \
+curl -X POST http://localhost:9527/api/v1/send \
   -H "Authorization: Bearer <APP_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -151,7 +151,7 @@ sequenceDiagram
 3. Create the channel:
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/channels \
+curl -X POST http://localhost:9527/api/admin/channels \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -170,14 +170,14 @@ curl -X POST http://localhost:3000/api/admin/channels \
 4. Test the connection:
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/channels/{channelId}/test \
+curl -X POST http://localhost:9527/api/admin/channels/{channelId}/test \
   -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
 ### Sending via Aliyun
 
 ```bash
-curl -X POST http://localhost:3000/api/send \
+curl -X POST http://localhost:9527/api/v1/send \
   -H "Authorization: Bearer <APP_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -229,7 +229,7 @@ sequenceDiagram
 3. Create the channel:
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/channels \
+curl -X POST http://localhost:9527/api/admin/channels \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -249,14 +249,14 @@ curl -X POST http://localhost:3000/api/admin/channels \
 4. Test the connection:
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/channels/{channelId}/test \
+curl -X POST http://localhost:9527/api/admin/channels/{channelId}/test \
   -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
 ### Sending via Tencent Cloud
 
 ```bash
-curl -X POST http://localhost:3000/api/send \
+curl -X POST http://localhost:9527/api/v1/send \
   -H "Authorization: Bearer <APP_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -294,7 +294,7 @@ All three providers use the same Send API interface. The only difference is whic
 ### Minimal request (Twilio freeform)
 
 ```bash
-curl -X POST http://localhost:3000/api/send \
+curl -X POST http://localhost:9527/api/v1/send \
   -H "Authorization: Bearer <APP_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -307,7 +307,7 @@ curl -X POST http://localhost:3000/api/send \
 ### Template-based request (Aliyun / Tencent)
 
 ```bash
-curl -X POST http://localhost:3000/api/send \
+curl -X POST http://localhost:9527/api/v1/send \
   -H "Authorization: Bearer <APP_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -322,7 +322,7 @@ curl -X POST http://localhost:3000/api/send \
 ### Sending to multiple recipients
 
 ```bash
-curl -X POST http://localhost:3000/api/send \
+curl -X POST http://localhost:9527/api/v1/send \
   -H "Authorization: Bearer <APP_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{

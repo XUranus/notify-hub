@@ -13,7 +13,7 @@ The email channel delivers notifications over SMTP using [nodemailer](https://no
 Use the admin API to register a new email channel:
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/channels \
+curl -X POST http://localhost:9527/api/admin/channels \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -34,7 +34,7 @@ curl -X POST http://localhost:3000/api/admin/channels \
 ### Step 2 -- Test the connection
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/channels/{channelId}/test \
+curl -X POST http://localhost:9527/api/admin/channels/{channelId}/test \
   -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
@@ -53,7 +53,7 @@ A successful test confirms the SMTP server is reachable and credentials are vali
 If this is your primary email channel, set it as the default:
 
 ```bash
-curl -X PATCH http://localhost:3000/api/admin/channels/{channelId} \
+curl -X PATCH http://localhost:9527/api/admin/channels/{channelId} \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{ "isDefault": true }'
@@ -121,7 +121,7 @@ The table below lists connection settings for popular email services:
 Once the channel is configured and tested, send email notifications through the Send API:
 
 ```bash
-curl -X POST http://localhost:3000/api/send \
+curl -X POST http://localhost:9527/api/v1/send \
   -H "Authorization: Bearer <APP_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -152,7 +152,7 @@ A successful response:
 ### Sending to multiple recipients
 
 ```bash
-curl -X POST http://localhost:3000/api/send \
+curl -X POST http://localhost:9527/api/v1/send \
   -H "Authorization: Bearer <APP_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{

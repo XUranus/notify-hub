@@ -51,7 +51,7 @@ Open `.env` in your editor. The key settings are:
 
 ```bash
 # Server
-PORT=3000
+PORT=9527
 HOST=0.0.0.0
 NODE_ENV=development
 
@@ -97,10 +97,10 @@ You should see output like:
 ╔═══════════════════════════════════════════╗
 ║          NotifyHub v0.1.0                 ║
 ║───────────────────────────────────────────║
-║  Server:  http://0.0.0.0:3000            ║
+║  Server:  http://0.0.0.0:9527            ║
 ║  Mode:    development                     ║
-║  API:     http://0.0.0.0:3000/api        ║
-║  Health:  http://0.0.0.0:3000/health      ║
+║  API:     http://0.0.0.0:9527/api        ║
+║  Health:  http://0.0.0.0:9527/health      ║
 ╚═══════════════════════════════════════════╝
 ```
 
@@ -110,11 +110,11 @@ You should see output like:
 pnpm dev:web
 ```
 
-The admin dashboard starts on `http://localhost:5173` (Vite default port).
+The admin dashboard starts on `http://localhost:4321` (Vite dev server). In development, use port **4321** (not 9527) to access the web UI -- the Vite dev server proxies API requests to the backend.
 
 ### Log in to the dashboard
 
-Open `http://localhost:5173` in your browser and log in with the default admin credentials:
+Open `http://localhost:4321` in your browser and log in with the default admin credentials:
 
 | Field | Value |
 |-------|-------|
@@ -133,16 +133,16 @@ From the admin dashboard, navigate to **Tokens** and create a new API token. Alt
 
 ```bash
 # Log in and get a JWT
-TOKEN=$(curl -s -X POST http://localhost:3000/api/admin/auth/login \
+TOKEN=$(curl -s -X POST http://localhost:9527/api/admin/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@notifyhub.local","password":"admin123"}' \
   | jq -r '.data.token')
 
 # Create an API token
-curl -s -X POST http://localhost:3000/api/admin/tokens \
+curl -s -X POST http://localhost:9527/api/admin/tokens \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"my-app","scopes":["email","sms"]}'
+  -d '{"name":"my-app","scopes":["email","sms","push"]}'
 ```
 
 The response includes the token string (prefixed with `nh_`). Save it -- you will need it to send messages.
@@ -152,7 +152,7 @@ The response includes the token string (prefixed with `nh_`). Save it -- you wil
 Create an email channel with your SMTP credentials:
 
 ```bash
-curl -s -X POST http://localhost:3000/api/admin/channels \
+curl -s -X POST http://localhost:9527/api/admin/channels \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -181,7 +181,7 @@ Channel credentials are encrypted with AES-256-GCM before being stored in the da
 Use your API token to send a notification:
 
 ```bash
-curl -s -X POST http://localhost:3000/api/v1/send \
+curl -s -X POST http://localhost:9527/api/v1/send \
   -H "Authorization: Bearer nh_your_token_here" \
   -H "Content-Type: application/json" \
   -d '{
@@ -220,7 +220,7 @@ cd notifyhub
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
-The server starts on port 3000. The admin dashboard is served from the same port in production mode.
+The server starts on port 9527. The admin dashboard is served from the same port in production mode.
 
 ### Using Docker directly
 
@@ -231,7 +231,7 @@ docker build -f deploy/Dockerfile -t notifyhub .
 # Run the container
 docker run -d \
   --name notifyhub \
-  -p 3000:3000 \
+  -p 9527:9527 \
   -v notifyhub-data:/app/data \
   -e ADMIN_PASSWORD=your-secure-password \
   -e JWT_SECRET=your-jwt-secret \
@@ -247,7 +247,7 @@ The Docker image uses a multi-stage build: it compiles the frontend and backend 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `3000` | Server listen port |
+| `PORT` | `9527` | Server listen port |
 | `NODE_ENV` | `production` | Runtime environment |
 | `ADMIN_USERNAME` | `admin` | Default admin username |
 | `ADMIN_PASSWORD` | `changeme` | Default admin password |
@@ -260,5 +260,5 @@ The Docker image uses a multi-stage build: it compiles the frontend and backend 
 - **[Architecture](./architecture.md)** -- Understand how NotifyHub works under the hood.
 - **[Channels](./channels/overview.md)** -- Set up email and SMS providers.
 - **[Templates](./templates.md)** -- Create reusable message templates with variables.
-- **[API Reference](./api/send.md)** -- Explore the full REST API.
+- **[API Reference](./api/v1/send.md)** -- Explore the full REST API.
 - **[Deployment](./deployment/docker.md)** -- Deploy NotifyHub to production.

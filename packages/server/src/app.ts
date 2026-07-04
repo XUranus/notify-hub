@@ -9,6 +9,8 @@ import { startWorker } from './queue/index.js'
 import { initAdminUser } from './init.js'
 import { runMigrations } from './db/migrate.js'
 import { startCleanupScheduler } from './cleanup.js'
+import { readFile, stat } from 'node:fs/promises'
+import { join, extname } from 'node:path'
 
 export function createApp(): Hono {
   const app = new Hono()
@@ -27,7 +29,7 @@ export function createApp(): Hono {
   // Middleware
   app.use('*', cors({
     origin: config.corsOrigin === '*' ? '*' : config.corsOrigin.split(','),
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
   }))
   app.use('*', logger())
@@ -39,11 +41,34 @@ export function createApp(): Hono {
   const api = createApiRouter()
   app.route('/api', api)
 
-  // Serve uploaded files.
-  // Filenames are random UUIDs, so direct access requires knowing the exact path.
-  // The API layer (attachments.ts) enforces ownership; this endpoint only serves the file.
-  // For full auth-gated downloads, use GET /api/admin/attachments/:id/download instead.
-  app.use('/uploads/*', serveStatic({ root: './data' }))
+  // Serve uploaded files (no auth required — filenames are random UUIDs).
+  app.get('/uploads/:filename', async (c) => {
+    const filename = c.req.param('filename')
+    if (!filename || filename.includes('..') || filename.includes('/')) {
+      return c.json({ success: false, error: 'Invalid filename' }, 400)
+    }
+    const filePath = join(process.cwd(), 'data', 'uploads', filename)
+    try {
+      const fileStat = await stat(filePath)
+      if (!fileStat.isFile()) return c.json({ success: false, error: 'Not found' }, 404)
+      const buffer = await readFile(filePath)
+      const ext = extname(filename).toLowerCase()
+      const mimeMap: Record<string, string> = {
+        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+        '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+        '.bmp': 'image/bmp', '.pdf': 'application/pdf',
+        '.txt': 'text/plain', '.json': 'application/json',
+      }
+      const contentType = mimeMap[ext] || 'application/octet-stream'
+      return c.body(buffer, 200, {
+        'Content-Type': contentType,
+        'Content-Length': String(fileStat.size),
+        'Cache-Control': 'public, max-age=86400',
+      })
+    } catch {
+      return c.json({ success: false, error: 'File not found' }, 404)
+    }
+  })
 
   // Serve static frontend files in production
   if (config.nodeEnv === 'production') {

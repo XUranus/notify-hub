@@ -12,7 +12,7 @@ The following diagram shows how a notification request flows through the channel
 
 ```mermaid
 flowchart TD
-    A[Application / API Client] -->|POST /api/send| B[Send API]
+    A[Application / API Client] -->|POST /api/v1/send| B[Send API]
     B --> C{Channel specified?}
     C -->|Yes| D[Load channel by ID]
     C -->|No| E[Load default channel for type]
@@ -131,7 +131,7 @@ The `channels` table stores all registered channels:
 Before using a channel in production, verify its connectivity with the admin test endpoint:
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/channels/{channelId}/test \
+curl -X POST http://localhost:9527/api/admin/channels/{channelId}/test \
   -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
@@ -161,7 +161,7 @@ The test endpoint calls the adapter's `test()` method, which performs a provider
 
 ## Channel Selection in the Send API
 
-When calling the [Send API](/api/send), you control which channel delivers the message:
+When calling the [Send API](/api/v1/send), you control which channel delivers the message:
 
 | Field | Required | Behavior |
 |-------|----------|----------|

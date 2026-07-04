@@ -17,6 +17,8 @@ flowchart TB
         Web[React Admin Dashboard]
         CLI[CLI Tool]
         Ext[External Applications]
+        Android[Android Client]
+        Tauri[Tauri Desktop Client]
     end
 
     subgraph Server ["API Server (Hono)"]
@@ -28,6 +30,7 @@ flowchart TB
 
     subgraph Storage
         SQLite[(SQLite DB)]
+        Files[data/uploads/]
     end
 
     subgraph Providers
@@ -40,6 +43,8 @@ flowchart TB
     Web -->|JWT Auth| API
     CLI -->|API Token| API
     Ext -->|API Token| API
+    Android -->|Long-Poll + JWT| API
+    Tauri -->|Long-Poll + JWT| API
     API --> Auth
     Auth --> Queue
     Queue --> SQLite
@@ -48,6 +53,7 @@ flowchart TB
     Worker --> Twilio
     Worker --> Aliyun
     Worker --> Tencent
+    API --> Files
 ```
 
 ## Request Flow
@@ -216,6 +222,32 @@ erDiagram
     users ||--o{ messages : "sends"
     channels ||--o{ messages : "delivers"
     templates ||--o{ messages : "renders"
+    users ||--o{ push_clients : "owns"
+    push_clients ||--o{ push_messages : "receives"
+
+    push_clients {
+        integer id PK
+        integer user_id FK
+        text uuid UK "client UUID"
+        text name "display name"
+        timestamp last_seen_at
+        timestamp created_at
+    }
+
+    push_messages {
+        integer id PK
+        text client_uuid "target client or __broadcast__"
+        text title
+        text body
+        text level "info|warning|error"
+        boolean delivered
+        text tags "JSON array"
+        integer priority
+        text url
+        text attachment "JSON {name,url?,data?}"
+        text format "text|markdown|html|json"
+        timestamp created_at
+    }
 ```
 
 ### Table Descriptions
@@ -229,6 +261,21 @@ erDiagram
 **templates** -- Reusable message templates. The `body` field supports `{{variable}}` syntax with optional default values (`{{name | default:"Guest"}}`). Templates are scoped to a channel type.
 
 **messages** -- The message queue table. Messages are inserted with `status = 'queued'`, claimed atomically by the worker, and progress through the lifecycle states. Each message can carry extended metadata: `tags` (JSON array of labels), `priority` (0--99, higher = processed first), `url` (an associated link), `attachment` (JSON object with file name and URL or base64 data), and `format` (body rendering hint: text, markdown, html, json). Indexes on `status`, `createdAt`, and `nextRetryAt` keep the worker's polling queries fast.
+
+**push_clients** -- Registered push notification clients. Each client has a UUID, display name, and belongs to a user. Clients poll the server for new messages and register/unregister via JWT-authenticated endpoints.
+
+**push_messages** -- Queued push notifications. When a message is sent to the `push` channel, it is inserted here with `clientUuid` (or `__broadcast__` for all clients), `delivered = false`, and priority/tags metadata. Clients poll to retrieve and acknowledge unread messages.
+
+### Push Channel Flow
+
+The push channel uses long-polling instead of external providers:
+
+1. A client (Android, Tauri, or web) registers with `POST /api/v1/push/register` using its JWT and a unique UUID.
+2. The client polls `GET /api/v1/push/poll` every few seconds. If there are unread messages, they are returned immediately. If not, the request hangs until a message arrives or a timeout occurs.
+3. After receiving messages, the client calls `POST /api/v1/push/ack` with the message IDs to mark them as delivered.
+4. Clients can update their display name via `PATCH /api/v1/push/client`.
+
+This approach works behind firewalls and NATs since the client initiates all connections. No push notification certificates (APNs, FCM) are required.
 
 ## Directory Structure
 

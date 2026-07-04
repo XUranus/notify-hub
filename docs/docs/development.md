@@ -36,7 +36,14 @@ pnpm dev
 pnpm dev:web
 ```
 
-The API server runs on `http://localhost:9527` with `tsx watch` for automatic restarts on file changes. The frontend runs on `http://localhost:5173` with Vite HMR.
+The API server runs on `http://localhost:9527` with `tsx watch` for automatic restarts on file changes. The frontend runs on `http://localhost:4321` with Vite HMR.
+
+:::info Port Architecture
+- **9527** — Hono API server (backend)
+- **4321** — Vite dev server (frontend), proxies `/api` and `/uploads` to port 9527
+
+When accessing the web dashboard in development, always use port **4321**. The Vite dev server proxies API requests to the backend.
+:::
 
 ## Project Structure
 
@@ -328,3 +335,95 @@ The route is now available at `http://localhost:9527/api/admin/myresource`.
 - Write unit tests for pure functions (template engine, crypto, rate limiter).
 - Write integration tests for API endpoints using the Hono test client.
 - Test channel adapters with mock HTTP servers.
+
+## Common Pitfalls
+
+### Vite Proxy and `/uploads/` File Serving
+
+The Vite dev server (port 4321) only proxies specific paths to the backend. If a path is not configured in the proxy, Vite treats it as a frontend route and returns `index.html` instead of forwarding to the backend.
+
+**Symptom**: Requesting `/uploads/<uuid>.jpg` returns `Content-Type: text/html` with the Vite dev page HTML instead of the image.
+
+**Root Cause**: `packages/web/vite.config.ts` proxy config was missing `/uploads`:
+
+```typescript
+// packages/web/vite.config.ts
+server: {
+  port: 4321,
+  proxy: {
+    '/api': {
+      target: 'http://localhost:9527',
+      changeOrigin: true,
+    },
+    '/uploads': {                    // ← Must be present
+      target: 'http://localhost:9527',
+      changeOrigin: true,
+    },
+  },
+},
+```
+
+**How to verify**: Check the response headers when accessing a file URL:
+
+```bash
+# Should return Content-Type: image/jpeg (or similar), NOT text/html
+curl -sI http://localhost:4321/uploads/<uuid>.jpg
+```
+
+### File Upload Path: `process.cwd()` Matters
+
+The upload directory resolves relative to `process.cwd()`:
+
+```typescript
+// packages/server/src/storage.ts
+const UPLOAD_DIR = join(process.cwd(), 'data', 'uploads')
+```
+
+When running via `pnpm dev` from the repo root, `process.cwd()` is the repo root, so files are saved to `data/uploads/`. When running from `packages/server/`, files go to `packages/server/data/uploads/`. Always confirm the actual upload path if files seem missing:
+
+```bash
+find . -path "*/uploads/*.jpg" -o -path "*/uploads/*.png" 2>/dev/null
+```
+
+### CORS: PATCH Method
+
+The server uses CORS middleware. If a client (web dashboard, Tauri) needs to call `PATCH` endpoints (e.g., `PATCH /api/v1/push/client`), ensure `PATCH` is in the `allowMethods` list:
+
+```typescript
+// packages/server/src/app.ts
+app.use('*', cors({
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+}))
+```
+
+### Android PollService: Register Retry
+
+When the Android app starts polling, the `register` call to the server may fail due to timing (server not fully ready). PollService retries up to 3 times with 2s delay. If the app shows "Connecting..." forever after login, check server logs for register errors.
+
+### Logout Flow (Android / Tauri)
+
+Logout must:
+1. Stop the poll service (`ACTION_STOP`)
+2. Clear JWT and credentials from config store
+3. Set `configured = false` to force navigation back to the login screen
+
+On Android, failing to null the `pollService` reference or set `configured = false` will leave the app stuck on the main screen.
+
+### File Serving: `c.body()` vs `new Response()`
+
+When serving binary files (images, PDFs) in Hono, use `c.body()` instead of `new Response(buffer, ...)`:
+
+```typescript
+// ✅ Correct — Hono's recommended way
+return c.body(buffer, 200, {
+  'Content-Type': contentType,
+  'Content-Length': String(fileStat.size),
+})
+
+// ❌ May cause issues — @hono/node-server's Response wrapper
+return new Response(buffer, {
+  headers: { 'Content-Type': contentType },
+})
+```
+
+The `@hono/node-server` adapter overrides `global.Response` with a custom class that has a `cacheKey` optimization. While both approaches should work in theory, `c.body()` is the documented Hono pattern and avoids potential edge cases with the Response wrapper.
