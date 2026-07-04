@@ -87,7 +87,7 @@ async function request<T>(
 
 export const authApi = {
   login: (email: string, password: string) =>
-    request<{ token: string; user: CurrentUser }>(
+    request<{ token: string; user: CurrentUser; mustChangePassword?: boolean }>(
       'POST', '/admin/login', { email, password }
     ),
   register: (email: string, password: string) =>
@@ -96,6 +96,8 @@ export const authApi = {
     ),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<void>('POST', '/admin/change-password', { currentPassword, newPassword }),
+  deleteAccount: (email: string, password: string) =>
+    request<{ deleted: boolean }>('DELETE', '/admin/account', { email, password }),
 }
 
 // ── Stats ──

@@ -26,7 +26,11 @@ export default function Login() {
     if (result.success && result.data) {
       setToken(result.data.token)
       setCurrentUser(result.data.user)
-      navigate('/')
+      if (result.data.mustChangePassword) {
+        navigate('/settings?tab=security&mustChangePassword=1')
+      } else {
+        navigate('/')
+      }
     } else {
       setError(result.error || t('login.failed'))
     }

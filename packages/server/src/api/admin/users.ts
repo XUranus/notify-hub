@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import { createUserSchema, updateUserSchema } from '@notify-hub/shared'
 import { getDb, schema } from '../../db/index.js'
+import { ADMIN_USER_ID, generateUserId } from '../../init.js'
 import type { HonoEnv } from '../../types.js'
 
 const users = new Hono<HonoEnv>()
@@ -63,6 +64,12 @@ users.post('/', async (c) => {
   }
 
   const { email, username, password, role } = parsed.data
+
+  // Block creating admin users — admin is config-only
+  if (role === 'admin') {
+    return c.json({ success: false, error: 'Cannot create admin users via API. Admin is managed by server config.' }, 400)
+  }
+
   const db = getDb()
 
   // Check if email already exists
@@ -77,10 +84,12 @@ users.post('/', async (c) => {
   }
 
   const hashedPassword = await bcrypt.hash(password, 10)
+  const userId = await generateUserId(db)
 
   const [newUser] = await db
     .insert(schema.users)
     .values({
+      id: userId,
       email,
       username,
       password: hashedPassword,
@@ -137,6 +146,11 @@ users.put('/:id', async (c) => {
     }
   }
 
+  // Block changing role to admin
+  if (parsed.data.role === 'admin') {
+    return c.json({ success: false, error: 'Cannot grant admin role via API. Admin is managed by server config.' }, 400)
+  }
+
   const updates: Record<string, unknown> = {}
   if (parsed.data.email !== undefined) updates.email = parsed.data.email
   if (parsed.data.username !== undefined) updates.username = parsed.data.username
@@ -172,16 +186,9 @@ users.delete('/:id', async (c) => {
     return c.json({ success: false, error: 'User not found' }, 404)
   }
 
-  // Prevent deleting the last admin
-  if (user.role === 'admin') {
-    const admins = await db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.role, 'admin'))
-
-    if (admins.length <= 1) {
-      return c.json({ success: false, error: 'Cannot delete the last admin user' }, 400)
-    }
+  // Block deleting admin user
+  if (id === ADMIN_USER_ID || user.role === 'admin') {
+    return c.json({ success: false, error: 'Cannot delete admin user. Admin is managed by server config.' }, 400)
   }
 
   await db.delete(schema.users).where(eq(schema.users.id, id))

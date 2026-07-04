@@ -6,10 +6,12 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useTranslation } from '@/lib/i18n'
 import { useTheme } from '@/lib/theme'
-import { authApi, userSettingsApi, getCurrentUser } from '@/lib/api'
-import { Globe, Moon, Sun, Shield, FileText, CheckCircle, Clock, HardDrive } from 'lucide-react'
+import { authApi, userSettingsApi, getCurrentUser, clearToken } from '@/lib/api'
+import { Globe, Moon, Sun, Shield, FileText, CheckCircle, Clock, HardDrive, AlertTriangle } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 // ── General Tab (Language + Theme) ──
 
@@ -75,12 +77,20 @@ function GeneralSettings() {
 
 function SecuritySettings() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const user = getCurrentUser()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // Account deletion state
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteEmail, setDeleteEmail] = useState('')
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -200,6 +210,79 @@ function SecuritySettings() {
         </form>
       </CardContent>
     </Card>
+
+      {/* Danger Zone — Account Deletion (non-admin only) */}
+      {user && user.role !== 'admin' && (
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              {t('settings.danger.title')}
+            </CardTitle>
+            <CardDescription>{t('settings.danger.desc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="destructive" onClick={() => setShowDeleteModal(true)}>
+              {t('settings.danger.deleteAccount')}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Delete Account Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">{t('settings.danger.confirmTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">{t('settings.danger.confirmDesc')}</p>
+            {deleteError && (
+              <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">{deleteError}</div>
+            )}
+            <div className="space-y-2">
+              <Label>{t('settings.danger.confirmEmail')}</Label>
+              <Input
+                type="email"
+                value={deleteEmail}
+                onChange={(e) => setDeleteEmail(e.target.value)}
+                placeholder={user?.email}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('settings.danger.confirmPassword')}</Label>
+              <Input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowDeleteModal(false); setDeleteEmail(''); setDeletePassword(''); setDeleteError(null) }}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleting || !deleteEmail || !deletePassword}
+              onClick={async () => {
+                setDeleting(true)
+                setDeleteError(null)
+                const result = await authApi.deleteAccount(deleteEmail, deletePassword)
+                setDeleting(false)
+                if (result.success) {
+                  clearToken()
+                  navigate('/login')
+                } else {
+                  setDeleteError(result.error || t('common.error'))
+                }
+              }}
+            >
+              {deleting ? t('common.loading') : t('settings.danger.confirmDelete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -378,12 +461,21 @@ function AttachmentSettings() {
 
 export default function Settings() {
   const { t } = useTranslation()
+  const params = new URLSearchParams(window.location.search)
+  const defaultTab = params.get('tab') === 'security' ? 'security' : 'general'
+  const mustChangePassword = params.get('mustChangePassword') === '1'
 
   return (
     <div>
       <h2 className="text-3xl font-bold tracking-tight mb-6">{t('settings.title')}</h2>
 
-      <Tabs defaultValue="general" className="space-y-4">
+      {mustChangePassword && (
+        <div className="mb-4 p-4 rounded-md bg-amber-50 border border-amber-200 text-amber-800 dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-400 text-sm">
+          ⚠️ {t('settings.mustChangePassword')}
+        </div>
+      )}
+
+      <Tabs defaultValue={defaultTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="general">
             <Globe className="h-4 w-4 mr-2" />

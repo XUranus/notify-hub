@@ -7,6 +7,7 @@ import { getDb, schema } from '../../db/index.js'
 import { getConfig } from '../../config.js'
 import { JWT_EXPIRY } from '@notify-hub/shared'
 import { checkRegistrationRateLimit } from '../../auth/rate-limit.js'
+import { generateUserId } from '../../init.js'
 import type { HonoEnv } from '../../types.js'
 
 const auth = new Hono<HonoEnv>()
@@ -48,11 +49,15 @@ auth.post('/login', async (c) => {
     { expiresIn: JWT_EXPIRY }
   )
 
+  // Check if admin is using default password
+  const isDefaultPassword = user.role === 'admin' && password === config.adminPassword
+
   return c.json({
     success: true,
     data: {
       token,
       user: { id: user.id, email: user.email, username: user.username, role: user.role },
+      mustChangePassword: isDefaultPassword || undefined,
     },
   })
 })
@@ -98,10 +103,12 @@ auth.post('/register', async (c) => {
 
   const hashedPassword = await bcrypt.hash(password, 10)
   const username = email.split('@')[0]
+  const userId = await generateUserId(db)
 
   const [newUser] = await db
     .insert(schema.users)
     .values({
+      id: userId,
       email,
       username,
       password: hashedPassword,

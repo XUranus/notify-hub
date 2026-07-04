@@ -127,6 +127,67 @@ export function createApiRouter(): Hono<HonoEnv> {
     return c.json({ success: true })
   })
 
+  /**
+   * DELETE /api/admin/account
+   * Self-service account deletion. Non-admin only. Requires email + password confirmation.
+   * Cascade deletes: API tokens, push clients, attachments, user settings.
+   */
+  admin.delete('/account', async (c) => {
+    const currentUser = c.get('currentUser')
+    if (!currentUser) {
+      return c.json({ success: false, error: 'Authentication required' }, 401)
+    }
+
+    // Block admin from self-deletion
+    if (currentUser.role === 'admin') {
+      return c.json({ success: false, error: 'Admin account cannot be deleted' }, 400)
+    }
+
+    const body = await c.req.json()
+    const { email, password } = body as { email?: string; password?: string }
+
+    if (!email || !password) {
+      return c.json({ success: false, error: 'Email and password are required' }, 400)
+    }
+
+    const db = getDb()
+
+    const [user] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, currentUser.userId))
+      .limit(1)
+
+    if (!user) {
+      return c.json({ success: false, error: 'User not found' }, 404)
+    }
+
+    // Verify email matches
+    if (email !== user.email) {
+      return c.json({ success: false, error: 'Email does not match' }, 400)
+    }
+
+    // Verify password
+    const valid = await bcrypt.compare(password, user.password)
+    if (!valid) {
+      return c.json({ success: false, error: 'Password is incorrect' }, 401)
+    }
+
+    const userId = user.id
+
+    // Cascade delete related data
+    await db.delete(schema.apiTokens).where(eq(schema.apiTokens.userId, userId))
+    await db.delete(schema.pushClients).where(eq(schema.pushClients.userId, userId))
+    await db.delete(schema.attachments).where(eq(schema.attachments.userId, userId))
+    await db.delete(schema.userSettings).where(eq(schema.userSettings.userId, userId))
+    // Messages: set userId to NULL (keep messages for audit)
+    await db.update(schema.messages).set({ userId: null }).where(eq(schema.messages.userId, userId))
+    // Delete the user
+    await db.delete(schema.users).where(eq(schema.users.id, userId))
+
+    return c.json({ success: true, data: { deleted: true } })
+  })
+
   api.route('/admin', admin)
 
   return api

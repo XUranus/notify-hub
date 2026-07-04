@@ -15,7 +15,7 @@ export const adminUsers = sqliteTable('admin_users', {
 // ── Users ──
 
 export const users = sqliteTable('users', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+  id: integer('id').primaryKey(), // 8-digit ID: admin=99999999, users=10000000-80000000
   email: text('email').notNull().unique(),
   username: text('username').notNull(),
   password: text('password').notNull(), // bcrypt hash

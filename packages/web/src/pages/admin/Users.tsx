@@ -152,7 +152,6 @@ export default function AdminUsers() {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="user">{t('users.roleUser')}</SelectItem>
-                      <SelectItem value="admin">{t('users.roleAdmin')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -238,10 +237,12 @@ export default function AdminUsers() {
                           className="h-7 px-2 text-muted-foreground hover:text-foreground">
                           <Pencil className="h-3 w-3" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(user.id)}
-                          className="h-7 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                        {user.role !== 'admin' && (
+                          <Button size="sm" variant="ghost" onClick={() => handleDelete(user.id)}
+                            className="h-7 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}
