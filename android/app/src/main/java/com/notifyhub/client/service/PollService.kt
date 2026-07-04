@@ -177,6 +177,10 @@ class PollService : Service() {
                     }
 
                     if (!isConnected.value) {
+                        // Connection restored - send notification
+                        if (wasConnected) {
+                            showStatusNotification(I18n["notif_connected"] ?: "Connected", I18n["notif_connected_body"] ?: "Connection restored")
+                        }
                         isConnected.value = true
                         lastError.value = null
                     }
@@ -192,9 +196,10 @@ class PollService : Service() {
                         // In offline mode - keep silent, just keep trying
                         wasConnected = false
                     } else if (wasConnected) {
-                        // Was connected, now lost - show offline dialog
+                        // Was connected, now lost - show offline dialog and notification
                         isConnected.value = false
                         showOfflineDialog.value = true
+                        showStatusNotification(I18n["notif_disconnected"] ?: "Disconnected", I18n["notif_disconnected_body"] ?: "Connection lost")
                         wasConnected = false
                     } else {
                         // Never connected or already handled
@@ -287,6 +292,29 @@ class PollService : Service() {
         }
 
         nm.notify(msg.id.hashCode(), builder.build())
+    }
+
+    private fun showStatusNotification(title: String, body: String) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        val contentIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID_PUSH)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setContentIntent(contentIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+
+        nm.notify("status".hashCode(), builder.build())
     }
 
     private fun buildServiceNotification(): Notification {

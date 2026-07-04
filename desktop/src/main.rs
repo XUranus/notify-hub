@@ -534,6 +534,7 @@ fn main() {
                 running: true,
                 last_poll: None,
                 error: None,
+                was_connected: false,
             }));
             app.manage(poll_state.clone());
 

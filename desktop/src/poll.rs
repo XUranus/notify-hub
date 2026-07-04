@@ -69,6 +69,7 @@ pub struct PollState {
     pub running: bool,
     pub last_poll: Option<String>,
     pub error: Option<String>,
+    pub was_connected: bool,
 }
 
 pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store: Arc<MessageStore>) {
@@ -119,8 +120,13 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
 
                         {
                             let mut s = state.lock().unwrap();
+                            // Connection restored - notify if was previously disconnected
+                            if s.error.is_some() {
+                                show_notification("NotifyHub", "Connection restored");
+                            }
                             s.last_poll = Some(chrono::Local::now().format("%H:%M:%S").to_string());
                             s.error = None;
+                            s.was_connected = true;
                         }
                         for msg in messages {
                             // Auto-download image if enabled
@@ -157,6 +163,11 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
                     }
                     Err(e) => {
                         let mut s = state.lock().unwrap();
+                        // Connection lost - notify if was previously connected
+                        if s.was_connected {
+                            show_notification("NotifyHub", "Connection lost");
+                            s.was_connected = false;
+                        }
                         s.error = Some(e);
                     }
                 }
