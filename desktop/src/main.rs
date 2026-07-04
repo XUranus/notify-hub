@@ -16,7 +16,6 @@ use tauri::{
     Manager,
 };
 use tauri_plugin_autostart::{AutoLaunchManager, MacosLauncher};
-use tauri_plugin_dialog::DialogExt;
 
 // ── Commands ──
 
@@ -388,6 +387,32 @@ async fn reconnect(
     Ok(())
 }
 
+// ── Window Controls ──
+
+#[tauri::command]
+fn window_minimize(window: tauri::Window) -> Result<(), String> {
+    window.minimize().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn window_toggle_maximize(window: tauri::Window) -> Result<(), String> {
+    if window.is_maximized().unwrap_or(false) {
+        window.unmaximize().map_err(|e| e.to_string())
+    } else {
+        window.maximize().map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
+fn window_close(window: tauri::Window) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn window_start_drag(window: tauri::Window) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
 // ── Types ──
 
 #[derive(serde::Serialize)]
@@ -692,7 +717,11 @@ fn main() {
             restore_messages_json,
             export_messages_csv,
             export_messages_xml,
-            export_messages_json
+            export_messages_json,
+            window_minimize,
+            window_toggle_maximize,
+            window_close,
+            window_start_drag
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

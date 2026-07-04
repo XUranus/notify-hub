@@ -9,7 +9,8 @@ import { startWorker } from './queue/index.js'
 import { initAdminUser } from './init.js'
 import { runMigrations } from './db/migrate.js'
 import { startCleanupScheduler } from './cleanup.js'
-import { readFile, stat } from 'node:fs/promises'
+import { stat } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
 import { join, extname } from 'node:path'
 
 export function createApp(): Hono {
@@ -51,7 +52,7 @@ export function createApp(): Hono {
     try {
       const fileStat = await stat(filePath)
       if (!fileStat.isFile()) return c.json({ success: false, error: 'Not found' }, 404)
-      const buffer = await readFile(filePath)
+      const stream = createReadStream(filePath)
       const ext = extname(filename).toLowerCase()
       const mimeMap: Record<string, string> = {
         '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
@@ -60,7 +61,7 @@ export function createApp(): Hono {
         '.txt': 'text/plain', '.json': 'application/json',
       }
       const contentType = mimeMap[ext] || 'application/octet-stream'
-      return c.body(buffer, 200, {
+      return c.body(stream as any, 200, {
         'Content-Type': contentType,
         'Content-Length': String(fileStat.size),
         'Cache-Control': 'public, max-age=86400',

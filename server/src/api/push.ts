@@ -96,7 +96,13 @@ push.patch('/client', clientAuth, async (c) => {
   }
 
   const updates: Record<string, unknown> = {}
-  if (name !== undefined) updates.name = name
+  if (name !== undefined) {
+    const trimmed = typeof name === 'string' ? name.trim() : ''
+    if (trimmed.length > 100) {
+      return c.json({ success: false, error: 'Name too long (max 100 characters)' }, 400)
+    }
+    updates.name = trimmed
+  }
 
   if (Object.keys(updates).length === 0) {
     return c.json({ success: false, error: 'No fields to update' }, 400)

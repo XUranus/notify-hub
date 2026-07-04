@@ -234,7 +234,7 @@ erDiagram
 
 ```
 notifyhub/
-├── packages/
+├── /
 │   ├── shared/                # Shared types, constants, and Zod schemas
 │   │   └── src/
 │   │       ├── constants.ts   # Channel types, retry delays, config defaults

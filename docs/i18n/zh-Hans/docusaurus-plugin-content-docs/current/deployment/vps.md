@@ -67,7 +67,7 @@ EOF
 sudo npm install -g pm2
 
 cd /opt/notifyhub
-pm2 start packages/server/dist/index.js --name "notifyhub"
+pm2 start server/dist/index.js --name "notifyhub"
 
 pm2 save
 pm2 startup systemd
@@ -144,7 +144,7 @@ After=network.target
 Type=simple
 User=notifyhub
 WorkingDirectory=/opt/notifyhub
-ExecStart=/usr/bin/node packages/server/dist/index.js
+ExecStart=/usr/bin/node server/dist/index.js
 Restart=on-failure
 RestartSec=10
 EnvironmentFile=/opt/notifyhub/.env

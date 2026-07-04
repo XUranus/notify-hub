@@ -37,7 +37,7 @@ cd notifyhub
 pnpm install
 ```
 
-This installs all dependencies for every package in the monorepo (`packages/shared`, `packages/server`, `packages/web`, `packages/cli`).
+This installs all dependencies for every package in the monorepo (`shared`, `server`, `web`, `cli`).
 
 ### 3. Configure environment variables
 

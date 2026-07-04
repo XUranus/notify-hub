@@ -60,7 +60,7 @@ const config: Config = {
       title: 'NotifyHub',
       logo: {
         alt: 'NotifyHub Logo',
-        src: 'img/logo.svg',
+        src: 'img/logo.png',
       },
       items: [
         {

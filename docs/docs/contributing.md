@@ -132,7 +132,7 @@ The project uses ESLint for linting. Run `pnpm lint` to check your code. Most fo
 
 ### Database
 
-- Define all schema changes in `packages/server/src/db/schema.ts`.
+- Define all schema changes in `server/src/db/schema.ts`.
 - Generate migrations with `pnpm db:generate` and commit the generated files.
 - Use `snake_case` for SQL column names and `camelCase` in Drizzle/TypeScript (Drizzle handles the mapping).
 - Add indexes for columns used in `WHERE` clauses (especially in the messages table).

@@ -86,6 +86,14 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
         let mut current_jwt = jwt;
 
         loop {
+            // Check if polling should stop (e.g. after logout)
+            {
+                let s = state.lock().unwrap();
+                if !s.running {
+                    break;
+                }
+            }
+
             let api = ApiClient::new(&server_url, &current_jwt);
 
             rt.block_on(async {

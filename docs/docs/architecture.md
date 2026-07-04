@@ -281,43 +281,42 @@ This approach works behind firewalls and NATs since the client initiates all con
 
 ```
 notifyhub/
-├── packages/
-│   ├── shared/                # Shared types, constants, and Zod schemas
-│   │   └── src/
-│   │       ├── constants.ts   # Channel types, retry delays, config defaults
-│   │       ├── schemas.ts     # Zod validation schemas
-│   │       ├── types.ts       # TypeScript interfaces
-│   │       └── index.ts       # Public exports
-│   │
-│   ├── server/                # API server (Hono + SQLite + Drizzle)
-│   │   └── src/
-│   │       ├── api/           # Route handlers
-│   │       │   ├── admin/     # Admin-only routes (auth, channels, tokens, etc.)
-│   │       │   ├── messages.ts # Public message query API
-│   │       │   └── send.ts    # Public send API
-│   │       ├── auth/          # JWT auth, API token auth, rate limiting
-│   │       ├── channel/       # Channel adapter registry
-│   │       │   ├── email/     # SMTP adapter (nodemailer)
-│   │       │   └── sms/       # Twilio, Aliyun, Tencent adapters
-│   │       ├── db/            # Drizzle schema, migrations, DB connection
-│   │       ├── queue/         # Message queue manager and background worker
-│   │       ├── template/      # Template rendering engine
-│   │       ├── app.ts         # Hono app factory and bootstrap
-│   │       ├── config.ts      # Environment config loader
-│   │       ├── crypto.ts      # AES-256-GCM encrypt/decrypt
-│   │       └── index.ts       # Server entry point
-│   │
-│   ├── web/                   # Admin dashboard (React + Vite + Tailwind)
-│   │   └── src/
-│   │       ├── components/    # Reusable UI components (shadcn/ui)
-│   │       ├── layouts/       # Page layouts
-│   │       ├── lib/           # API client, utilities, i18n
-│   │       └── pages/         # Dashboard, Channels, Tokens, Messages, etc.
-│   │
-│   └── cli/                   # CLI tool (Commander.js)
-│       └── src/
-│           ├── commands/      # send, serve, config, status commands
-│           └── lib/           # CLI config and API client
+├── shared/                    # Shared types, constants, and Zod schemas
+│   └── src/
+│       ├── constants.ts       # Channel types, retry delays, config defaults
+│       ├── schemas.ts         # Zod validation schemas
+│       ├── types.ts           # TypeScript interfaces
+│       └── index.ts           # Public exports
+│
+├── server/                    # API server (Hono + SQLite + Drizzle)
+│   └── src/
+│       ├── api/               # Route handlers
+│       │   ├── admin/         # Admin-only routes (auth, channels, tokens, etc.)
+│       │   ├── messages.ts    # Public message query API
+│       │   └── send.ts        # Public send API
+│       ├── auth/              # JWT auth, API token auth, rate limiting
+│       ├── channel/           # Channel adapter registry
+│       │   ├── email/         # SMTP adapter (nodemailer)
+│       │   └── sms/           # Twilio, Aliyun, Tencent adapters
+│       ├── db/                # Drizzle schema, migrations, DB connection
+│       ├── queue/             # Message queue manager and background worker
+│       ├── template/          # Template rendering engine
+│       ├── app.ts             # Hono app factory and bootstrap
+│       ├── config.ts          # Environment config loader
+│       ├── crypto.ts          # AES-256-GCM encrypt/decrypt
+│       └── index.ts           # Server entry point
+│
+├── web/                       # Admin dashboard (React + Vite + Tailwind)
+│   └── src/
+│       ├── components/        # Reusable UI components (shadcn/ui)
+│       ├── layouts/           # Page layouts
+│       ├── lib/               # API client, utilities, i18n
+│       └── pages/             # Dashboard, Channels, Tokens, Messages, etc.
+│
+├── cli/                       # CLI tool (Commander.js)
+│   └── src/
+│       ├── commands/          # send, serve, config, status commands
+│       └── lib/               # CLI config and API client
 │
 ├── deploy/
 │   ├── Dockerfile             # Multi-stage production build

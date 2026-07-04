@@ -51,10 +51,10 @@ NotifyHub is a pnpm monorepo with four packages:
 
 | Package | Path | Description |
 |---------|------|-------------|
-| `@notify-hub/shared` | `packages/shared` | Shared types, Zod schemas, and constants. Used by all other packages. |
-| `@notify-hub/server` | `packages/server` | Hono API server, SQLite database, message queue, and channel adapters. |
-| `@notify-hub/web` | `packages/web` | React admin dashboard built with Vite, Tailwind CSS, and shadcn/ui. |
-| `@notify-hub/cli` | `packages/cli` | Command-line interface for sending messages and managing NotifyHub. |
+| `@notify-hub/shared` | `shared` | Shared types, Zod schemas, and constants. Used by all other packages. |
+| `@notify-hub/server` | `server` | Hono API server, SQLite database, message queue, and channel adapters. |
+| `@notify-hub/web` | `web` | React admin dashboard built with Vite, Tailwind CSS, and shadcn/ui. |
+| `@notify-hub/cli` | `cli` | Command-line interface for sending messages and managing NotifyHub. |
 
 ### Dependency flow
 
@@ -86,13 +86,13 @@ All commands are run from the repository root:
 
 ### Database workflow
 
-When you modify the Drizzle schema (`packages/server/src/db/schema.ts`):
+When you modify the Drizzle schema (`server/src/db/schema.ts`):
 
 ```bash
 # 1. Generate a migration file
 pnpm db:generate
 
-# 2. Review the generated SQL in packages/server/drizzle/
+# 2. Review the generated SQL in server/drizzle/
 
 # 3. Apply the migration
 pnpm db:migrate
@@ -108,10 +108,10 @@ Channel adapters implement the `ChannelAdapter` interface from `@notify-hub/shar
 
 ### Step 1: Define the adapter
 
-Create a new file in `packages/server/src/channel/`. For example, to add a new SMS provider:
+Create a new file in `server/src/channel/`. For example, to add a new SMS provider:
 
 ```typescript
-// packages/server/src/channel/sms/myprovider.ts
+// server/src/channel/sms/myprovider.ts
 
 import type { ChannelAdapter, SendResult, MessagePayload } from '@notify-hub/shared'
 
@@ -177,7 +177,7 @@ export const myProviderAdapter: ChannelAdapter = {
 
 ### Step 2: Register the adapter
 
-Add the adapter to `packages/server/src/channel/index.ts`:
+Add the adapter to `server/src/channel/index.ts`:
 
 ```typescript
 import { myProviderAdapter } from './sms/myprovider.js'
@@ -190,7 +190,7 @@ export function registerBuiltinAdapters() {
 
 ### Step 3: Update shared constants
 
-Add your provider name to `packages/shared/src/constants.ts`:
+Add your provider name to `shared/src/constants.ts`:
 
 ```typescript
 export const SMS_PROVIDERS = ['twilio', 'aliyun', 'tencent', 'myprovider'] as const
@@ -198,7 +198,7 @@ export const SMS_PROVIDERS = ['twilio', 'aliyun', 'tencent', 'myprovider'] as co
 
 ### Step 4: Update validation schemas
 
-If your adapter requires specific config fields, update the channel creation schema in `packages/shared/src/schemas.ts` to validate them.
+If your adapter requires specific config fields, update the channel creation schema in `shared/src/schemas.ts` to validate them.
 
 ### The ChannelAdapter interface
 
@@ -234,10 +234,10 @@ The `config` parameter contains the decrypted channel configuration from the dat
 
 ### Step 1: Create the route handler
 
-Create a new file in `packages/server/src/api/` (or `packages/server/src/api/admin/` for admin-only routes):
+Create a new file in `server/src/api/` (or `server/src/api/admin/` for admin-only routes):
 
 ```typescript
-// packages/server/src/api/admin/myresource.ts
+// server/src/api/admin/myresource.ts
 
 import { Hono } from 'hono'
 import { z } from 'zod'
@@ -268,7 +268,7 @@ export { myResource }
 
 ### Step 2: Register the route
 
-Add the route to the API router in `packages/server/src/api/index.ts`:
+Add the route to the API router in `server/src/api/index.ts`:
 
 ```typescript
 import { myResource } from './admin/myresource.js'
@@ -321,7 +321,7 @@ The route is now available at `http://localhost:9527/api/admin/myresource`.
 
 ### Validation
 
-- Validate all external input (API request bodies) with Zod schemas defined in `packages/shared/src/schemas.ts`.
+- Validate all external input (API request bodies) with Zod schemas defined in `shared/src/schemas.ts`.
 - Use `safeParse()` rather than `parse()` in route handlers to avoid throwing on invalid input.
 
 ### Database
@@ -344,10 +344,10 @@ The Vite dev server (port 4321) only proxies specific paths to the backend. If a
 
 **Symptom**: Requesting `/uploads/<uuid>.jpg` returns `Content-Type: text/html` with the Vite dev page HTML instead of the image.
 
-**Root Cause**: `packages/web/vite.config.ts` proxy config was missing `/uploads`:
+**Root Cause**: `web/vite.config.ts` proxy config was missing `/uploads`:
 
 ```typescript
-// packages/web/vite.config.ts
+// web/vite.config.ts
 server: {
   port: 4321,
   proxy: {
@@ -375,11 +375,11 @@ curl -sI http://localhost:4321/uploads/<uuid>.jpg
 The upload directory resolves relative to `process.cwd()`:
 
 ```typescript
-// packages/server/src/storage.ts
+// server/src/storage.ts
 const UPLOAD_DIR = join(process.cwd(), 'data', 'uploads')
 ```
 
-When running via `pnpm dev` from the repo root, `process.cwd()` is the repo root, so files are saved to `data/uploads/`. When running from `packages/server/`, files go to `packages/server/data/uploads/`. Always confirm the actual upload path if files seem missing:
+When running via `pnpm dev` from the repo root, `process.cwd()` is the repo root, so files are saved to `data/uploads/`. When running from `server/`, files go to `server/data/uploads/`. Always confirm the actual upload path if files seem missing:
 
 ```bash
 find . -path "*/uploads/*.jpg" -o -path "*/uploads/*.png" 2>/dev/null
@@ -390,7 +390,7 @@ find . -path "*/uploads/*.jpg" -o -path "*/uploads/*.png" 2>/dev/null
 The server uses CORS middleware. If a client (web dashboard, Tauri) needs to call `PATCH` endpoints (e.g., `PATCH /api/v1/push/client`), ensure `PATCH` is in the `allowMethods` list:
 
 ```typescript
-// packages/server/src/app.ts
+// server/src/app.ts
 app.use('*', cors({
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }))

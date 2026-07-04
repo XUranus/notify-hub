@@ -132,7 +132,7 @@ sidebar_label: '贡献指南'
 
 ### 数据库
 
-- 所有 schema 变更在 `packages/server/src/db/schema.ts` 中定义。
+- 所有 schema 变更在 `server/src/db/schema.ts` 中定义。
 - 使用 `pnpm db:generate` 生成迁移并提交生成的文件。
 - SQL 列名使用 `snake_case`，Drizzle/TypeScript 中使用 `camelCase`（Drizzle 会处理映射）。
 - 为 `WHERE` 子句中使用的列添加索引（尤其是 messages 表）。

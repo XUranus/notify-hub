@@ -215,6 +215,7 @@ impl ApiClient {
         Ok(api_resp.data.unwrap_or_default())
     }
 
+    #[allow(dead_code)]
     pub async fn upload_file(
         &self,
         file_name: &str,
@@ -282,6 +283,7 @@ impl ApiClient {
         Ok((code, api_resp.data.unwrap_or_default()))
     }
 
+    #[allow(dead_code)]
     pub async fn poll(&self, uuid: &str) -> Result<Vec<PushMessage>, String> {
         let (_, messages) = self.poll_with_status(uuid).await?;
         Ok(messages)

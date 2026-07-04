@@ -48,8 +48,8 @@ pnpm install
 pnpm build
 
 # Start the server
-cd packages/server
-cp ../../.env.example .env
+cd server
+cp ../.env.example .env
 pnpm start
 ```
 

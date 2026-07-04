@@ -44,10 +44,10 @@ NotifyHub 是一个包含四个包（package）的 pnpm monorepo：
 
 | 包 | 路径 | 说明 |
 |---------|------|-------------|
-| `@notify-hub/shared` | `packages/shared` | 共享类型、Zod schema 和常量，被所有其他包使用。 |
-| `@notify-hub/server` | `packages/server` | Hono API 服务器、SQLite 数据库、消息队列和渠道适配器。 |
-| `@notify-hub/web` | `packages/web` | 基于 Vite、Tailwind CSS 和 shadcn/ui 构建的 React 管理面板。 |
-| `@notify-hub/cli` | `packages/cli` | 用于发送消息和管理 NotifyHub 的命令行工具。 |
+| `@notify-hub/shared` | `shared` | 共享类型、Zod schema 和常量，被所有其他包使用。 |
+| `@notify-hub/server` | `server` | Hono API 服务器、SQLite 数据库、消息队列和渠道适配器。 |
+| `@notify-hub/web` | `web` | 基于 Vite、Tailwind CSS 和 shadcn/ui 构建的 React 管理面板。 |
+| `@notify-hub/cli` | `cli` | 用于发送消息和管理 NotifyHub 的命令行工具。 |
 
 ### 依赖关系
 
@@ -79,13 +79,13 @@ shared  <--  cli
 
 ### 数据库工作流
 
-当您修改 Drizzle schema（`packages/server/src/db/schema.ts`）时：
+当您修改 Drizzle schema（`server/src/db/schema.ts`）时：
 
 ```bash
 # 1. 生成迁移文件
 pnpm db:generate
 
-# 2. 检查 packages/server/drizzle/ 中生成的 SQL
+# 2. 检查 server/drizzle/ 中生成的 SQL
 
 # 3. 应用迁移
 pnpm db:migrate
@@ -101,10 +101,10 @@ pnpm db:migrate
 
 ### 第一步：定义适配器
 
-在 `packages/server/src/channel/` 下创建新文件。例如，添加一个新的短信提供商：
+在 `server/src/channel/` 下创建新文件。例如，添加一个新的短信提供商：
 
 ```typescript
-// packages/server/src/channel/sms/myprovider.ts
+// server/src/channel/sms/myprovider.ts
 
 import type { ChannelAdapter, SendResult, MessagePayload } from '@notify-hub/shared'
 
@@ -170,7 +170,7 @@ export const myProviderAdapter: ChannelAdapter = {
 
 ### 第二步：注册适配器
 
-将适配器添加到 `packages/server/src/channel/index.ts`：
+将适配器添加到 `server/src/channel/index.ts`：
 
 ```typescript
 import { myProviderAdapter } from './sms/myprovider.js'
@@ -183,7 +183,7 @@ export function registerBuiltinAdapters() {
 
 ### 第三步：更新共享常量
 
-在 `packages/shared/src/constants.ts` 中添加提供商名称：
+在 `shared/src/constants.ts` 中添加提供商名称：
 
 ```typescript
 export const SMS_PROVIDERS = ['twilio', 'aliyun', 'tencent', 'myprovider'] as const
@@ -191,7 +191,7 @@ export const SMS_PROVIDERS = ['twilio', 'aliyun', 'tencent', 'myprovider'] as co
 
 ### 第四步：更新校验 schema
 
-如果您的适配器需要特定的配置字段，请更新 `packages/shared/src/schemas.ts` 中的渠道创建 schema 以进行校验。
+如果您的适配器需要特定的配置字段，请更新 `shared/src/schemas.ts` 中的渠道创建 schema 以进行校验。
 
 ### ChannelAdapter 接口
 
@@ -227,10 +227,10 @@ interface SendResult {
 
 ### 第一步：创建路由处理器
 
-在 `packages/server/src/api/` 下创建新文件（如需管理员权限路由则放在 `packages/server/src/api/admin/` 下）：
+在 `server/src/api/` 下创建新文件（如需管理员权限路由则放在 `server/src/api/admin/` 下）：
 
 ```typescript
-// packages/server/src/api/admin/myresource.ts
+// server/src/api/admin/myresource.ts
 
 import { Hono } from 'hono'
 import { z } from 'zod'
@@ -261,7 +261,7 @@ export { myResource }
 
 ### 第二步：注册路由
 
-在 `packages/server/src/api/index.ts` 中将路由添加到 API 路由器：
+在 `server/src/api/index.ts` 中将路由添加到 API 路由器：
 
 ```typescript
 import { myResource } from './admin/myresource.js'
@@ -314,7 +314,7 @@ export function createApiRouter(): Hono {
 
 ### 数据校验
 
-- 使用 `packages/shared/src/schemas.ts` 中定义的 Zod schema 校验所有外部输入（API 请求体）。
+- 使用 `shared/src/schemas.ts` 中定义的 Zod schema 校验所有外部输入（API 请求体）。
 - 在路由处理器中使用 `safeParse()` 而非 `parse()`，以避免在输入无效时抛出异常。
 
 ### 数据库
