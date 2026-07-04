@@ -41,9 +41,29 @@ function buildExamples(token: string) {
     "body": "<h1>Welcome!</h1><p>This is a test notification.</p>"
   }'`
 
+  const curlSendResp = `{
+  "success": true,
+  "data": {
+    "messageId": "a1b2c3d4",
+    "status": "queued"
+  }
+}`
+
   const curlStatus = `# 查询消息状态
 curl ${base}/api/v1/messages/1 \\
   -H "Authorization: Bearer ${token}"`
+
+  const curlStatusResp = `{
+  "success": true,
+  "data": {
+    "id": "a1b2c3d4",
+    "channel": "email",
+    "to": "user@example.com",
+    "subject": "Hello from NotifyHub",
+    "status": "delivered",
+    "createdAt": "2025-01-01T00:00:00Z"
+  }
+}`
 
   const jsSend = `const response = await fetch("${base}/api/v1/send", {
   method: "POST",
@@ -120,7 +140,7 @@ data = {
 response = requests.post(url, json=data, headers=headers)
 print(response.json())`
 
-  return { curlSend, curlStatus, jsSend, jsTemplate, pySend, pyTemplate }
+  return { curlSend, curlSendResp, curlStatus, curlStatusResp, jsSend, jsTemplate, pySend, pyTemplate }
 }
 
 function ApiExamples({ token }: { token: string }) {
@@ -145,14 +165,32 @@ function ApiExamples({ token }: { token: string }) {
           </TabsList>
 
           {/* ── cURL ── */}
-          <TabsContent value="curl" className="space-y-4">
+          <TabsContent value="curl" className="space-y-6">
             <div>
               <h4 className="text-sm font-medium mb-2">{t('tokens.exampleSend')}</h4>
-              <CodeBlock code={ex.curlSend} language="bash" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Request</p>
+                  <CodeBlock code={ex.curlSend} language="bash" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Response</p>
+                  <CodeBlock code={ex.curlSendResp} language="json" />
+                </div>
+              </div>
             </div>
             <div>
               <h4 className="text-sm font-medium mb-2">{t('tokens.exampleStatus')}</h4>
-              <CodeBlock code={ex.curlStatus} language="bash" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Request</p>
+                  <CodeBlock code={ex.curlStatus} language="bash" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Response</p>
+                  <CodeBlock code={ex.curlStatusResp} language="json" />
+                </div>
+              </div>
             </div>
           </TabsContent>
 
