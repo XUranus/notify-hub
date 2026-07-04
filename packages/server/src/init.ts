@@ -34,14 +34,13 @@ export async function initAdminUser() {
     .limit(1)
 
   if (existing) {
-    // Ensure role is admin
     if (existing.role !== 'admin') {
       await db.update(schema.users).set({ role: 'admin' }).where(eq(schema.users.id, ADMIN_USER_ID))
     }
     return
   }
 
-  // Check if any admin exists (legacy or wrong ID) — migrate to correct ID
+  // If an admin exists with a different ID, clean up and recreate
   const [anyAdmin] = await db
     .select()
     .from(schema.users)
@@ -49,40 +48,16 @@ export async function initAdminUser() {
     .limit(1)
 
   if (anyAdmin) {
-    console.log(`[init] Migrating admin user ID ${anyAdmin.id} → ${ADMIN_USER_ID}...`)
-    // Update related tables first
-    await db.update(schema.messages).set({ userId: ADMIN_USER_ID }).where(eq(schema.messages.userId, anyAdmin.id))
-    await db.update(schema.apiTokens).set({ userId: ADMIN_USER_ID }).where(eq(schema.apiTokens.userId, anyAdmin.id))
-    await db.update(schema.pushClients).set({ userId: ADMIN_USER_ID }).where(eq(schema.pushClients.userId, anyAdmin.id))
-    await db.update(schema.attachments).set({ userId: ADMIN_USER_ID }).where(eq(schema.attachments.userId, anyAdmin.id))
-    await db.update(schema.userSettings).set({ userId: ADMIN_USER_ID }).where(eq(schema.userSettings.userId, anyAdmin.id))
-    // Update the user row
-    await db.update(schema.users).set({ id: ADMIN_USER_ID }).where(eq(schema.users.id, anyAdmin.id))
-    console.log(`[init] Admin user migrated to ID ${ADMIN_USER_ID}`)
-    return
-  }
-
-  // Check legacy admin_users table for migration
-  const [legacyAdmin] = await db
-    .select()
-    .from(schema.adminUsers)
-    .limit(1)
-
-  if (legacyAdmin) {
-    console.log('[init] Migrating legacy admin user to users table...')
-    await db.insert(schema.users).values({
-      id: ADMIN_USER_ID,
-      email: config.adminEmail,
-      username: legacyAdmin.username,
-      password: legacyAdmin.password,
-      role: 'admin',
-    })
-    console.log(`[init] Legacy admin migrated with ID ${ADMIN_USER_ID}, email: ${config.adminEmail}`)
-    return
+    console.log(`[init] Removing legacy admin (ID ${anyAdmin.id}), will recreate with ID ${ADMIN_USER_ID}`)
+    await db.delete(schema.messages).where(eq(schema.messages.userId, anyAdmin.id))
+    await db.delete(schema.apiTokens).where(eq(schema.apiTokens.userId, anyAdmin.id))
+    await db.delete(schema.pushClients).where(eq(schema.pushClients.userId, anyAdmin.id))
+    await db.delete(schema.attachments).where(eq(schema.attachments.userId, anyAdmin.id))
+    await db.delete(schema.userSettings).where(eq(schema.userSettings.userId, anyAdmin.id))
+    await db.delete(schema.users).where(eq(schema.users.id, anyAdmin.id))
   }
 
   // Create default admin
-  console.log('[init] No admin user found, creating default admin...')
   const hashedPassword = await bcrypt.hash(config.adminPassword, 10)
 
   await db.insert(schema.users).values({
@@ -93,6 +68,6 @@ export async function initAdminUser() {
     role: 'admin',
   })
 
-  console.log(`[init] Default admin created: ${config.adminEmail} (ID: ${ADMIN_USER_ID})`)
+  console.log(`[init] Admin created: ${config.adminEmail} (ID: ${ADMIN_USER_ID})`)
   console.log('[init] ⚠️  Change the default password after first login!')
 }
