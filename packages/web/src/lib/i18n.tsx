@@ -58,6 +58,8 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'login.submit': '登录',
     'login.submitting': '登录中...',
     'login.failed': '登录失败',
+    'login.invalidCredentials': '邮箱或密码错误',
+    'login.lockedOut': '登录失败次数过多，请 {time} 后重试',
     'login.noAccount': '没有账号？',
     'login.register': '立即注册',
 
@@ -475,6 +477,8 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'login.submit': 'Sign In',
     'login.submitting': 'Signing in...',
     'login.failed': 'Login failed',
+    'login.invalidCredentials': 'Invalid email or password',
+    'login.lockedOut': 'Too many failed attempts. Try again in {time}.',
     'login.noAccount': "Don't have an account?",
     'login.register': 'Register',
 

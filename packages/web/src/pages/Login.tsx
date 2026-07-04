@@ -32,7 +32,17 @@ export default function Login() {
         navigate('/')
       }
     } else {
-      setError(result.error || t('login.failed'))
+      const err = result.error || ''
+      if (err === 'Invalid credentials') {
+        setError(t('login.invalidCredentials'))
+      } else if (err.includes('Too many failed attempts')) {
+        // Extract time from server message: "Try again in X minutes."
+        const match = err.match(/Try again in (\d+ \w+)/)
+        const time = match ? match[1] : ''
+        setError(t('login.lockedOut', { time }))
+      } else {
+        setError(err || t('login.failed'))
+      }
     }
 
     setLoading(false)
