@@ -182,7 +182,7 @@ jobs:
       - name: Build
         working-directory: desktop
         shell: bash
-        run: npx tauri build --bundles msi 2>&1 | tail -80
+        run: npx tauri build --bundles msi
 
       - name: Rename artifact
         shell: bash
@@ -215,16 +215,6 @@ jobs:
           ANDROID_SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses || true
           "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Create debug keystore
-        run: |
-          mkdir -p ~/.android
-          keytool -genkeypair -v \
-            -keystore ~/.android/debug.keystore \
-            -alias androiddebugkey \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass android -keypass android \
-            -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Build APK
         working-directory: android
