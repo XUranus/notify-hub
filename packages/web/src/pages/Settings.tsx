@@ -218,8 +218,8 @@ function SecuritySettings() {
             <CardTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
               {t('settings.danger.title')}
+              <span className="text-sm font-normal text-muted-foreground ml-1">{t('settings.danger.desc')}</span>
             </CardTitle>
-            <CardDescription>{t('settings.danger.desc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button variant="destructive" onClick={() => setShowDeleteModal(true)}>
