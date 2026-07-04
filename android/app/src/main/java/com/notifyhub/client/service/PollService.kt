@@ -58,6 +58,9 @@ class PollService : Service() {
     val isConnected = mutableStateOf(false)
     val lastPollTime = mutableStateOf<String?>(null)
     val lastError = mutableStateOf<String?>(null)
+    val isOfflineMode = mutableStateOf(false)
+    val showOfflineDialog = mutableStateOf(false)
+    private var wasConnected = false
 
     override fun onBind(intent: Intent?): IBinder = binder
 
@@ -177,10 +180,27 @@ class PollService : Service() {
                         isConnected.value = true
                         lastError.value = null
                     }
+                    // Connection restored - exit offline mode if it was active
+                    if (isOfflineMode.value) {
+                        isOfflineMode.value = false
+                        showOfflineDialog.value = false
+                    }
+                    wasConnected = true
                 } catch (e: Exception) {
                     AppLogger.e(TAG, "Poll error", e)
-                    isConnected.value = false
-                    lastError.value = e.message ?: I18n["notif_poll_failed"]
+                    if (isOfflineMode.value) {
+                        // In offline mode - keep silent, just keep trying
+                        wasConnected = false
+                    } else if (wasConnected) {
+                        // Was connected, now lost - show offline dialog
+                        isConnected.value = false
+                        showOfflineDialog.value = true
+                        wasConnected = false
+                    } else {
+                        // Never connected or already handled
+                        isConnected.value = false
+                        lastError.value = e.message ?: I18n["notif_poll_failed"]
+                    }
                 }
 
                 delay(POLL_INTERVAL_MS)
@@ -192,6 +212,20 @@ class PollService : Service() {
         pollJob?.cancel()
         pollJob = null
         isConnected.value = false
+    }
+
+    /** Enter offline mode - keep polling silently without showing login prompts */
+    fun enterOfflineMode() {
+        isOfflineMode.value = true
+        showOfflineDialog.value = false
+    }
+
+    /** Switch account - clear offline mode and go to config screen */
+    fun switchAccount() {
+        isOfflineMode.value = false
+        showOfflineDialog.value = false
+        wasConnected = false
+        stopPolling()
     }
 
     /**

@@ -134,6 +134,7 @@ fun MainScreen(
     var lastDeletedIndex by remember { mutableStateOf(0) }
 
     val isConnected = pollService?.isConnected?.value == true
+    val isOfflineMode = pollService?.isOfflineMode?.value == true
     var isMuted by remember { mutableStateOf(ConfigStore.isMuted(context)) }
 
     // Refresh mute state periodically
@@ -219,7 +220,11 @@ fun MainScreen(
                                 Badge { Text(unreadCount.toString()) }
                             }
                             Spacer(Modifier.width(12.dp))
-                            if (isConnected) {
+                            if (isOfflineMode) {
+                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error))
+                                Spacer(Modifier.width(4.dp))
+                                Text(i18n("status_offline"), fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                            } else if (isConnected) {
                                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
                                 Spacer(Modifier.width(4.dp))
                                 Text(i18n("status_connected"), fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
@@ -496,6 +501,34 @@ fun MainScreen(
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
                     Text(i18n("cancel"))
+                }
+            }
+        )
+    }
+
+    // Offline dialog
+    val showOfflineDialog = pollService?.showOfflineDialog?.value == true
+    if (showOfflineDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                // Click outside = enter offline mode
+                pollService?.enterOfflineMode()
+            },
+            title = { Text(i18n("offline_title")) },
+            text = { Text(i18n("offline_message")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pollService?.enterOfflineMode()
+                }) {
+                    Text(i18n("offline_mode"))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    pollService?.switchAccount()
+                    onOpenSettings()
+                }) {
+                    Text(i18n("offline_switch"))
                 }
             }
         )
