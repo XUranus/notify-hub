@@ -556,23 +556,16 @@
         </h3>
         <button class="modal-close" id="quickSendCloseBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
-      <div class="tabs" id="qsTabs">
-        <button class="tab active" data-qs-tab="qs-curl" id="t-qs-curl">Curl</button>
-        <button class="tab" data-qs-tab="qs-python" id="t-qs-python">Python</button>
-      </div>
       <div class="qs-tab-pane active" id="qs-curl" style="position:relative">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 18px 0">
           <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase">bash</span>
           <button class="copy-btn" id="qsCopyCurl" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
         </div>
         <pre class="curl-block" id="qsCurlCode" style="margin:6px 18px 14px;max-height:220px"></pre>
-      </div>
-      <div class="qs-tab-pane" id="qs-python" style="position:relative">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 18px 0">
-          <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase">python</span>
-          <button class="copy-btn" id="qsCopyPython" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+        <div id="qsApiKeyHint" style="display:none;padding:0 18px 10px;font-size:12px;color:var(--warn)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span id="qsApiKeyHintText"></span>
         </div>
-        <pre class="curl-block" id="qsPythonCode" style="margin:6px 18px 14px;max-height:220px"></pre>
       </div>
       <div class="modal-footer">
         <div class="compose-status" id="qsStatus"></div>
@@ -710,8 +703,8 @@ const invoke = window.__TAURI_INTERNALS__.invoke;
 
 /* ── i18n ── */
 const I18N = {
-  en: { serverConfig:'Server Configuration',clientInfo:'Client Info',system:'System',os:'OS',arch:'Arch',de:'DE',name:'Name',connectBtn:'Connect',connecting:'Connecting...',connected:'Connected',disconnected:'Disconnected',lastPoll:'Last Poll',messages:'Messages',noMessages:'No messages yet.',noMessagesUnread:'No unread messages.',noMessagesRead:'No read messages.',noMessagesFlagged:'No flagged messages.',noMessagesSearch:'No messages match your search.',editConfig:'Settings',saveBtn:'Save & Reconnect',saving:'Saving...',saved:'Saved!',reconnected:'Reconnected!',cancel:'Cancel',status:'Status',copyUuid:'Copy UUID',copied:'Copied!',error:'Error',clearAll:'Clear All',clearConfirm:'Delete all messages?',deleteConfirmTitle:'Confirm Delete',markAllRead:'Mark All Read',backupRestore:'Backup & Restore',backup:'Backup',restore:'Restore',export:'Export Messages',backupSuccess:'Backup saved successfully',restoreConfirm:'Restore from backup? This will replace all current messages.',restoreSuccess:'Restored {count} messages',restoreFailed:'Restore failed',exportSuccess:'Exported to {format}',server:'Server',quickSend:'Quick Send',copyCurl:'Copy',tabServer:'Server',tabSystem:'System',tabData:'Data',tabTools:'Tools',appVersion:'App Version',configFile:'Config File',messagesFile:'Messages File',autostart:'Launch on startup',autoDownloadImages:'Auto-download images under 5MB',settings:'Settings',close:'Close',priority:'Pri',tags:'Tags',format:'Fmt',search:'Search',filterAll:'All',filterUnread:'Unread',filterRead:'Read',filterFlagged:'Flagged',untitled:'Untitled',msgDetail:'Message Detail',msgDeleted:'Message deleted',undo:'Undo',selected:'selected',flag:'Flag',unflag:'Unflag',delete:'Delete',copy:'Copy',copyTitle:'Copy title',download:'Download',justNow:'just now',minAgo:'min ago',hrAgo:'hr ago',daysAgo:'days ago',noUrl:'No download URL',composeTitle:'New Message',composeChannel:'Channel',composeFormat:'Format',composeTo:'To',composeToHint:'Push: client UUID or __broadcast__. Email: recipient address.',composeSubject:'Subject',composeBody:'Body',composePriority:'Priority',composeUrl:'URL',composeTags:'Tags',composeAttachment:'Attachment',composeSend:'Send',composeSending:'Sending...',composeSent:'Message sent!',composeTagHint:'Type tag and press Enter',composeAttHint:'URL to attachment file',composePriHint:'0 = normal, higher = more urgent',quickSendMsg:'Quick send a message',quickSendTitle:'Quick Send',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'Run & Send',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'Run & Send',composeAdvanced:'Advanced',composeUploadFile:'Upload file' },
-  zh: { serverConfig:'服务器配置',clientInfo:'客户端信息',system:'系统',os:'系统',arch:'架构',de:'桌面环境',name:'名称',connectBtn:'连接',connecting:'连接中...',connected:'已连接',disconnected:'已断开',lastPoll:'上次轮询',messages:'消息记录',noMessages:'暂无消息。',noMessagesUnread:'没有未读消息。',noMessagesRead:'没有已读消息。',noMessagesFlagged:'没有已标记消息。',noMessagesSearch:'没有匹配的消息。',editConfig:'设置',saveBtn:'保存并重连',saving:'保存中...',saved:'已保存！',reconnected:'已重连！',cancel:'取消',status:'状态',copyUuid:'复制 UUID',copied:'已复制！',error:'错误',clearAll:'清空',clearConfirm:'确定删除所有消息？',deleteConfirmTitle:'确认删除',markAllRead:'全部已读',backupRestore:'备份与恢复',backup:'备份',restore:'恢复',export:'导出消息',backupSuccess:'备份保存成功',restoreConfirm:'从备份恢复？这将替换所有当前消息。',restoreSuccess:'已恢复 {count} 条消息',restoreFailed:'恢复失败',exportSuccess:'已导出为 {format}',server:'服务器',quickSend:'快速发送',copyCurl:'复制',tabServer:'服务器',tabSystem:'系统',tabData:'数据',tabTools:'工具',appVersion:'应用版本',configFile:'配置文件',messagesFile:'消息文件',autostart:'开机自启动',autoDownloadImages:'自动下载5MB以内的图片',settings:'设置',close:'关闭',priority:'优先级',tags:'标签',format:'格式',search:'搜索',filterAll:'全部',filterUnread:'未读',filterRead:'已读',filterFlagged:'已标记',untitled:'无标题',msgDetail:'消息详情',msgDeleted:'消息已删除',undo:'撤销',selected:'已选择',flag:'标记',unflag:'取消标记',delete:'删除',copy:'复制',copyTitle:'复制标题',download:'下载',justNow:'刚刚',minAgo:'分钟前',hrAgo:'小时前',daysAgo:'天前',noUrl:'无下载链接',composeTitle:'新建消息',composeChannel:'通道',composeFormat:'格式',composeTo:'接收方',composeToHint:'Push: 客户端UUID或__broadcast__。Email: 收件人邮箱。',composeSubject:'标题',composeBody:'正文',composePriority:'优先级',composeUrl:'链接',composeTags:'标签',composeAttachment:'附件',composeSend:'发送',composeSending:'发送中...',composeSent:'消息已发送！',composeTagHint:'输入标签后按回车',composeAttHint:'附件文件URL',composePriHint:'0 = 普通，值越大越紧急',quickSendMsg:'快速发送消息',quickSendTitle:'快速发送',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'执行并发送',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'执行并发送',composeAdvanced:'高级选项',composeUploadFile:'上传文件' },
+  en: { serverConfig:'Server Configuration',clientInfo:'Client Info',system:'System',os:'OS',arch:'Arch',de:'DE',name:'Name',connectBtn:'Connect',connecting:'Connecting...',connected:'Connected',disconnected:'Disconnected',lastPoll:'Last Poll',messages:'Messages',noMessages:'No messages yet.',noMessagesUnread:'No unread messages.',noMessagesRead:'No read messages.',noMessagesFlagged:'No flagged messages.',noMessagesSearch:'No messages match your search.',editConfig:'Settings',saveBtn:'Save & Reconnect',saving:'Saving...',saved:'Saved!',reconnected:'Reconnected!',cancel:'Cancel',status:'Status',copyUuid:'Copy UUID',copied:'Copied!',error:'Error',clearAll:'Clear All',clearConfirm:'Delete all messages?',deleteConfirmTitle:'Confirm Delete',markAllRead:'Mark All Read',backupRestore:'Backup & Restore',backup:'Backup',restore:'Restore',export:'Export Messages',backupSuccess:'Backup saved successfully',restoreConfirm:'Restore from backup? This will replace all current messages.',restoreSuccess:'Restored {count} messages',restoreFailed:'Restore failed',exportSuccess:'Exported to {format}',server:'Server',quickSend:'Quick Send',copyCurl:'Copy',tabServer:'Server',tabSystem:'System',tabData:'Data',tabTools:'Tools',appVersion:'App Version',configFile:'Config File',messagesFile:'Messages File',autostart:'Launch on startup',autoDownloadImages:'Auto-download images under 5MB',settings:'Settings',close:'Close',priority:'Pri',tags:'Tags',format:'Fmt',search:'Search',filterAll:'All',filterUnread:'Unread',filterRead:'Read',filterFlagged:'Flagged',untitled:'Untitled',msgDetail:'Message Detail',msgDeleted:'Message deleted',undo:'Undo',selected:'selected',flag:'Flag',unflag:'Unflag',delete:'Delete',copy:'Copy',copyTitle:'Copy title',download:'Download',justNow:'just now',minAgo:'min ago',hrAgo:'hr ago',daysAgo:'days ago',noUrl:'No download URL',composeTitle:'New Message',composeChannel:'Channel',composeFormat:'Format',composeTo:'To',composeToHint:'Push: client UUID or __broadcast__. Email: recipient address.',composeSubject:'Subject',composeBody:'Body',composePriority:'Priority',composeUrl:'URL',composeTags:'Tags',composeAttachment:'Attachment',composeSend:'Send',composeSending:'Sending...',composeSent:'Message sent!',composeTagHint:'Type tag and press Enter',composeAttHint:'URL to attachment file',composePriHint:'0 = normal, higher = more urgent',quickSendMsg:'Quick send a message',quickSendTitle:'Quick Send',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'Run & Send',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'Run & Send',composeAdvanced:'Advanced',composeUploadFile:'Upload file',qsNoApiKey:'No API key configured. Create one in web dashboard: Settings → API Keys.' },
+  zh: { serverConfig:'服务器配置',clientInfo:'客户端信息',system:'系统',os:'系统',arch:'架构',de:'桌面环境',name:'名称',connectBtn:'连接',connecting:'连接中...',connected:'已连接',disconnected:'已断开',lastPoll:'上次轮询',messages:'消息记录',noMessages:'暂无消息。',noMessagesUnread:'没有未读消息。',noMessagesRead:'没有已读消息。',noMessagesFlagged:'没有已标记消息。',noMessagesSearch:'没有匹配的消息。',editConfig:'设置',saveBtn:'保存并重连',saving:'保存中...',saved:'已保存！',reconnected:'已重连！',cancel:'取消',status:'状态',copyUuid:'复制 UUID',copied:'已复制！',error:'错误',clearAll:'清空',clearConfirm:'确定删除所有消息？',deleteConfirmTitle:'确认删除',markAllRead:'全部已读',backupRestore:'备份与恢复',backup:'备份',restore:'恢复',export:'导出消息',backupSuccess:'备份保存成功',restoreConfirm:'从备份恢复？这将替换所有当前消息。',restoreSuccess:'已恢复 {count} 条消息',restoreFailed:'恢复失败',exportSuccess:'已导出为 {format}',server:'服务器',quickSend:'快速发送',copyCurl:'复制',tabServer:'服务器',tabSystem:'系统',tabData:'数据',tabTools:'工具',appVersion:'应用版本',configFile:'配置文件',messagesFile:'消息文件',autostart:'开机自启动',autoDownloadImages:'自动下载5MB以内的图片',settings:'设置',close:'关闭',priority:'优先级',tags:'标签',format:'格式',search:'搜索',filterAll:'全部',filterUnread:'未读',filterRead:'已读',filterFlagged:'已标记',untitled:'无标题',msgDetail:'消息详情',msgDeleted:'消息已删除',undo:'撤销',selected:'已选择',flag:'标记',unflag:'取消标记',delete:'删除',copy:'复制',copyTitle:'复制标题',download:'下载',justNow:'刚刚',minAgo:'分钟前',hrAgo:'小时前',daysAgo:'天前',noUrl:'无下载链接',composeTitle:'新建消息',composeChannel:'通道',composeFormat:'格式',composeTo:'接收方',composeToHint:'Push: 客户端UUID或__broadcast__。Email: 收件人邮箱。',composeSubject:'标题',composeBody:'正文',composePriority:'优先级',composeUrl:'链接',composeTags:'标签',composeAttachment:'附件',composeSend:'发送',composeSending:'发送中...',composeSent:'消息已发送！',composeTagHint:'输入标签后按回车',composeAttHint:'附件文件URL',composePriHint:'0 = 普通，值越大越紧急',quickSendMsg:'快速发送消息',quickSendTitle:'快速发送',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'执行并发送',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'执行并发送',composeAdvanced:'高级选项',composeUploadFile:'上传文件',qsNoApiKey:'未配置 API Key。请在 Web 管理后台创建：设置 → API Keys。' },
   ja: { serverConfig:'サーバー設定',clientInfo:'クライアント情報',system:'システム',os:'OS',arch:'アーキテクチャ',de:'デスクトップ',name:'名前',connectBtn:'接続',connecting:'接続中...',connected:'接続済み',disconnected:'切断',lastPoll:'最終ポーリング',messages:'メッセージ',noMessages:'メッセージはまだありません。',noMessagesUnread:'未読メッセージはありません。',noMessagesRead:'既読メッセージはありません。',noMessagesFlagged:'フラグ付きメッセージはありません。',noMessagesSearch:'一致するメッセージがありません。',editConfig:'設定',saveBtn:'保存して再接続',saving:'保存中...',saved:'保存済み！',reconnected:'再接続済み！',cancel:'キャンセル',status:'ステータス',copyUuid:'UUID をコピー',copied:'コピーしました！',error:'エラー',clearAll:'すべて削除',clearConfirm:'すべてのメッセージを削除しますか？',deleteConfirmTitle:'削除の確認',markAllRead:'すべて既読にする',backupRestore:'バックアップと復元',backup:'バックアップ',restore:'復元',export:'メッセージをエクスポート',backupSuccess:'バックアップを保存しました',restoreConfirm:'バックアップから復元しますか？現在のすべてのメッセージが置き換えられます。',restoreSuccess:'{count} 件のメッセージを復元しました',restoreFailed:'復元に失敗しました',exportSuccess:'{format} にエクスポートしました',server:'サーバー',quickSend:'クイック送信',copyCurl:'コピー',tabServer:'サーバー',tabSystem:'システム',tabData:'データ',tabTools:'ツール',appVersion:'アプリバージョン',configFile:'設定ファイル',messagesFile:'メッセージファイル',autostart:'起動時に自動開始',autoDownloadImages:'5MB未満の画像を自動ダウンロード',settings:'設定',close:'閉じる',priority:'優先度',tags:'タグ',format:'フォーマット',search:'検索',filterAll:'すべて',filterUnread:'未読',filterRead:'既読',filterFlagged:'フラグ',untitled:'無題',msgDetail:'メッセージ詳細',msgDeleted:'メッセージを削除しました',undo:'元に戻す',selected:'選択中',flag:'フラグ',unflag:'フラグ解除',delete:'削除',copy:'コピー',copyTitle:'タイトルをコピー',download:'ダウンロード',justNow:'たった今',minAgo:'分前',hrAgo:'時間前',daysAgo:'日前',noUrl:'ダウンロードURLなし',composeTitle:'新規メッセージ',composeChannel:'チャンネル',composeFormat:'フォーマット',composeTo:'宛先',composeToHint:'Push: クライアントUUIDまたは__broadcast__。Email: 宛先メールアドレス。',composeSubject:'件名',composeBody:'本文',composePriority:'優先度',composeUrl:'URL',composeTags:'タグ',composeAttachment:'添付ファイル',composeSend:'送信',composeSending:'送信中...',composeSent:'メッセージを送信しました！',composeTagHint:'タグを入力してEnter',composeAttHint:'添付ファイルのURL',composePriHint:'0 = 通常、高いほど緊急',quickSendMsg:'メッセージを送信',quickSendTitle:'クイック送信',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'実行して送信',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'実行して送信',composeAdvanced:'詳細設定',composeUploadFile:'ファイルをアップロード' },
   ko: { serverConfig:'서버 설정',clientInfo:'클라이언트 정보',system:'시스템',os:'OS',arch:'아키텍처',de:'데스크톱',name:'이름',connectBtn:'연결',connecting:'연결 중...',connected:'연결됨',disconnected:'연결 끊김',lastPoll:'마지막 폴링',messages:'메시지',noMessages:'수신된 메시지가 없습니다.',noMessagesUnread:'읽지 않은 메시지가 없습니다.',noMessagesRead:'읽은 메시지가 없습니다.',noMessagesFlagged:'플래그된 메시지가 없습니다.',noMessagesSearch:'일치하는 메시지가 없습니다.',editConfig:'설정',saveBtn:'저장 후 재연결',saving:'저장 중...',saved:'저장 완료！',reconnected:'재연결 완료！',cancel:'취소',status:'상태',copyUuid:'UUID 복사',copied:'복사됨！',error:'오류',clearAll:'모두 삭제',clearConfirm:'모든 메시지를 삭제하시겠습니까?',deleteConfirmTitle:'삭제 확인',markAllRead:'모두 읽음으로 표시',backupRestore:'백업 및 복원',backup:'백업',restore:'복원',export:'메시지 내보내기',backupSuccess:'백업이 저장되었습니다',restoreConfirm:'백업에서 복원하시겠습니까? 현재 모든 메시지가 대체됩니다.',restoreSuccess:'{count}개의 메시지를 복원했습니다',restoreFailed:'복원에 실패했습니다',exportSuccess:'{format}(으)로 내보냈습니다',server:'서버',quickSend:'빠른 전송',copyCurl:'복사',tabServer:'서버',tabSystem:'시스템',tabData:'데이터',tabTools:'도구',appVersion:'앱 버전',configFile:'설정 파일',messagesFile:'메시지 파일',autostart:'시작 시 자동 실행',autoDownloadImages:'5MB 미만 이미지 자동 다운로드',settings:'설정',close:'닫기',priority:'우선순위',tags:'태그',format:'형식',search:'검색',filterAll:'전체',filterUnread:'안 읽음',filterRead:'읽음',filterFlagged:'플래그',untitled:'제목 없음',msgDetail:'메시지 상세',msgDeleted:'메시지 삭제됨',undo:'실행 취소',selected:'선택됨',flag:'플래그',unflag:'플래그 해제',delete:'삭제',copy:'복사',copyTitle:'제목 복사',download:'다운로드',justNow:'방금',minAgo:'분 전',hrAgo:'시간 전',daysAgo:'일 전',noUrl:'다운로드 URL 없음',composeTitle:'새 메시지',composeChannel:'채널',composeFormat:'형식',composeTo:'수신자',composeToHint:'Push: 클라이언트 UUID 또는 __broadcast__. Email: 수신자 이메일.',composeSubject:'제목',composeBody:'본문',composePriority:'우선순위',composeUrl:'URL',composeTags:'태그',composeAttachment:'첨부파일',composeSend:'보내기',composeSending:'전송 중...',composeSent:'메시지를 보냈습니다!',composeTagHint:'태그 입력 후 Enter',composeAttHint:'첨부파일 URL',composePriHint:'0 = 보통, 높을수록 긴급',quickSendMsg:'빠른 메시지 보내기',quickSendTitle:'빠른 전송',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'실행 후 전송',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'실행 후 전송',composeAdvanced:'고급 옵션',composeUploadFile:'파일 업로드' },
 };
@@ -1410,9 +1403,12 @@ document.getElementById('toolsRunBtn')?.addEventListener('click', async () => {
 /* ── Quick Send Modal ── */
 let _qsCurlRaw = '', _qsPythonRaw = '';
 
+const QS_PLACEHOLDER_KEY = 'nhk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+
 function buildQsCurl(url, apiKey, uuid) {
+  const key = apiKey || QS_PLACEHOLDER_KEY;
   return `curl -X POST "${url}/api/v1/send" \\
-  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Authorization: Bearer ${key}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "channel": "push",
@@ -1422,24 +1418,6 @@ function buildQsCurl(url, apiKey, uuid) {
   }'`;
 }
 
-function buildQsPython(url, apiKey, uuid) {
-  return `import requests
-
-resp = requests.post(
-    "${url}/api/v1/send",
-    headers={
-        "Authorization": "Bearer ${apiKey}",
-        "Content-Type": "application/json",
-    },
-    json={
-        "channel": "push",
-        "to": "${uuid}",
-        "subject": "Hello from NotifyHub",
-        "body": "This is a test notification sent from the desktop client.",
-    },
-)
-print(resp.json())`;
-}
 
 function highlightBash(raw) {
   let h = escHtml(raw);
@@ -1471,24 +1449,28 @@ function highlightPython(raw) {
 
 function renderQsCode(url, apiKey, uuid) {
   _qsCurlRaw = buildQsCurl(url, apiKey, uuid);
-  _qsPythonRaw = buildQsPython(url, apiKey, uuid);
   document.getElementById('qsCurlCode').innerHTML = highlightBash(_qsCurlRaw);
-  document.getElementById('qsPythonCode').innerHTML = highlightPython(_qsPythonRaw);
+  // Show hint if no API key configured
+  const hint = document.getElementById('qsApiKeyHint');
+  const hintText = document.getElementById('qsApiKeyHintText');
+  if (!apiKey) {
+    hintText.textContent = T.qsNoApiKey || 'No API key configured. Create one in the web dashboard: Settings → API Keys.';
+    hint.style.display = 'block';
+  } else {
+    hint.style.display = 'none';
+  }
 }
 
 async function openQuickSendModal() {
   let url = '', apiKey = '', uuid = '';
   try {
     const cfg = await invoke('get_config');
-    if (cfg) { url = cfg.server.url || ''; apiKey = cfg.server.jwt || ''; uuid = cfg.client.uuid || ''; }
+    if (cfg) { url = cfg.server.url || ''; apiKey = cfg.server.api_key || ''; uuid = cfg.client.uuid || ''; }
   } catch {}
   renderQsCode(url, apiKey, uuid);
   document.getElementById('qsStatus').textContent = '';
   document.getElementById('qsStatus').className = 'compose-status';
   document.getElementById('quickSendRunBtn').disabled = false;
-  // Reset to curl tab
-  document.querySelectorAll('#qsTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.qsTab === 'qs-curl'));
-  document.querySelectorAll('.qs-tab-pane').forEach(p => p.classList.toggle('active', p.id === 'qs-curl'));
   document.getElementById('quickSendModal').classList.add('open');
 }
 
@@ -1496,23 +1478,10 @@ function closeQuickSendModal() {
   document.getElementById('quickSendModal').classList.remove('open');
 }
 
-// Tab switching
-document.getElementById('qsTabs').addEventListener('click', (e) => {
-  const tab = e.target.closest('[data-qs-tab]');
-  if (!tab) return;
-  document.querySelectorAll('#qsTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.qsTab === tab.dataset.qsTab));
-  document.querySelectorAll('.qs-tab-pane').forEach(p => p.classList.toggle('active', p.id === tab.dataset.qsTab));
-});
-
 // Copy buttons
 document.getElementById('qsCopyCurl').addEventListener('click', () => {
   navigator.clipboard.writeText(_qsCurlRaw).then(() => {
     const b = document.getElementById('qsCopyCurl'); b.classList.add('copied'); setTimeout(() => b.classList.remove('copied'), 1500);
-  });
-});
-document.getElementById('qsCopyPython').addEventListener('click', () => {
-  navigator.clipboard.writeText(_qsPythonRaw).then(() => {
-    const b = document.getElementById('qsCopyPython'); b.classList.add('copied'); setTimeout(() => b.classList.remove('copied'), 1500);
   });
 });
 
