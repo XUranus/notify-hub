@@ -215,17 +215,17 @@ function SecuritySettings() {
       {user && user.role !== 'admin' && (
         <Card className="border-destructive/50">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              {t('settings.danger.title')}
-              <span className="text-sm font-normal text-muted-foreground ml-1">{t('settings.danger.desc')}</span>
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                {t('settings.danger.title')}
+                <span className="text-sm font-normal text-muted-foreground ml-1">{t('settings.danger.desc')}</span>
+              </CardTitle>
+              <Button variant="destructive" size="sm" onClick={() => setShowDeleteModal(true)}>
+                {t('settings.danger.deleteAccount')}
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent>
-            <Button variant="destructive" onClick={() => setShowDeleteModal(true)}>
-              {t('settings.danger.deleteAccount')}
-            </Button>
-          </CardContent>
         </Card>
       )}
 
