@@ -142,7 +142,7 @@ function SecuritySettings() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground w-16">{t('settings.security.role')}</span>
-                <span className="font-mono">{user.role}</span>
+                <span className="font-mono">{user.role === 'admin' ? t('users.roleAdmin') : t('users.roleUser')}</span>
               </div>
             </div>
           </CardContent>
