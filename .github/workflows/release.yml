@@ -230,7 +230,7 @@ jobs:
         working-directory: android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tail -50
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Rename artifact
         run: |
