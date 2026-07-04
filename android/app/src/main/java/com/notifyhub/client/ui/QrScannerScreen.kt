@@ -36,7 +36,9 @@ import java.util.concurrent.Executors
 
 data class QrConnectData(
     val serverUrl: String,
-    val apiKey: String
+    val username: String = "",
+    val password: String = "",
+    val jwt: String? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -94,7 +96,7 @@ fun QrScannerScreen(
                             if (scanComplete) return@CameraPreviewWithScanner
                             try {
                                 val data = Gson().fromJson(raw, QrConnectData::class.java)
-                                if (data.serverUrl.isNotBlank() && data.apiKey.isNotBlank()) {
+                                if (data.serverUrl.isNotBlank() && (data.jwt != null || data.username.isNotBlank())) {
                                     scanComplete = true
                                     onResult(data)
                                 }

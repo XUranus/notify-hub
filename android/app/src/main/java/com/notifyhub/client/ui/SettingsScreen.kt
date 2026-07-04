@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Restore
@@ -44,16 +46,19 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.notifyhub.client.data.ApiClient
+import androidx.compose.ui.unit.sp
+
 import com.notifyhub.client.data.AppLogger
 import com.notifyhub.client.data.ClientConfig
 import com.notifyhub.client.data.ConfigStore
 import com.notifyhub.client.data.I18n
+import com.notifyhub.client.data.MessageStore
 import com.notifyhub.client.data.i18n
 import com.notifyhub.client.ui.theme.palettes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,7 +101,7 @@ fun SettingsScreen(
                         Text(currentConfig.serverUrl, style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${i18n("config_api_key")}: ${currentConfig.apiKey.take(8)}…",
+                        Text("${i18n("config_username")}: ${currentConfig.username}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -168,6 +173,32 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+            // ── Auto Download Images ──
+            var autoDownloadImages by remember { mutableStateOf(ConfigStore.getAutoDownloadImages(context)) }
+            ListItem(
+                headlineContent = { Text(i18n("auto_download_images"), fontWeight = FontWeight.Medium) },
+                supportingContent = { Text(i18n("auto_download_images_hint"), fontSize = 12.sp) },
+                leadingContent = {
+                    Icon(
+                        Icons.Default.Image,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        checked = autoDownloadImages,
+                        onCheckedChange = {
+                            autoDownloadImages = it
+                            ConfigStore.setAutoDownloadImages(context, it)
+                        }
+                    )
+                }
+            )
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
 
@@ -486,6 +517,48 @@ fun SettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
 
+            // ── Clear All Messages ──
+            SettingsSectionHeader(i18n("settings_clear_messages"))
+            var showClearConfirm by remember { mutableStateOf(false) }
+
+            ListItem(
+                headlineContent = {
+                    Text(i18n("settings_clear_messages"), fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.error)
+                },
+                leadingContent = {
+                    Icon(Icons.Default.DeleteForever, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(22.dp))
+                },
+                modifier = Modifier.clickable { showClearConfirm = true }
+            )
+
+            if (showClearConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showClearConfirm = false },
+                    title = { Text(i18n("clear_messages_confirm_title")) },
+                    text = { Text(i18n("clear_messages_confirm_text")) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            scope.launch {
+                                MessageStore.deleteAll(context)
+                                Toast.makeText(context, i18n("clear_messages_success"), Toast.LENGTH_SHORT).show()
+                            }
+                            showClearConfirm = false
+                        }) {
+                            Text(i18n("confirm"), color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showClearConfirm = false }) {
+                            Text(i18n("cancel"))
+                        }
+                    }
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
             // ── Read-only info ──
             SettingsSectionHeader(i18n("settings_system"))
             CopyableRow(context, i18n("dash_uuid"), currentConfig.clientUuid, monospace = true)
@@ -563,17 +636,38 @@ private fun ServerConfigSheet(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var serverUrl by remember { mutableStateOf(currentConfig.serverUrl) }
-    var apiKey by remember { mutableStateOf(currentConfig.apiKey) }
+    var username by remember { mutableStateOf(currentConfig.username) }
+    var password by remember { mutableStateOf(currentConfig.password) }
     var clientName by remember { mutableStateOf(currentConfig.clientName) }
-    var showApiKey by remember { mutableStateOf(false) }
+    var showPassword by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
 
     // Auto-fill from QR data
     LaunchedEffect(qrData) {
         if (qrData != null) {
             serverUrl = qrData.serverUrl
-            apiKey = qrData.apiKey
-            onQrDataConsumed()
+            if (qrData.jwt != null) {
+                isSaving = true
+                onQrDataConsumed()
+
+                ConnectHelper.connectWithJwt(
+                    context = context,
+                    serverUrl = qrData.serverUrl,
+                    jwt = qrData.jwt,
+                    clientUuid = currentConfig.clientUuid,
+                    clientName = currentConfig.clientName.ifBlank { android.os.Build.MODEL },
+                    onSuccess = { newConfig ->
+                        isSaving = false
+                        onSaved(newConfig)
+                        Toast.makeText(context, i18n("settings_saved"), Toast.LENGTH_SHORT).show()
+                    },
+                    onError = { msg -> isSaving = false; Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
+                )
+            } else {
+                username = qrData.username
+                password = qrData.password
+                onQrDataConsumed()
+            }
         }
     }
 
@@ -596,15 +690,21 @@ private fun ServerConfigSheet(
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
-                value = apiKey, onValueChange = { apiKey = it },
-                label = { Text(i18n("config_api_key")) },
-                placeholder = { Text("nfkey_xxxxx") },
+                value = username, onValueChange = { username = it },
+                label = { Text(i18n("config_username")) },
+                placeholder = { Text("admin@example.com") },
+                modifier = Modifier.fillMaxWidth(), singleLine = true
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = password, onValueChange = { password = it },
+                label = { Text(i18n("config_password")) },
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
-                visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
+                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
-                    IconButton(onClick = { showApiKey = !showApiKey }) {
+                    IconButton(onClick = { showPassword = !showPassword }) {
                         Icon(
-                            if (showApiKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            if (showPassword) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                             contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -629,25 +729,25 @@ private fun ServerConfigSheet(
             Spacer(Modifier.height(12.dp))
             Button(
                 onClick = {
-                    if (serverUrl.isBlank() || apiKey.isBlank()) {
+                    if (serverUrl.isBlank() || username.isBlank() || password.isBlank()) {
                         Toast.makeText(context, i18n("settings_err_required"), Toast.LENGTH_SHORT).show()
                         return@Button
                     }
                     isSaving = true
-                    scope.launch {
-                        val newConfig = ClientConfig(serverUrl.trim(), apiKey.trim(), currentConfig.clientUuid, clientName.trim())
-                        val ok = withContext(Dispatchers.IO) {
-                            try { ApiClient(newConfig.serverUrl, newConfig.apiKey).register(newConfig.clientUuid, newConfig.clientName) }
-                            catch (e: Exception) { false }
-                        }
-                        isSaving = false
-                        if (ok) {
+                    ConnectHelper.connectWithCredentials(
+                        context = context,
+                        serverUrl = serverUrl.trim(),
+                        username = username.trim(),
+                        password = password.trim(),
+                        clientUuid = currentConfig.clientUuid,
+                        clientName = clientName.trim().ifBlank { android.os.Build.MODEL },
+                        onSuccess = { newConfig ->
+                            isSaving = false
                             onSaved(newConfig)
                             Toast.makeText(context, i18n("settings_saved"), Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, i18n("settings_connect_failed"), Toast.LENGTH_LONG).show()
-                        }
-                    }
+                        },
+                        onError = { msg -> isSaving = false; Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
+                    )
                 },
                 modifier = Modifier.fillMaxWidth(), enabled = !isSaving
             ) {

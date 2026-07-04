@@ -45,6 +45,8 @@ export function stopWorker() {
   console.log('[worker] Worker stopped.')
 }
 
+const MAX_CONCURRENT = 3 // Max concurrent message sends
+
 async function poll() {
   if (!running) return
 
@@ -54,10 +56,22 @@ async function poll() {
     if (messages.length > 0) {
       console.log(`[worker] Processing ${messages.length} message(s)...`)
 
-      // Process messages sequentially to avoid overwhelming channels
-      for (const msg of messages) {
+      // Process messages with bounded concurrency (MAX_CONCURRENT at a time)
+      let failed = 0
+      for (let i = 0; i < messages.length; i += MAX_CONCURRENT) {
         if (!running) break
-        await processMessage(msg)
+        const batch = messages.slice(i, i + MAX_CONCURRENT)
+        const results = await Promise.allSettled(
+          batch.map(async (msg) => {
+            if (!running) return
+            await processMessage(msg)
+          })
+        )
+        failed += results.filter(r => r.status === 'rejected').length
+      }
+
+      if (failed > 0) {
+        console.warn(`[worker] ${failed}/${messages.length} message(s) failed to process`)
       }
     }
   } catch (err) {

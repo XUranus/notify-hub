@@ -32,6 +32,7 @@ export async function enqueue(params: {
   url?: string
   attachment?: { name: string; url?: string; data?: string }
   format?: string
+  userId?: number
 }): Promise<string> {
   const db = getDb()
 
@@ -91,6 +92,7 @@ export async function enqueue(params: {
       url: params.url ?? null,
       attachment: params.attachment ? JSON.stringify(params.attachment) : null,
       format: params.format ?? 'text',
+      userId: params.userId ?? null,
     })
     .returning()
 
@@ -98,26 +100,89 @@ export async function enqueue(params: {
 }
 
 /**
- * Get message by ID.
+ * Enforce per-user message limit. Deletes oldest messages when count exceeds the limit.
+ * Uses a single bulk DELETE with a subquery instead of N individual deletes.
  */
-export async function getMessage(id: string) {
+export async function trimUserMessages(userId: number): Promise<void> {
   const db = getDb()
+
+  // Get max messages per user from system_settings (default 1000)
+  const maxRow = await db.select().from(schema.systemSettings)
+    .where(eq(schema.systemSettings.key, 'max_messages_per_user'))
+    .limit(1)
+  const maxMessages = maxRow[0] ? parseInt(maxRow[0].value) : 1000
+
+  // Count user's messages
+  const countRow = await db.select({ count: sql<number>`count(*)` })
+    .from(schema.messages)
+    .where(eq(schema.messages.userId, userId))
+  const count = countRow[0]?.count ?? 0
+
+  if (count <= maxMessages) return
+
+  // Bulk delete oldest messages beyond the limit using subquery
+  const excess = count - maxMessages
+  await db.run(sql`
+    DELETE FROM messages
+    WHERE id IN (
+      SELECT id FROM messages
+      WHERE user_id = ${userId}
+      ORDER BY created_at ASC
+      LIMIT ${excess}
+    )
+  `)
+}
+
+/**
+ * Delete expired messages for a user based on their messageExpiration setting.
+ */
+export async function cleanupExpiredUserMessages(userId: number): Promise<void> {
+  const db = getDb()
+
+  const settingsRow = await db.select().from(schema.userSettings)
+    .where(eq(schema.userSettings.userId, userId))
+    .limit(1)
+  const expirationDays = settingsRow[0]?.messageExpiration ?? 0
+  if (expirationDays <= 0) return // never expire
+
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - expirationDays)
+
+  await db.delete(schema.messages)
+    .where(and(
+      eq(schema.messages.userId, userId),
+      lte(schema.messages.createdAt, cutoff)
+    ))
+}
+
+/**
+ * Get message by ID.
+ * @param userId - If provided, only return message owned by this user. Undefined = any (admin).
+ */
+export async function getMessage(id: string, userId?: number) {
+  const db = getDb()
+  const conditions = [eq(schema.messages.id, id)]
+  if (userId !== undefined) {
+    conditions.push(eq(schema.messages.userId, userId))
+  }
   const [msg] = await db
     .select()
     .from(schema.messages)
-    .where(eq(schema.messages.id, id))
+    .where(and(...conditions))
     .limit(1)
   return msg
 }
 
 /**
  * Get messages with pagination and filters.
+ * @param userId - If provided, only return messages owned by this user. Undefined = any (admin).
  */
 export async function getMessages(params: {
   page?: number
   pageSize?: number
   status?: MessageStatus
   channelType?: ChannelType
+  userId?: number
 }) {
   const db = getDb()
   const page = params.page || 1
@@ -125,6 +190,9 @@ export async function getMessages(params: {
   const offset = (page - 1) * pageSize
 
   const conditions = []
+  if (params.userId !== undefined) {
+    conditions.push(eq(schema.messages.userId, params.userId))
+  }
   if (params.status) {
     conditions.push(eq(schema.messages.status, params.status))
   }
@@ -373,14 +441,20 @@ export async function processMessage(msg: typeof schema.messages.$inferSelect) {
 
 /**
  * Manually retry a dead/failed message.
+ * @param userId - If provided, only retry message owned by this user. Undefined = any (admin).
  */
-export async function manualRetry(id: string) {
+export async function manualRetry(id: string, userId?: number) {
   const db = getDb()
+
+  const conditions = [eq(schema.messages.id, id)]
+  if (userId !== undefined) {
+    conditions.push(eq(schema.messages.userId, userId))
+  }
 
   const [msg] = await db
     .select()
     .from(schema.messages)
-    .where(eq(schema.messages.id, id))
+    .where(and(...conditions))
     .limit(1)
 
   if (!msg) {

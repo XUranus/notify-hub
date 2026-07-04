@@ -1,24 +1,39 @@
 import { Hono } from 'hono'
-import { eq, and, or, lte, desc } from 'drizzle-orm'
-import { apiAuth } from '../auth/index.js'
-import { authMiddleware, requireAdmin } from '../auth/middleware.js'
+import { eq, and, or, lte, sql } from 'drizzle-orm'
+import { dualAuth } from '../auth/index.js'
 import { getDb, schema } from '../db/index.js'
 import type { HonoEnv } from '../types.js'
 
 const push = new Hono<HonoEnv>()
 
+// Throttle lastSeenAt updates: only update per-client every 5 minutes
+const lastSeenThrottle = new Map<string, number>()
+const LAST_SEEN_THROTTLE_MS = 5 * 60 * 1000 // 5 minutes
+
+// Clean stale throttle entries every 10 minutes
+setInterval(() => {
+  const cutoff = Date.now() - LAST_SEEN_THROTTLE_MS * 2
+  for (const [key, ts] of lastSeenThrottle) {
+    if (ts < cutoff) lastSeenThrottle.delete(key)
+  }
+}, 600_000).unref()
+
 // ── Client endpoints (API token auth) ──
 
 /**
  * POST /api/v1/push/register — Register or update a push client.
+ * Associates client with the API token's userId.
  */
-push.post('/register', apiAuth, async (c) => {
+push.post('/register', dualAuth, async (c) => {
   const body = await c.req.json()
   const { uuid, name, os, arch, desktop, appVersion } = body
 
   if (!uuid || !os) {
     return c.json({ success: false, error: 'uuid and os are required' }, 400)
   }
+
+  const user = c.get('currentUser')!
+  const userId = user.userId
 
   const db = getDb()
   const now = new Date()
@@ -32,10 +47,11 @@ push.post('/register', apiAuth, async (c) => {
   if (existing) {
     await db
       .update(schema.pushClients)
-      .set({ name, os, arch, desktop: desktop || null, appVersion, lastSeenAt: now })
+      .set({ name, os, arch, desktop: desktop || null, appVersion, lastSeenAt: now, userId })
       .where(eq(schema.pushClients.uuid, uuid))
   } else {
     await db.insert(schema.pushClients).values({
+      userId,
       uuid,
       name: name || null,
       os,
@@ -50,22 +66,57 @@ push.post('/register', apiAuth, async (c) => {
 })
 
 /**
+ * Verify that a client UUID belongs to the requesting API token's userId.
+ * Returns the client record if valid, or null if not found / not owned.
+ */
+async function verifyClientOwnership(uuid: string, userId: number | null): Promise<boolean> {
+  if (userId === null) return true // token without userId can access any client (legacy)
+  const db = getDb()
+  const [client] = await db
+    .select({ id: schema.pushClients.id })
+    .from(schema.pushClients)
+    .where(and(
+      eq(schema.pushClients.uuid, uuid),
+      eq(schema.pushClients.userId, userId)
+    ))
+    .limit(1)
+  return !!client
+}
+
+/**
  * GET /api/v1/push/poll — Client polls for pending messages.
  * Query: ?uuid=xxx
+ * Verifies that the UUID belongs to the requesting token's user.
  */
-push.get('/poll', apiAuth, async (c) => {
+push.get('/poll', dualAuth, async (c) => {
   const uuid = c.req.query('uuid')
   if (!uuid) {
     return c.json({ success: false, error: 'uuid is required' }, 400)
   }
 
+  const user = c.get('currentUser')!
+  const userId = user.userId
+
+  // Verify ownership of this client UUID
+  if (userId !== null) {
+    const owned = await verifyClientOwnership(uuid, userId)
+    if (!owned) {
+      return c.json({ success: false, error: 'Client not found or access denied' }, 403)
+    }
+  }
+
   const db = getDb()
 
-  // Update lastSeenAt
-  await db
-    .update(schema.pushClients)
-    .set({ lastSeenAt: new Date() })
-    .where(eq(schema.pushClients.uuid, uuid))
+  // Update lastSeenAt (throttled to once per 5 minutes per client)
+  const now = Date.now()
+  const lastSeen = lastSeenThrottle.get(uuid) ?? 0
+  if (now - lastSeen > LAST_SEEN_THROTTLE_MS) {
+    lastSeenThrottle.set(uuid, now)
+    await db
+      .update(schema.pushClients)
+      .set({ lastSeenAt: new Date() })
+      .where(eq(schema.pushClients.uuid, uuid))
+  }
 
   // Fetch undelivered messages for this client (targeted or broadcast)
   const messages = await db
@@ -82,15 +133,13 @@ push.get('/poll', apiAuth, async (c) => {
     )
     .orderBy(schema.pushMessages.createdAt)
 
-  // Mark as delivered
+  // Mark all as delivered in one query
   if (messages.length > 0) {
     const ids = messages.map((m) => m.id)
-    for (const id of ids) {
-      await db
-        .update(schema.pushMessages)
-        .set({ delivered: true })
-        .where(eq(schema.pushMessages.id, id))
-    }
+    await db
+      .update(schema.pushMessages)
+      .set({ delivered: true })
+      .where(sql`${schema.pushMessages.id} IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`)
   }
 
   return c.json({ success: true, data: messages })
@@ -98,49 +147,56 @@ push.get('/poll', apiAuth, async (c) => {
 
 /**
  * POST /api/v1/push/ack — Client acknowledges received messages.
+ * Verifies that the acked messages belong to the requesting user's clients.
  */
-push.post('/ack', apiAuth, async (c) => {
+push.post('/ack', dualAuth, async (c) => {
   const body = await c.req.json()
-  const { ids } = body as { ids?: string[] }
+  const { ids, uuid } = body as { ids?: string[]; uuid?: string }
 
   if (!ids || !Array.isArray(ids)) {
     return c.json({ success: false, error: 'ids array is required' }, 400)
   }
 
-  const db = getDb()
-  for (const id of ids) {
-    await db
-      .update(schema.pushMessages)
-      .set({ delivered: true })
-      .where(eq(schema.pushMessages.id, id))
+  const user = c.get('currentUser')!
+  const userId = user.userId
+
+  // If uuid provided, verify ownership
+  if (uuid && userId !== null) {
+    const owned = await verifyClientOwnership(uuid, userId)
+    if (!owned) {
+      return c.json({ success: false, error: 'Client not found or access denied' }, 403)
+    }
   }
 
-  return c.json({ success: true })
-})
-
-// ── Admin endpoints (JWT auth) ──
-
-/**
- * GET /api/admin/push/clients — List all registered push clients.
- */
-push.get('/clients', authMiddleware, requireAdmin, async (c) => {
-  const db = getDb()
-  const clients = await db
-    .select()
-    .from(schema.pushClients)
-    .orderBy(desc(schema.pushClients.lastSeenAt))
-
-  return c.json({ success: true, data: clients })
-})
-
-/**
- * DELETE /api/admin/push/clients/:uuid — Remove a push client.
- */
-push.delete('/clients/:uuid', authMiddleware, requireAdmin, async (c) => {
-  const uuid = c.req.param('uuid')!
   const db = getDb()
 
-  await db.delete(schema.pushClients).where(eq(schema.pushClients.uuid, uuid))
+  if (userId !== null) {
+    // Get all client UUIDs owned by this user
+    const ownedClients = await db
+      .select({ uuid: schema.pushClients.uuid })
+      .from(schema.pushClients)
+      .where(eq(schema.pushClients.userId, userId))
+    const ownedUuids = new Set(ownedClients.map(c => c.uuid))
+
+    // Batch verify: fetch all messages at once
+    const msgs = await db
+      .select({ id: schema.pushMessages.id, clientUuid: schema.pushMessages.clientUuid })
+      .from(schema.pushMessages)
+      .where(sql`${schema.pushMessages.id} IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`)
+
+    for (const msg of msgs) {
+      if (msg.clientUuid && !ownedUuids.has(msg.clientUuid) && msg.clientUuid !== '__broadcast__') {
+        return c.json({ success: false, error: `Message ${msg.id} not found or access denied` }, 403)
+      }
+    }
+  }
+
+  // Batch update all as delivered
+  await db
+    .update(schema.pushMessages)
+    .set({ delivered: true })
+    .where(sql`${schema.pushMessages.id} IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`)
+
   return c.json({ success: true })
 })
 

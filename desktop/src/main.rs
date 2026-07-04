@@ -16,6 +16,7 @@ use tauri::{
     Manager,
 };
 use tauri_plugin_autostart::{AutoLaunchManager, MacosLauncher};
+use tauri_plugin_dialog::DialogExt;
 
 // ── Commands ──
 
@@ -132,6 +133,109 @@ fn open_url(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn download_file(url: String, filename: String, app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    // Show save dialog
+    let save_path = app.dialog()
+        .file()
+        .set_file_name(&filename)
+        .blocking_save_file();
+
+    let save_path = match save_path {
+        Some(p) => p,
+        None => return Ok(()), // User cancelled
+    };
+
+    let dest = save_path.as_path()
+        .ok_or_else(|| "Invalid save path".to_string())?
+        .to_path_buf();
+
+    // Download file
+    let resp = reqwest::get(&url).await.map_err(|e| format!("Download failed: {}", e))?;
+    let bytes = resp.bytes().await.map_err(|e| format!("Download failed: {}", e))?;
+
+    // Write to chosen path
+    std::fs::write(&dest, &bytes).map_err(|e| format!("Write failed: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn read_image_data_url(path: String) -> Result<String, String> {
+    const MAX_SIZE: u64 = 10 * 1024 * 1024; // 10MB
+    let meta = std::fs::metadata(&path).map_err(|e| format!("Stat failed: {}", e))?;
+    if meta.len() > MAX_SIZE {
+        return Err(format!("File too large ({:.1} MB)", meta.len() as f64 / 1024.0 / 1024.0));
+    }
+    let bytes = std::fs::read(&path).map_err(|e| format!("Read failed: {}", e))?;
+    let ext = std::path::Path::new(&path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png");
+    let mime = match ext {
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "bmp" => "image/bmp",
+        _ => "image/png",
+    };
+    // Manual base64 encoding
+    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut b64 = String::with_capacity((bytes.len() + 2) / 3 * 4);
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
+        let triple = (b0 << 16) | (b1 << 8) | b2;
+        b64.push(CHARS[((triple >> 18) & 0x3F) as usize] as char);
+        b64.push(CHARS[((triple >> 12) & 0x3F) as usize] as char);
+        if chunk.len() > 1 { b64.push(CHARS[((triple >> 6) & 0x3F) as usize] as char) } else { b64.push('=') }
+        if chunk.len() > 2 { b64.push(CHARS[(triple & 0x3F) as usize] as char) } else { b64.push('=') }
+    }
+    Ok(format!("data:{};base64,{}", mime, b64))
+}
+
+#[derive(serde::Deserialize)]
+struct ComposeAttachment {
+    name: String,
+    url: Option<String>,
+}
+
+#[tauri::command]
+async fn send_message(
+    channel: String,
+    to: String,
+    subject: Option<String>,
+    body: Option<String>,
+    tags: Option<Vec<String>>,
+    priority: Option<i32>,
+    url: Option<String>,
+    format: Option<String>,
+    attachment: Option<ComposeAttachment>,
+) -> Result<String, String> {
+    let cfg = AppConfig::load().ok_or("No config found")?;
+    if cfg.server.jwt.is_empty() {
+        return Err("Not logged in".to_string());
+    }
+    let api = api::ApiClient::new(&cfg.server.url, &cfg.server.jwt);
+    let att_json = attachment.map(|a| serde_json::json!({"name": a.name, "url": a.url}));
+    api.send(&channel, &to, subject.as_deref(), body.as_deref(), tags, priority, url.as_deref(), format.as_deref(), att_json)
+        .await
+}
+
+#[tauri::command]
+async fn get_clients() -> Result<Vec<serde_json::Value>, String> {
+    let cfg = AppConfig::load().ok_or("No config found")?;
+    if cfg.server.jwt.is_empty() {
+        return Err("Not logged in".to_string());
+    }
+    let api = api::ApiClient::new(&cfg.server.url, &cfg.server.jwt);
+    api.list_clients().await
+}
+
+#[tauri::command]
 fn backup_messages_json(store: tauri::State<'_, Arc<MessageStore>>) -> String {
     let msgs = store.get_all();
     serde_json::to_string_pretty(&msgs).unwrap_or_else(|_| "[]".to_string())
@@ -198,27 +302,42 @@ fn export_messages_json(store: tauri::State<'_, Arc<MessageStore>>) -> String {
 }
 
 #[tauri::command]
-fn reconnect(
+async fn reconnect(
     state: tauri::State<'_, Arc<Mutex<PollState>>>,
     msg_store: tauri::State<'_, Arc<MessageStore>>,
 ) -> Result<(), String> {
-    let cfg = AppConfig::load().ok_or("No config found")?;
+    let mut cfg = AppConfig::load().ok_or("No config found")?;
 
-    if cfg.server.api_key.is_empty() {
-        return Err("API Key is required".to_string());
+    if cfg.server.username.is_empty() || cfg.server.password.is_empty() {
+        return Err("Username and password are required".to_string());
     }
 
-    let api = api::ApiClient::new(&cfg.server.url, &cfg.server.api_key);
+    // Login to get JWT
+    let jwt = api::ApiClient::login(&cfg.server.url, &cfg.server.username, &cfg.server.password)
+        .await
+        .map_err(|e| {
+            let mut s = state.lock().unwrap();
+            s.error = Some(e.clone());
+            e
+        })?;
+
+    // Save JWT to config
+    cfg.server.jwt = jwt.clone();
+    cfg.save().map_err(|e| {
+        let mut s = state.lock().unwrap();
+        s.error = Some(e.clone());
+        e
+    })?;
+
+    // Register
+    let api = api::ApiClient::new(&cfg.server.url, &jwt);
     let uuid = cfg.client.uuid.clone();
     let name = cfg.client.name.clone();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    rt.block_on(async {
-        let os = std::env::consts::OS;
-        let arch = std::env::consts::ARCH;
-        let desktop = detect_desktop_env();
-        let version = env!("CARGO_PKG_VERSION");
-        api.register(&uuid, &name, os, arch, &desktop, version).await
-    }).map_err(|e| {
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    let desktop = detect_desktop_env();
+    let version = env!("CARGO_PKG_VERSION");
+    api.register(&uuid, &name, os, arch, &desktop, version).await.map_err(|e| {
         let mut s = state.lock().unwrap();
         s.error = Some(e.clone());
         e
@@ -259,7 +378,7 @@ struct AppInfo {
 
 // ── Helpers ──
 
-fn detect_desktop_env() -> String {
+pub fn detect_desktop_env() -> String {
     if let Ok(de) = std::env::var("XDG_CURRENT_DESKTOP") {
         return de;
     }
@@ -288,9 +407,95 @@ fn detect_desktop_env() -> String {
     }
 }
 
+// ── Single Instance Lock ──
+
+fn lock_path() -> std::path::PathBuf {
+    let dir = dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("notifyhub-client");
+    std::fs::create_dir_all(&dir).ok();
+    dir.join("lock")
+}
+
+fn is_process_alive(pid: u32) -> bool {
+    #[cfg(unix)]
+    {
+        // Send signal 0 — doesn't kill, just checks existence
+        unsafe { libc::kill(pid as i32, 0) == 0 }
+    }
+    #[cfg(windows)]
+    {
+        use std::process::Command;
+        Command::new("tasklist")
+            .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+            .output()
+            .map(|o| {
+                let out = String::from_utf8_lossy(&o.stdout);
+                out.contains(&pid.to_string())
+            })
+            .unwrap_or(false)
+    }
+}
+
+/// Try to acquire single-instance lock. Returns Ok(lock) on success, Err(existing_pid) if another instance is running.
+fn acquire_lock() -> Result<LockGuard, u32> {
+    let path = lock_path();
+
+    // Check if lock file exists
+    if path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            if let Ok(pid) = content.trim().parse::<u32>() {
+                if pid != std::process::id() && is_process_alive(pid) {
+                    return Err(pid);
+                }
+            }
+        }
+    }
+
+    // Write our PID
+    std::fs::write(&path, std::process::id().to_string()).ok();
+
+    // Verify we won the race (double-check)
+    if let Ok(content) = std::fs::read_to_string(&path) {
+        if let Ok(pid) = content.trim().parse::<u32>() {
+            if pid != std::process::id() && is_process_alive(pid) {
+                return Err(pid);
+            }
+        }
+    }
+
+    Ok(LockGuard { path })
+}
+
+struct LockGuard {
+    path: std::path::PathBuf,
+}
+
+impl Drop for LockGuard {
+    fn drop(&mut self) {
+        // Only remove if we own it
+        if let Ok(content) = std::fs::read_to_string(&self.path) {
+            if let Ok(pid) = content.trim().parse::<u32>() {
+                if pid == std::process::id() {
+                    std::fs::remove_file(&self.path).ok();
+                }
+            }
+        }
+    }
+}
+
 // ── Main ──
 
 fn main() {
+    // Single instance check
+    let _lock = match acquire_lock() {
+        Ok(lock) => lock,
+        Err(pid) => {
+            eprintln!("Another instance is already running (PID {}). Exiting.", pid);
+            std::process::exit(0);
+        }
+    };
+
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
@@ -332,11 +537,11 @@ fn main() {
             }));
             app.manage(poll_state.clone());
 
-            if !cfg.server.api_key.is_empty() {
-                let api = api::ApiClient::new(&cfg.server.url, &cfg.server.api_key);
+            if !cfg.server.jwt.is_empty() {
+                // JWT exists — register and start polling
+                let api = api::ApiClient::new(&cfg.server.url, &cfg.server.jwt);
                 let uuid = cfg.client.uuid.clone();
                 let name = cfg.client.name.clone();
-                let api_clone = api;
 
                 std::thread::spawn(move || {
                     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -345,11 +550,52 @@ fn main() {
                         let arch = std::env::consts::ARCH;
                         let desktop = detect_desktop_env();
                         let version = env!("CARGO_PKG_VERSION");
-                        let _ = api_clone.register(&uuid, &name, os, arch, &desktop, version).await;
+                        let _ = api.register(&uuid, &name, os, arch, &desktop, version).await;
                     });
                 });
 
                 poll::start_polling(cfg.clone(), poll_state.clone(), msg_store.clone());
+            } else if !cfg.server.username.is_empty() && !cfg.server.password.is_empty() {
+                // No JWT but credentials exist — login first, then register and poll
+                let url = cfg.server.url.clone();
+                let username = cfg.server.username.clone();
+                let password = cfg.server.password.clone();
+                let uuid = cfg.client.uuid.clone();
+                let name = cfg.client.name.clone();
+                let _cfg_clone = cfg.clone();
+                let state_clone = poll_state.clone();
+                let store_clone = msg_store.clone();
+
+                std::thread::spawn(move || {
+                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    rt.block_on(async {
+                        match api::ApiClient::login(&url, &username, &password).await {
+                            Ok(jwt) => {
+                                // Save JWT
+                                if let Some(mut c) = AppConfig::load() {
+                                    c.server.jwt = jwt.clone();
+                                    let _ = c.save();
+                                }
+                                // Register
+                                let api = api::ApiClient::new(&url, &jwt);
+                                let os = std::env::consts::OS;
+                                let arch = std::env::consts::ARCH;
+                                let desktop = detect_desktop_env();
+                                let version = env!("CARGO_PKG_VERSION");
+                                let _ = api.register(&uuid, &name, os, arch, &desktop, version).await;
+                                // Start polling with updated config
+                                if let Some(c) = AppConfig::load() {
+                                    poll::start_polling(c, state_clone, store_clone);
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("[startup] Login failed: {}", e);
+                                let mut s = state_clone.lock().unwrap();
+                                s.error = Some(format!("Login failed: {}", e));
+                            }
+                        }
+                    });
+                });
             }
 
             // System tray
@@ -399,7 +645,11 @@ fn main() {
             delete_message,
             clear_messages,
             open_url,
+            download_file,
+            read_image_data_url,
             reconnect,
+            send_message,
+            get_clients,
             backup_messages_json,
             restore_messages_json,
             export_messages_csv,

@@ -115,7 +115,7 @@ export default function Channels() {
 
   // QR code modal state
   const [qrOpen, setQrOpen] = useState(false)
-  const [qrData, setQrData] = useState<{ serverUrl: string; apiKey: string; editable?: boolean } | null>(null)
+  const [qrData, setQrData] = useState<{ serverUrl: string; jwt: string; editable?: boolean } | null>(null)
   const [qrRegisteredClient, setQrRegisteredClient] = useState<PushClient | null>(null)
   const qrClientUuidsRef = useRef<Set<string>>(new Set())
 
@@ -145,14 +145,19 @@ export default function Channels() {
       setQrRegisteredClient(null)
       return
     }
-    // Snapshot current client UUIDs when modal opens
-    qrClientUuidsRef.current = new Set(clients.map((c) => c.uuid))
+    // Snapshot current client UUIDs and their lastSeenAt when modal opens
+    const knownUuids = new Set(clients.map((c) => c.uuid))
+    const openTime = Date.now()
     const timer = setInterval(async () => {
       const res = await pushApi.listClients()
       if (!res.success || !res.data) return
-      const newClient = res.data.find((c: PushClient) => !qrClientUuidsRef.current.has(c.uuid))
-      if (newClient) {
-        setQrRegisteredClient(newClient)
+      // Detect: new UUID, OR existing UUID that just registered (lastSeenAt after modal opened)
+      const matchedClient = res.data.find((c: PushClient) =>
+        !knownUuids.has(c.uuid) ||
+        (c.lastSeenAt && new Date(c.lastSeenAt).getTime() > openTime - 5000)
+      )
+      if (matchedClient) {
+        setQrRegisteredClient(matchedClient)
         setClients(res.data)
         clearInterval(timer)
       }
@@ -161,13 +166,8 @@ export default function Channels() {
   }, [qrOpen])
 
   const handleShowQr = async () => {
-    const res = await tokensApi.list()
-    if (!res.success || !res.data) {
-      alert(t('channels.qrNoToken'))
-      return
-    }
-    const activeToken = res.data.find((tk: any) => tk.enabled)
-    if (!activeToken) {
+    const res = await tokensApi.generateClientToken()
+    if (!res.success || !res.data?.token) {
       alert(t('channels.qrNoToken'))
       return
     }
@@ -175,7 +175,7 @@ export default function Channels() {
     const isLocalhost = detected.includes('localhost') || detected.includes('127.0.0.1')
     setQrData({
       serverUrl: detected,
-      apiKey: activeToken.token,
+      jwt: res.data.token,
       editable: isLocalhost,
     })
     setQrOpen(true)
@@ -755,13 +755,13 @@ export default function Channels() {
                   )}
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{t('channels.qrApiKey')}</span>
-                  <span className="font-mono text-xs">{qrData.apiKey}</span>
+                  <span className="text-muted-foreground">JWT</span>
+                  <span className="font-mono text-xs">{qrData.jwt.slice(0, 20)}…</span>
                 </div>
               </div>
               <div className="bg-white p-4 rounded-lg">
                 <QRCodeSVG
-                  value={JSON.stringify({ serverUrl: qrData.serverUrl, apiKey: qrData.apiKey })}
+                  value={JSON.stringify({ serverUrl: qrData.serverUrl, jwt: qrData.jwt })}
                   size={200}
                   level="M"
                 />

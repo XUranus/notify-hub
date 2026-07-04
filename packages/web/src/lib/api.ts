@@ -103,6 +103,8 @@ export const authApi = {
 export const statsApi = {
   overview: () => request<any>('GET', '/admin/stats/overview'),
   daily: () => request<any[]>('GET', '/admin/stats/daily'),
+  channels: () => request<any[]>('GET', '/admin/stats/channels'),
+  recent: () => request<any[]>('GET', '/admin/stats/recent'),
 }
 
 // ── Push Clients ──
@@ -135,6 +137,7 @@ export const tokensApi = {
   update: (id: number, data: any) => request<any>('PUT', `/admin/tokens/${id}`, data),
   delete: (id: number) => request<any>('DELETE', `/admin/tokens/${id}`),
   rotate: (id: number) => request<{ token: string }>('POST', `/admin/tokens/${id}/rotate`),
+  generateClientToken: () => request<{ token: string }>('POST', '/admin/tokens/generate-client-token'),
 }
 
 // ── Templates ──
@@ -182,4 +185,71 @@ export const usersApi = {
   update: (id: number, data: { email?: string; username?: string; role?: string }) =>
     request<any>('PUT', `/admin/users/${id}`, data),
   delete: (id: number) => request<any>('DELETE', `/admin/users/${id}`),
+}
+
+// ── Attachments ──
+
+export const attachmentsApi = {
+  list: (page = 1, pageSize = 20) =>
+    request<{ items: any[]; total: number; page: number; pageSize: number }>(
+      'GET', `/admin/attachments?page=${page}&pageSize=${pageSize}`
+    ),
+  delete: (id: string) => request<void>('DELETE', `/admin/attachments/${id}`),
+  batchDelete: (ids: string[]) => request<{ deleted: number }>('POST', '/admin/attachments/batch-delete', { ids }),
+  clearAll: () => request<{ deleted: number }>('POST', '/admin/attachments/batch-delete', { all: true }),
+  stats: () => request<{ usedBytes: number; maxBytes: number | null; fileCount: number; isAdmin: boolean }>(
+    'GET', '/admin/attachments/stats'
+  ),
+  upload: async (file: File) => {
+    const token = getToken()
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch(`${BASE_URL}/admin/attachments/upload`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    })
+
+    if (response.status === 401) {
+      clearToken()
+      window.location.href = '/login'
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    return await response.json()
+  },
+}
+
+// ── User Settings ──
+
+export const userSettingsApi = {
+  get: () =>
+    request<{ attachmentExpiration: number; messageExpiration: number }>('GET', '/admin/settings'),
+  update: (data: { attachmentExpiration?: number; messageExpiration?: number }) =>
+    request<void>('PUT', '/admin/settings', data),
+  getAttachment: () =>
+    request<{ attachmentExpiration: number }>('GET', '/admin/settings/attachment'),
+  updateAttachment: (attachmentExpiration: number) =>
+    request<void>('PUT', '/admin/settings/attachment', { attachmentExpiration }),
+}
+
+// ── System Settings (admin only) ──
+
+export const systemSettingsApi = {
+  get: () =>
+    request<{ attachmentMaxFileSize: number; attachmentMaxTotalSize: number; maxMessagesPerUser: number; cleanupIntervalMinutes: number }>(
+      'GET', '/admin/system-settings'
+    ),
+  update: (data: { attachmentMaxFileSize?: number; attachmentMaxTotalSize?: number; maxMessagesPerUser?: number; cleanupIntervalMinutes?: number }) =>
+    request<void>('PUT', '/admin/system-settings', data),
+}
+
+// ── Cleanup Logs (admin only) ──
+
+export const cleanupLogsApi = {
+  list: (page = 1, pageSize = 20) =>
+    request<{ items: any[]; total: number; page: number; pageSize: number }>(
+      'GET', `/admin/cleanup-logs?page=${page}&pageSize=${pageSize}`
+    ),
 }

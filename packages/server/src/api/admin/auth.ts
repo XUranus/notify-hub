@@ -6,6 +6,7 @@ import { loginSchema, registerSchema } from '@notify-hub/shared'
 import { getDb, schema } from '../../db/index.js'
 import { getConfig } from '../../config.js'
 import { JWT_EXPIRY } from '@notify-hub/shared'
+import { checkRegistrationRateLimit } from '../../auth/rate-limit.js'
 import type { HonoEnv } from '../../types.js'
 
 const auth = new Hono<HonoEnv>()
@@ -61,6 +62,18 @@ auth.post('/login', async (c) => {
  * Register a new user account (role = 'user').
  */
 auth.post('/register', async (c) => {
+  // Rate limit: 5 registrations per IP per hour
+  const clientIp = c.req.header('X-Forwarded-For')?.split(',')[0]?.trim()
+    || c.req.header('X-Real-IP')
+    || 'unknown'
+  const rateLimitResult = checkRegistrationRateLimit(clientIp)
+  if (!rateLimitResult.allowed) {
+    return c.json(
+      { success: false, error: 'Too many registration attempts. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter) } }
+    )
+  }
+
   const body = await c.req.json()
   const parsed = registerSchema.safeParse(body)
 

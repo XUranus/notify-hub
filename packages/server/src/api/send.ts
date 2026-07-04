@@ -2,10 +2,12 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, eq } from 'drizzle-orm'
 import { sendMessageSchema, sendBatchSchema, CHANNEL_TYPES, type ChannelType } from '@notify-hub/shared'
-import { apiAuth, requireScope } from '../auth/index.js'
+import { dualAuth, requireScope } from '../auth/index.js'
 import { getDb, schema } from '../db/index.js'
 import { enqueue } from '../queue/index.js'
+import { trimUserMessages, cleanupExpiredUserMessages } from '../queue/manager.js'
 import { lookupIpLocation } from '../utils/geoip.js'
+import { channelCache, templateCache } from '../cache.js'
 import type { HonoEnv } from '../types.js'
 
 const send = new Hono<HonoEnv>()
@@ -46,8 +48,8 @@ function parseDelay(delay: string): Date {
   return date
 }
 
-// Apply API auth to all routes
-send.use('*', apiAuth)
+// Apply dual auth to all routes (JWT or API token)
+send.use('*', dualAuth)
 
 /**
  * Resolve channel field to { channelType, channelId }.
@@ -59,6 +61,13 @@ async function resolveChannel(channel: string): Promise<{ channelType: string; c
   if (channel === 'push') {
     return { channelType: 'push', channelId: null }
   }
+
+  const cacheKey = (CHANNEL_TYPES as readonly string[]).includes(channel)
+    ? `default:${channel}`
+    : `name:${channel}`
+
+  const cached = channelCache.get(cacheKey) as { channelType: string; channelId: string | null } | undefined
+  if (cached) return cached
 
   const db = getDb()
 
@@ -73,7 +82,9 @@ async function resolveChannel(channel: string): Promise<{ channelType: string; c
     if (!ch) {
       throw new Error(`No default channel found for type '${channel}'`)
     }
-    return { channelType: ch.type, channelId: ch.id }
+    const result = { channelType: ch.type, channelId: ch.id }
+    channelCache.set(cacheKey, result)
+    return result
   }
 
   // Otherwise, match by channel name
@@ -86,7 +97,9 @@ async function resolveChannel(channel: string): Promise<{ channelType: string; c
   if (!ch) {
     throw new Error(`Channel '${channel}' not found`)
   }
-  return { channelType: ch.type, channelId: ch.id }
+  const result = { channelType: ch.type, channelId: ch.id }
+  channelCache.set(cacheKey, result)
+  return result
 }
 
 /**
@@ -136,20 +149,28 @@ send.post('/', async (c) => {
     )
   }
 
-  // Resolve template if specified
+  // Resolve template if specified (with cache)
   let templateId: string | undefined
   if (template) {
-    const db = getDb()
-    const [tpl] = await db
-      .select()
-      .from(schema.templates)
-      .where(
-        and(
-          eq(schema.templates.name, template),
-          eq(schema.templates.channelType, channelType)
+    const tplCacheKey = `${template}:${channelType}`
+    let tpl = templateCache.get(tplCacheKey) as { id: string } | undefined
+    if (!tpl) {
+      const db = getDb()
+      const [row] = await db
+        .select({ id: schema.templates.id })
+        .from(schema.templates)
+        .where(
+          and(
+            eq(schema.templates.name, template),
+            eq(schema.templates.channelType, channelType)
+          )
         )
-      )
-      .limit(1)
+        .limit(1)
+      if (row) {
+        tpl = row
+        templateCache.set(tplCacheKey, row)
+      }
+    }
 
     if (!tpl) {
       return c.json(
@@ -175,6 +196,10 @@ send.post('/', async (c) => {
   const ipLocation = ipAddress !== 'unknown' ? await lookupIpLocation(ipAddress) : null
 
   try {
+    // Get userId from auth context (JWT or API token)
+    const currentUser = c.get('currentUser')
+    const userId = currentUser?.userId
+
     const messageId = await enqueue({
       channelType: channelType as ChannelType,
       to,
@@ -193,7 +218,14 @@ send.post('/', async (c) => {
       url,
       attachment,
       format,
+      userId,
     })
+
+    // Enforce per-user limits (fire-and-forget)
+    if (userId) {
+      cleanupExpiredUserMessages(userId).catch(() => {})
+      trimUserMessages(userId).catch(() => {})
+    }
 
     return c.json({
       success: true,
@@ -221,7 +253,9 @@ send.post('/batch', async (c) => {
     )
   }
 
-  const token = c.get('apiToken')
+  const currentUser = c.get('currentUser')
+  const userId = currentUser?.userId
+  const apiToken = c.get('apiToken')
   const results: Array<{ messageId: string; status: string } | { error: string }> = []
   const db = getDb()
 
@@ -245,24 +279,32 @@ send.post('/batch', async (c) => {
         continue
       }
 
-      // Check scope per message (based on channel type)
-      if (token && !token.scopes.includes('*') && !token.scopes.includes(channelType)) {
+      // Check scope per message (based on channel type) — only applies to API tokens
+      if (apiToken && !apiToken.scopes.includes('*') && !apiToken.scopes.includes(channelType)) {
         results.push({ error: `Token does not have '${channelType}' scope` })
         continue
       }
 
       let templateId: string | undefined
       if (msg.template) {
-        const [tpl] = await db
-          .select()
-          .from(schema.templates)
-          .where(
-            and(
-              eq(schema.templates.name, msg.template),
-              eq(schema.templates.channelType, channelType)
+        const tplCacheKey = `${msg.template}:${channelType}`
+        let tpl = templateCache.get(tplCacheKey) as { id: string } | undefined
+        if (!tpl) {
+          const [row] = await db
+            .select({ id: schema.templates.id })
+            .from(schema.templates)
+            .where(
+              and(
+                eq(schema.templates.name, msg.template),
+                eq(schema.templates.channelType, channelType)
+              )
             )
-          )
-          .limit(1)
+            .limit(1)
+          if (row) {
+            tpl = row
+            templateCache.set(tplCacheKey, row)
+          }
+        }
 
         if (!tpl) {
           results.push({ error: `Template '${msg.template}' not found for channel '${channelType}'` })
@@ -296,12 +338,19 @@ send.post('/batch', async (c) => {
         url: msg.url,
         attachment: msg.attachment,
         format: msg.format,
+        userId,
       })
 
       results.push({ messageId, status: 'queued' })
     } catch (err) {
       results.push({ error: err instanceof Error ? err.message : 'Failed' })
     }
+  }
+
+  // Enforce per-user limits after batch (fire-and-forget)
+  if (userId) {
+    cleanupExpiredUserMessages(userId).catch(() => {})
+    trimUserMessages(userId).catch(() => {})
   }
 
   return c.json({ success: true, data: results })

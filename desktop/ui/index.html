@@ -35,13 +35,17 @@
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; }
     .view { display: none; padding: 20px; }
     .view.active { display: block; }
+    #viewConnect.active { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+    #viewConnect .header { width: 100%; max-width: 420px; }
+    #viewConnect .card { width: 100%; max-width: 420px; }
     .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
     .header-left { display: flex; align-items: center; gap: 10px; }
     .header-left svg { color: var(--accent); flex-shrink: 0; }
     .header-left h1 { font-size: 17px; font-weight: 600; }
     .header-actions { display: flex; gap: 6px; align-items: center; }
-    .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text2); cursor: pointer; transition: all 0.15s; }
+    .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text2); cursor: pointer; transition: all 0.15s, transform 0.1s; }
     .icon-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+    .icon-btn:active { transform: scale(0.88); }
     .icon-btn.danger:hover { background: var(--error-soft); border-color: var(--error); color: var(--error); }
     .icon-btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
     .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
@@ -59,9 +63,10 @@
     .field input::placeholder { color: var(--text3); }
     .uuid-row { display: flex; align-items: center; gap: 8px; flex: 1; }
     .uuid-badge { display: inline-flex; align-items: center; font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 11.5px; color: var(--badge-text); background: var(--badge-bg); border: 1px solid var(--badge-border); border-radius: 6px; padding: 4px 10px; word-break: break-all; flex: 1; }
-    .copy-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text2); cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
+    .copy-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text2); cursor: pointer; flex-shrink: 0; transition: all 0.15s, transform 0.1s; }
     .copy-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-    .copy-btn.copied { background: var(--success-soft); border-color: var(--success); color: var(--success); }
+    .copy-btn:active { transform: scale(0.88); }
+    .copy-btn.copied { background: var(--success-soft); border-color: var(--success); color: var(--success); animation: checkMark 0.35s ease; }
     .sysinfo-row { display: flex; gap: 16px; flex-wrap: wrap; }
     .sysinfo-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
     .si-label { color: var(--text3); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
@@ -71,6 +76,18 @@
     .status-dot.off { background: var(--error); }
     .status-dot.wait { background: var(--text3); animation: pulse 1.5s infinite; }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes slideDown { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(16px); } }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    @keyframes snackbarIn { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    @keyframes detailSlideIn { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes msgFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes badgePop { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+    @keyframes checkMark { 0% { transform: scale(0) rotate(-45deg); } 60% { transform: scale(1.2) rotate(0deg); } 100% { transform: scale(1) rotate(0deg); } }
+    @keyframes shakeX { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-4px); } 40%,80% { transform: translateX(4px); } }
+    @keyframes iconSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
     @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
     .curl-block { margin: 0; padding: 14px 16px; font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 11.5px; line-height: 1.6; color: var(--text); background: var(--badge-bg); white-space: pre-wrap; word-break: break-all; overflow-x: auto; max-height: 260px; overflow-y: auto; }
@@ -78,8 +95,9 @@
     .curl-block .str { color: var(--success); }
     .curl-block .flag { color: var(--warn); }
     .curl-block .val { color: var(--error); }
-    .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--accent); color: #fff; border: none; padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s; width: 100%; }
+    .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--accent); color: #fff; border: none; padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s, transform 0.1s; width: 100%; }
     .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:active { transform: scale(0.97); }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
     /* ── Search & Filter Bar ── */
@@ -91,20 +109,23 @@
     .filter-chips { display: flex; gap: 4px; }
     .chip { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid var(--border); background: var(--card); color: var(--text2); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
     .chip:hover { border-color: var(--accent); color: var(--accent); }
-    .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .chip:active { transform: scale(0.93); }
+    .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); animation: badgePop 0.25s ease; }
 
     /* ── Unread Badge ── */
     .unread-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--error); color: #fff; font-size: 10px; font-weight: 700; margin-left: 6px; }
+    .unread-badge.pop { animation: badgePop 0.3s ease; }
 
     /* ── Message List (Virtual Scroll) ── */
     .msg-scroll { max-height: calc(7 * 80px); overflow-y: auto; position: relative; }
     .msg-empty { padding: 48px 32px; text-align: center; color: var(--text3); font-size: 14px; }
     .msg-empty-icon { font-size: 40px; margin-bottom: 12px; }
     .msg-viewport { position: relative; width: 100%; }
-    .msg-card { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; position: absolute; left: 0; right: 0; }
-    .msg-card:hover { background: var(--accent-soft); }
+    .msg-card { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s, transform 0.15s, box-shadow 0.15s; position: absolute; left: 0; right: 0; }
+    .msg-card:hover { background: var(--accent-soft); transform: translateX(2px); }
     .msg-card.unread { background: var(--accent-soft); }
     .msg-card.selected { background: var(--accent-soft); border-left: 3px solid var(--accent); }
+    .msg-card.msg-new { animation: msgFadeIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards; }
     .msg-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
     .msg-dot.info { background: var(--accent); }
     .msg-dot.warning { background: var(--warn); }
@@ -128,25 +149,28 @@
     .msg-level-badge.debug { background: var(--debug-soft); color: var(--debug); }
     .msg-tag { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--badge-bg); border: 1px solid var(--badge-border); color: var(--badge-text); }
     .msg-flags { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-    .msg-flag-icon { font-size: 15px; cursor: pointer; opacity: 0.5; transition: opacity 0.15s; padding: 2px; }
-    .msg-flag-icon:hover { opacity: 1; }
+    .msg-flag-icon { font-size: 15px; cursor: pointer; opacity: 0.5; transition: opacity 0.15s, transform 0.15s; padding: 2px; }
+    .msg-flag-icon:hover { opacity: 1; transform: scale(1.15); }
+    .msg-flag-icon:active { transform: scale(0.85); }
     .msg-flag-icon.flagged { opacity: 1; color: var(--accent); }
     .msg-att-icon { font-size: 11px; color: var(--text3); }
     .msg-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
-    .msg-del-btn { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; border-radius: 4px; opacity: 0; transition: all 0.15s; }
+    .msg-del-btn { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; border-radius: 4px; opacity: 0; transition: all 0.15s, transform 0.1s; }
     .msg-card:hover .msg-del-btn { opacity: 1; }
-    .msg-del-btn:hover { color: var(--error); background: var(--error-soft); }
+    .msg-del-btn:hover { color: var(--error); background: var(--error-soft); transform: scale(1.15); }
+    .msg-del-btn:active { transform: scale(0.85); }
 
     /* ── Multi-select ── */
     .msg-checkbox { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; margin-top: 4px; flex-shrink: 0; }
     .select-bar { display: none; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--accent-soft); border-bottom: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; }
-    .select-bar.visible { display: flex; }
+    .select-bar.visible { display: flex; animation: slideDown 0.2s cubic-bezier(0.16,1,0.3,1) forwards; }
     .select-bar-left { font-size: 13px; font-weight: 600; color: var(--accent); }
     .select-bar-actions { display: flex; gap: 6px; }
 
     /* ── Message Detail Overlay ── */
     .detail-overlay { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 90; overflow-y: auto; }
-    .detail-overlay.open { display: block; }
+    .detail-overlay.open { display: block; animation: fadeIn 0.2s ease; }
+    .detail-overlay.open .detail-body { animation: detailSlideIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
     .detail-header { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--card); position: sticky; top: 0; z-index: 2; }
     .detail-header h2 { font-size: 14px; font-weight: 600; flex: 1; }
     .detail-body { max-width: 720px; margin: 0 auto; padding: 20px; }
@@ -154,8 +178,9 @@
     .detail-title { font-size: 18px; font-weight: 700; color: var(--text); }
     .detail-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
     .detail-time { font-size: 13px; color: var(--text2); }
-    .detail-url-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: var(--accent); cursor: pointer; background: var(--card); text-decoration: none; margin-bottom: 16px; }
-    .detail-url-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+    .detail-url-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: var(--accent); cursor: pointer; background: var(--card); text-decoration: none; margin-bottom: 16px; transition: all 0.15s, transform 0.1s; }
+    .detail-url-btn:hover { background: var(--accent-soft); border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .detail-url-btn:active { transform: translateY(0) scale(0.97); }
     .detail-content-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; }
     .detail-content-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; border-bottom: 1px solid var(--border); }
     .detail-content-header span { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; }
@@ -166,8 +191,9 @@
     .detail-section-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.05em; }
     .detail-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
     .detail-tag { font-size: 12px; padding: 3px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-weight: 500; }
-    .detail-att-card { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; margin-bottom: 16px; }
-    .detail-att-card:hover { background: var(--accent-soft); border-color: var(--accent); }
+    .detail-att-card { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; margin-bottom: 16px; transition: all 0.15s, transform 0.1s; }
+    .detail-att-card:hover { background: var(--accent-soft); border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .detail-att-card:active { transform: translateY(0) scale(0.98); }
     .detail-att-info { flex: 1; }
     .detail-att-name { font-size: 13px; font-weight: 500; color: var(--text); }
     .detail-att-size { font-size: 11px; color: var(--text3); }
@@ -196,13 +222,13 @@
 
     /* ── Undo Snackbar ── */
     .snackbar { display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 20px; border-radius: 8px; font-size: 13px; z-index: 200; box-shadow: 0 4px 16px rgba(0,0,0,0.2); align-items: center; gap: 12px; }
-    .snackbar.visible { display: flex; }
+    .snackbar.visible { display: flex; animation: snackbarIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
     .snackbar-undo { background: none; border: none; color: var(--accent); font-weight: 700; cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 4px; }
     .snackbar-undo:hover { background: rgba(255,255,255,0.1); }
 
     /* ── Toast ── */
     .toast { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); padding: 12px 20px; border-radius: 8px; font-size: 13px; z-index: 300; box-shadow: 0 4px 16px rgba(0,0,0,0.15); align-items: center; gap: 10px; max-width: 400px; }
-    .toast.visible { display: flex; }
+    .toast.visible { display: flex; animation: toastIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
     .toast-icon { font-size: 18px; flex-shrink: 0; }
     .toast-text { flex: 1; color: var(--text); }
     .toast-close { background: none; border: none; color: var(--text3); cursor: pointer; padding: 2px; flex-shrink: 0; }
@@ -212,19 +238,21 @@
     .toast.info { border-left: 3px solid var(--accent); }
 
     /* ── Modal ── */
-    .modal-overlay { display: none; position: fixed; inset: 0; background: var(--overlay); z-index: 100; align-items: center; justify-content: center; }
-    .modal-overlay.open { display: flex; }
-    .modal { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.2); width: 800px; max-width: 90vw; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: var(--overlay); z-index: 100; align-items: center; justify-content: center; opacity: 0; }
+    .modal-overlay.open { display: flex; animation: fadeIn 0.2s ease forwards; }
+    .modal { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.2); width: 800px; max-width: 90vw; animation: slideUp 0.25s cubic-bezier(0.16,1,0.3,1) forwards; }
     .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }
     .modal-header h3 { font-size: 14px; font-weight: 600; }
     .modal-close { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; }
     .modal-close:hover { color: var(--text); }
     .modal-body { padding: 18px; }
     .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border); }
-    .btn-cancel { background: var(--card); color: var(--text2); border: 1px solid var(--border); padding: 7px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+    .btn-cancel { background: var(--card); color: var(--text2); border: 1px solid var(--border); padding: 7px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.15s, transform 0.1s; }
     .btn-cancel:hover { background: var(--bg); }
-    .btn-save { background: var(--accent); color: #fff; border: none; padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; }
+    .btn-cancel:active { transform: scale(0.95); }
+    .btn-save { background: var(--accent); color: #fff; border: none; padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s, transform 0.1s; }
     .btn-save:hover { background: var(--accent-hover); }
+    .btn-save:active { transform: scale(0.95); }
     .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
     .tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 18px; }
     .tab { background: none; border: none; padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
@@ -232,6 +260,10 @@
     .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
     .tab-pane { display: none; }
     .tab-pane.active { display: block; }
+    .qs-tab-pane { display: none; }
+    .qs-tab-pane.active { display: block; }
+    .tools-tab-pane { display: none; }
+    .tools-tab-pane.active { display: block; }
     .info-list { margin-bottom: 16px; }
     .info-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
     .info-row:last-child { border-bottom: none; }
@@ -246,6 +278,58 @@
     .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: transform 0.2s; }
     .toggle input:checked + .toggle-slider { background: var(--accent); }
     .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+    /* ── Compose Modal ── */
+    .compose-overlay { display: none; position: fixed; inset: 0; background: var(--overlay); z-index: 110; align-items: center; justify-content: center; opacity: 0; }
+    .compose-overlay.open { display: flex; animation: fadeIn 0.2s ease forwards; }
+    .compose-modal { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.25); width: 560px; max-width: 92vw; max-height: 90vh; display: flex; flex-direction: column; animation: slideUp 0.25s cubic-bezier(0.16,1,0.3,1) forwards; }
+    .compose-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .compose-header h3 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .compose-header h3 svg { color: var(--accent); }
+    .compose-body { padding: 16px 18px; overflow-y: auto; flex: 1; }
+    .compose-field { margin-bottom: 14px; }
+    .compose-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .compose-field input, .compose-field textarea, .compose-field select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; color: var(--text); background: var(--input-bg); font-family: inherit; }
+    .compose-field input:focus, .compose-field textarea:focus, .compose-field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+    .compose-field textarea { resize: vertical; min-height: 100px; line-height: 1.5; }
+    .compose-field select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
+    .compose-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .att-url-row { display: flex; gap: 6px; align-items: center; }
+    .att-url-row input { flex: 1; min-width: 0; }
+    .btn-icon-sm { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text2); cursor: pointer; flex-shrink: 0; transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s; }
+    .btn-icon-sm:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+    .btn-icon-sm:active { transform: scale(0.9); }
+    .btn-icon-sm.uploading { opacity: 0.6; pointer-events: none; color: var(--accent); border-color: var(--accent); }
+    .btn-icon-sm.uploading svg { animation: iconSpin 0.8s linear infinite; }
+    .compose-hint { font-size: 11px; color: var(--text3); margin-top: 3px; }
+    .compose-advanced-toggle { display: flex; align-items: center; gap: 6px; padding: 6px 0; cursor: pointer; user-select: none; color: var(--text2); font-size: 12px; font-weight: 500; transition: color 0.15s; }
+    .compose-advanced-toggle:hover { color: var(--accent); }
+    .compose-advanced-toggle svg { transition: transform 0.2s; }
+    .compose-advanced-toggle.open svg { transform: rotate(180deg); }
+    .compose-advanced-body { padding-top: 2px; }
+    .compose-tags-input { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); min-height: 36px; cursor: text; }
+    .compose-tags-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+    .compose-tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 500; }
+    .compose-tag-chip button { background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; font-size: 14px; line-height: 1; opacity: 0.7; }
+    .compose-tag-chip button:hover { opacity: 1; }
+    .compose-tags-input input { flex: 1; min-width: 80px; border: none; outline: none; background: transparent; font-size: 13px; color: var(--text); padding: 2px 0; }
+    .compose-tags-input input::placeholder { color: var(--text3); }
+    .compose-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border); flex-shrink: 0; }
+    .compose-status { font-size: 12px; color: var(--text3); display: flex; align-items: center; gap: 6px; flex: 1; }
+    .compose-status.success { color: var(--success); }
+    .compose-status.error { color: var(--error); }
+    .compose-spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .create-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; transition: all 0.15s; }
+    .create-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+    /* ── Channel Badges ── */
+    .compose-top-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 14px; }
+    .compose-top-row .compose-field { margin-bottom: 0; }
+    .channel-badges { display: flex; gap: 6px; padding: 3px 0; }
+    .channel-badge { padding: 5px 14px; border-radius: 14px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); background: var(--card); color: var(--text2); cursor: pointer; transition: all 0.15s; white-space: nowrap; user-select: none; }
+    .channel-badge:hover { border-color: var(--accent); color: var(--accent); }
+    .channel-badge.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   </style>
 </head>
 <body>
@@ -267,7 +351,8 @@
       </div>
       <div class="card-body">
         <div class="field"><label for="c-url">URL</label><input type="text" id="c-url" placeholder="http://localhost:4321"></div>
-        <div class="field"><label for="c-apiKey">API Key</label><input type="text" id="c-apiKey" placeholder="nfkey_xxxxx"></div>
+        <div class="field"><label for="c-username" id="t-username-label">Username</label><input type="text" id="c-username" placeholder="admin@example.com"></div>
+        <div class="field"><label for="c-password" id="t-password-label">Password</label><input type="password" id="c-password"></div>
         <div class="field"><label for="c-name" id="t-name-label">Name</label><input type="text" id="c-name" placeholder="My Desktop"></div>
         <button class="btn-primary" id="connectBtn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
@@ -287,6 +372,9 @@
       </div>
       <div class="header-actions">
         <span id="connStatus" style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:4px;"><span class="status-dot wait"></span><span id="connText">—</span></span>
+        <button class="create-btn" id="composeBtn" title="Create">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
         <button class="icon-btn" id="editConfigBtn" title="Settings">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
@@ -371,7 +459,8 @@
       <div class="tab-pane active" id="tab-server">
         <div class="modal-body">
           <div class="field"><label for="m-url">URL</label><input type="text" id="m-url" placeholder="http://localhost:4321"></div>
-          <div class="field"><label for="m-apiKey">API Key</label><input type="text" id="m-apiKey" placeholder="nfkey_xxxxx"></div>
+          <div class="field"><label for="m-username" id="t-m-username-label">Username</label><input type="text" id="m-username" placeholder="admin@example.com"></div>
+          <div class="field"><label for="m-password" id="t-m-password-label">Password</label><input type="password" id="m-password"></div>
           <div class="field"><label for="m-name" id="t-m-name-label">Name</label><input type="text" id="m-name" placeholder="My Desktop"></div>
         </div>
         <div class="modal-footer">
@@ -392,6 +481,10 @@
           <div class="autostart-row">
             <label class="toggle-label" id="t-autostart-label">Launch on startup</label>
             <label class="toggle"><input type="checkbox" id="autostartToggle"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="autostart-row">
+            <label class="toggle-label" id="t-auto-download-images">Auto-download images under 5MB</label>
+            <label class="toggle"><input type="checkbox" id="autoDownloadImagesToggle"><span class="toggle-slider"></span></label>
           </div>
         </div>
       </div>
@@ -422,14 +515,162 @@
       </div>
       <div class="tab-pane" id="tab-tools">
         <div class="modal-body">
-          <div>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-              <span class="detail-section-title" style="margin:0" id="t-quick-send">Quick Send</span>
-              <button class="copy-btn" id="copyCurlBtn" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+          <div class="detail-section-title" style="margin-bottom:10px" id="t-quick-send">Quick Send</div>
+          <div class="tabs" id="toolsQsTabs" style="padding:0;border-bottom:1px solid var(--border);margin-bottom:0">
+            <button class="tab active" data-tools-tab="tools-curl" id="t-tools-curl">Curl</button>
+            <button class="tab" data-tools-tab="tools-python" id="t-tools-python">Python</button>
+          </div>
+          <div class="tools-tab-pane active" id="tools-curl" style="position:relative">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 0">
+              <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase">bash</span>
+              <button class="copy-btn" id="toolsCopyCurl" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
             </div>
-            <pre class="curl-block" id="curlExample" style="max-height:260px"></pre>
+            <pre class="curl-block" id="toolsCurlCode" style="max-height:220px;margin-top:6px"></pre>
+          </div>
+          <div class="tools-tab-pane" id="tools-python" style="position:relative">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 0">
+              <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase">python</span>
+              <button class="copy-btn" id="toolsCopyPython" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+            </div>
+            <pre class="curl-block" id="toolsPythonCode" style="max-height:220px;margin-top:6px"></pre>
+          </div>
+          <div style="margin-top:12px;display:flex;align-items:center;gap:10px">
+            <div class="compose-status" id="toolsQsStatus" style="flex:1"></div>
+            <button class="btn-save" id="toolsRunBtn" style="background:var(--success);width:auto;padding:8px 18px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span id="t-tools-run">Run &amp; Send</span>
+            </button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ QUICK SEND MODAL ═══════ -->
+  <div class="modal-overlay" id="quickSendModal">
+    <div class="modal" style="width:640px;max-width:92vw">
+      <div class="modal-header">
+        <h3 style="display:flex;align-items:center;gap:8px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          <span id="t-qs-title">Quick Send</span>
+        </h3>
+        <button class="modal-close" id="quickSendCloseBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="tabs" id="qsTabs">
+        <button class="tab active" data-qs-tab="qs-curl" id="t-qs-curl">Curl</button>
+        <button class="tab" data-qs-tab="qs-python" id="t-qs-python">Python</button>
+      </div>
+      <div class="qs-tab-pane active" id="qs-curl" style="position:relative">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 18px 0">
+          <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase">bash</span>
+          <button class="copy-btn" id="qsCopyCurl" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+        </div>
+        <pre class="curl-block" id="qsCurlCode" style="margin:6px 18px 14px;max-height:220px"></pre>
+      </div>
+      <div class="qs-tab-pane" id="qs-python" style="position:relative">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 18px 0">
+          <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase">python</span>
+          <button class="copy-btn" id="qsCopyPython" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+        </div>
+        <pre class="curl-block" id="qsPythonCode" style="margin:6px 18px 14px;max-height:220px"></pre>
+      </div>
+      <div class="modal-footer">
+        <div class="compose-status" id="qsStatus"></div>
+        <button class="btn-cancel" id="quickSendCancelBtn">Cancel</button>
+        <button class="btn-save" id="quickSendRunBtn" style="background:var(--success)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span id="t-qs-run">Run &amp; Send</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ COMPOSE MODAL ═══════ -->
+  <div class="compose-overlay" id="composeOverlay">
+    <div class="compose-modal">
+      <div class="compose-header">
+        <h3>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          <span id="t-compose-title">New Message</span>
+        </h3>
+        <button class="modal-close" id="composeCloseBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="compose-body">
+        <div class="compose-top-row">
+          <div class="compose-field" style="flex-shrink:0">
+            <label id="t-compose-channel">Channel</label>
+            <div class="channel-badges" id="channelBadges">
+              <span class="channel-badge active" data-channel="push">Push</span>
+              <span class="channel-badge" data-channel="email">Email</span>
+              <span class="channel-badge" data-channel="sms">SMS</span>
+            </div>
+          </div>
+          <div class="compose-field" style="width:90px;flex-shrink:0">
+            <label id="t-compose-format">Format</label>
+            <select id="composeFormat">
+              <option value="text">Text</option>
+              <option value="markdown">MD</option>
+              <option value="html">HTML</option>
+              <option value="json">JSON</option>
+            </select>
+          </div>
+          <div class="compose-field" style="flex:1;min-width:0">
+            <label id="t-compose-to">To</label>
+            <select id="composeToSelect" style="display:none"></select>
+            <input type="text" id="composeTo" placeholder="Client UUID or __broadcast__">
+          </div>
+        </div>
+        <div class="compose-field">
+          <label id="t-compose-subject">Subject</label>
+          <input type="text" id="composeSubject" placeholder="Notification title">
+        </div>
+        <div class="compose-field">
+          <label id="t-compose-body-label">Body</label>
+          <textarea id="composeBody" placeholder="Write your message..."></textarea>
+        </div>
+        <div class="compose-field">
+          <label id="t-compose-attachment">Attachment</label>
+          <div class="att-url-row">
+            <input type="text" id="composeAttachment" placeholder="https://file-url.com/file.pdf">
+            <input type="hidden" id="composeAttachmentName" value="">
+            <button id="uploadAttBtn" class="btn-icon-sm" title="Upload file" data-i18n-title="compose_upload_file">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </button>
+          </div>
+          <div class="compose-hint">URL to attachment file</div>
+        </div>
+        <div class="compose-advanced-toggle" id="composeAdvToggle">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          <span id="t-compose-advanced">Advanced</span>
+        </div>
+        <div class="compose-advanced-body" id="composeAdvBody" style="display:none">
+          <div class="compose-row">
+            <div class="compose-field">
+              <label id="t-compose-priority">Priority</label>
+              <input type="number" id="composePriority" min="0" max="99" value="0" placeholder="0">
+              <div class="compose-hint">0 = normal, higher = more urgent</div>
+            </div>
+            <div class="compose-field">
+              <label id="t-compose-url-label">URL</label>
+              <input type="text" id="composeUrl" placeholder="https://example.com">
+            </div>
+          </div>
+          <div class="compose-field">
+            <label id="t-compose-tags-label">Tags</label>
+            <div class="compose-tags-input" id="composeTagsContainer">
+              <input type="text" id="composeTagsInput" placeholder="Type tag and press Enter">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="compose-footer">
+        <div class="compose-status" id="composeStatus"></div>
+        <button class="btn-cancel" id="composeCancelBtn">Cancel</button>
+        <button class="btn-save" id="composeSendBtn">
+          <span id="t-compose-send">Send</span>
+        </button>
       </div>
     </div>
   </div>
@@ -469,10 +710,10 @@ const invoke = window.__TAURI_INTERNALS__.invoke;
 
 /* ── i18n ── */
 const I18N = {
-  en: { serverConfig:'Server Configuration',clientInfo:'Client Info',system:'System',os:'OS',arch:'Arch',de:'DE',name:'Name',connectBtn:'Connect',connecting:'Connecting...',connected:'Connected',disconnected:'Disconnected',lastPoll:'Last Poll',messages:'Messages',noMessages:'No messages yet.',editConfig:'Settings',saveBtn:'Save & Reconnect',saving:'Saving...',saved:'Saved!',reconnected:'Reconnected!',cancel:'Cancel',status:'Status',copyUuid:'Copy UUID',copied:'Copied!',error:'Error',clearAll:'Clear All',clearConfirm:'Delete all messages?',deleteConfirmTitle:'Confirm Delete',markAllRead:'Mark All Read',backupRestore:'Backup & Restore',backup:'Backup',restore:'Restore',export:'Export Messages',backupSuccess:'Backup saved successfully',restoreConfirm:'Restore from backup? This will replace all current messages.',restoreSuccess:'Restored {count} messages',restoreFailed:'Restore failed',exportSuccess:'Exported to {format}',server:'Server',quickSend:'Quick Send',copyCurl:'Copy',tabServer:'Server',tabSystem:'System',tabData:'Data',tabTools:'Tools',appVersion:'App Version',configFile:'Config File',messagesFile:'Messages File',autostart:'Launch on startup',settings:'Settings',close:'Close',priority:'Pri',tags:'Tags',format:'Fmt',search:'Search',filterAll:'All',filterUnread:'Unread',filterRead:'Read',filterFlagged:'Flagged',untitled:'Untitled',msgDetail:'Message Detail',msgDeleted:'Message deleted',undo:'Undo',selected:'selected',flag:'Flag',unflag:'Unflag',delete:'Delete',copy:'Copy',copyTitle:'Copy title',download:'Download',justNow:'just now',minAgo:'min ago',hrAgo:'hr ago',daysAgo:'days ago',noUrl:'No download URL' },
-  zh: { serverConfig:'服务器配置',clientInfo:'客户端信息',system:'系统',os:'系统',arch:'架构',de:'桌面环境',name:'名称',connectBtn:'连接',connecting:'连接中...',connected:'已连接',disconnected:'已断开',lastPoll:'上次轮询',messages:'消息记录',noMessages:'暂无消息。',editConfig:'设置',saveBtn:'保存并重连',saving:'保存中...',saved:'已保存！',reconnected:'已重连！',cancel:'取消',status:'状态',copyUuid:'复制 UUID',copied:'已复制！',error:'错误',clearAll:'清空',clearConfirm:'确定删除所有消息？',deleteConfirmTitle:'确认删除',markAllRead:'全部已读',backupRestore:'备份与恢复',backup:'备份',restore:'恢复',export:'导出消息',backupSuccess:'备份保存成功',restoreConfirm:'从备份恢复？这将替换所有当前消息。',restoreSuccess:'已恢复 {count} 条消息',restoreFailed:'恢复失败',exportSuccess:'已导出为 {format}',server:'服务器',quickSend:'快速发送',copyCurl:'复制',tabServer:'服务器',tabSystem:'系统',tabData:'数据',tabTools:'工具',appVersion:'应用版本',configFile:'配置文件',messagesFile:'消息文件',autostart:'开机自启动',settings:'设置',close:'关闭',priority:'优先级',tags:'标签',format:'格式',search:'搜索',filterAll:'全部',filterUnread:'未读',filterRead:'已读',filterFlagged:'已标记',untitled:'无标题',msgDetail:'消息详情',msgDeleted:'消息已删除',undo:'撤销',selected:'已选择',flag:'标记',unflag:'取消标记',delete:'删除',copy:'复制',copyTitle:'复制标题',download:'下载',justNow:'刚刚',minAgo:'分钟前',hrAgo:'小时前',daysAgo:'天前',noUrl:'无下载链接' },
-  ja: { serverConfig:'サーバー設定',clientInfo:'クライアント情報',system:'システム',os:'OS',arch:'アーキテクチャ',de:'デスクトップ',name:'名前',connectBtn:'接続',connecting:'接続中...',connected:'接続済み',disconnected:'切断',lastPoll:'最終ポーリング',messages:'メッセージ',noMessages:'メッセージはまだありません。',editConfig:'設定',saveBtn:'保存して再接続',saving:'保存中...',saved:'保存済み！',reconnected:'再接続済み！',cancel:'キャンセル',status:'ステータス',copyUuid:'UUID をコピー',copied:'コピーしました！',error:'エラー',clearAll:'すべて削除',clearConfirm:'すべてのメッセージを削除しますか？',deleteConfirmTitle:'削除の確認',markAllRead:'すべて既読にする',backupRestore:'バックアップと復元',backup:'バックアップ',restore:'復元',export:'メッセージをエクスポート',backupSuccess:'バックアップを保存しました',restoreConfirm:'バックアップから復元しますか？現在のすべてのメッセージが置き換えられます。',restoreSuccess:'{count} 件のメッセージを復元しました',restoreFailed:'復元に失敗しました',exportSuccess:'{format} にエクスポートしました',server:'サーバー',quickSend:'クイック送信',copyCurl:'コピー',tabServer:'サーバー',tabSystem:'システム',tabData:'データ',tabTools:'ツール',appVersion:'アプリバージョン',configFile:'設定ファイル',messagesFile:'メッセージファイル',autostart:'起動時に自動開始',settings:'設定',close:'閉じる',priority:'優先度',tags:'タグ',format:'フォーマット',search:'検索',filterAll:'すべて',filterUnread:'未読',filterRead:'既読',filterFlagged:'フラグ',untitled:'無題',msgDetail:'メッセージ詳細',msgDeleted:'メッセージを削除しました',undo:'元に戻す',selected:'選択中',flag:'フラグ',unflag:'フラグ解除',delete:'削除',copy:'コピー',copyTitle:'タイトルをコピー',download:'ダウンロード',justNow:'たった今',minAgo:'分前',hrAgo:'時間前',daysAgo:'日前',noUrl:'ダウンロードURLなし' },
-  ko: { serverConfig:'서버 설정',clientInfo:'클라이언트 정보',system:'시스템',os:'OS',arch:'아키텍처',de:'데스크톱',name:'이름',connectBtn:'연결',connecting:'연결 중...',connected:'연결됨',disconnected:'연결 끊김',lastPoll:'마지막 폴링',messages:'메시지',noMessages:'수신된 메시지가 없습니다.',editConfig:'설정',saveBtn:'저장 후 재연결',saving:'저장 중...',saved:'저장 완료！',reconnected:'재연결 완료！',cancel:'취소',status:'상태',copyUuid:'UUID 복사',copied:'복사됨！',error:'오류',clearAll:'모두 삭제',clearConfirm:'모든 메시지를 삭제하시겠습니까?',deleteConfirmTitle:'삭제 확인',markAllRead:'모두 읽음으로 표시',backupRestore:'백업 및 복원',backup:'백업',restore:'복원',export:'메시지 내보내기',backupSuccess:'백업이 저장되었습니다',restoreConfirm:'백업에서 복원하시겠습니까? 현재 모든 메시지가 대체됩니다.',restoreSuccess:'{count}개의 메시지를 복원했습니다',restoreFailed:'복원에 실패했습니다',exportSuccess:'{format}(으)로 내보냈습니다',server:'서버',quickSend:'빠른 전송',copyCurl:'복사',tabServer:'서버',tabSystem:'시스템',tabData:'데이터',tabTools:'도구',appVersion:'앱 버전',configFile:'설정 파일',messagesFile:'메시지 파일',autostart:'시작 시 자동 실행',settings:'설정',close:'닫기',priority:'우선순위',tags:'태그',format:'형식',search:'검색',filterAll:'전체',filterUnread:'안 읽음',filterRead:'읽음',filterFlagged:'플래그',untitled:'제목 없음',msgDetail:'메시지 상세',msgDeleted:'메시지 삭제됨',undo:'실행 취소',selected:'선택됨',flag:'플래그',unflag:'플래그 해제',delete:'삭제',copy:'복사',copyTitle:'제목 복사',download:'다운로드',justNow:'방금',minAgo:'분 전',hrAgo:'시간 전',daysAgo:'일 전',noUrl:'다운로드 URL 없음' },
+  en: { serverConfig:'Server Configuration',clientInfo:'Client Info',system:'System',os:'OS',arch:'Arch',de:'DE',name:'Name',connectBtn:'Connect',connecting:'Connecting...',connected:'Connected',disconnected:'Disconnected',lastPoll:'Last Poll',messages:'Messages',noMessages:'No messages yet.',noMessagesUnread:'No unread messages.',noMessagesRead:'No read messages.',noMessagesFlagged:'No flagged messages.',noMessagesSearch:'No messages match your search.',editConfig:'Settings',saveBtn:'Save & Reconnect',saving:'Saving...',saved:'Saved!',reconnected:'Reconnected!',cancel:'Cancel',status:'Status',copyUuid:'Copy UUID',copied:'Copied!',error:'Error',clearAll:'Clear All',clearConfirm:'Delete all messages?',deleteConfirmTitle:'Confirm Delete',markAllRead:'Mark All Read',backupRestore:'Backup & Restore',backup:'Backup',restore:'Restore',export:'Export Messages',backupSuccess:'Backup saved successfully',restoreConfirm:'Restore from backup? This will replace all current messages.',restoreSuccess:'Restored {count} messages',restoreFailed:'Restore failed',exportSuccess:'Exported to {format}',server:'Server',quickSend:'Quick Send',copyCurl:'Copy',tabServer:'Server',tabSystem:'System',tabData:'Data',tabTools:'Tools',appVersion:'App Version',configFile:'Config File',messagesFile:'Messages File',autostart:'Launch on startup',autoDownloadImages:'Auto-download images under 5MB',settings:'Settings',close:'Close',priority:'Pri',tags:'Tags',format:'Fmt',search:'Search',filterAll:'All',filterUnread:'Unread',filterRead:'Read',filterFlagged:'Flagged',untitled:'Untitled',msgDetail:'Message Detail',msgDeleted:'Message deleted',undo:'Undo',selected:'selected',flag:'Flag',unflag:'Unflag',delete:'Delete',copy:'Copy',copyTitle:'Copy title',download:'Download',justNow:'just now',minAgo:'min ago',hrAgo:'hr ago',daysAgo:'days ago',noUrl:'No download URL',composeTitle:'New Message',composeChannel:'Channel',composeFormat:'Format',composeTo:'To',composeToHint:'Push: client UUID or __broadcast__. Email: recipient address.',composeSubject:'Subject',composeBody:'Body',composePriority:'Priority',composeUrl:'URL',composeTags:'Tags',composeAttachment:'Attachment',composeSend:'Send',composeSending:'Sending...',composeSent:'Message sent!',composeTagHint:'Type tag and press Enter',composeAttHint:'URL to attachment file',composePriHint:'0 = normal, higher = more urgent',quickSendMsg:'Quick send a message',quickSendTitle:'Quick Send',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'Run & Send',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'Run & Send',composeAdvanced:'Advanced',composeUploadFile:'Upload file' },
+  zh: { serverConfig:'服务器配置',clientInfo:'客户端信息',system:'系统',os:'系统',arch:'架构',de:'桌面环境',name:'名称',connectBtn:'连接',connecting:'连接中...',connected:'已连接',disconnected:'已断开',lastPoll:'上次轮询',messages:'消息记录',noMessages:'暂无消息。',noMessagesUnread:'没有未读消息。',noMessagesRead:'没有已读消息。',noMessagesFlagged:'没有已标记消息。',noMessagesSearch:'没有匹配的消息。',editConfig:'设置',saveBtn:'保存并重连',saving:'保存中...',saved:'已保存！',reconnected:'已重连！',cancel:'取消',status:'状态',copyUuid:'复制 UUID',copied:'已复制！',error:'错误',clearAll:'清空',clearConfirm:'确定删除所有消息？',deleteConfirmTitle:'确认删除',markAllRead:'全部已读',backupRestore:'备份与恢复',backup:'备份',restore:'恢复',export:'导出消息',backupSuccess:'备份保存成功',restoreConfirm:'从备份恢复？这将替换所有当前消息。',restoreSuccess:'已恢复 {count} 条消息',restoreFailed:'恢复失败',exportSuccess:'已导出为 {format}',server:'服务器',quickSend:'快速发送',copyCurl:'复制',tabServer:'服务器',tabSystem:'系统',tabData:'数据',tabTools:'工具',appVersion:'应用版本',configFile:'配置文件',messagesFile:'消息文件',autostart:'开机自启动',autoDownloadImages:'自动下载5MB以内的图片',settings:'设置',close:'关闭',priority:'优先级',tags:'标签',format:'格式',search:'搜索',filterAll:'全部',filterUnread:'未读',filterRead:'已读',filterFlagged:'已标记',untitled:'无标题',msgDetail:'消息详情',msgDeleted:'消息已删除',undo:'撤销',selected:'已选择',flag:'标记',unflag:'取消标记',delete:'删除',copy:'复制',copyTitle:'复制标题',download:'下载',justNow:'刚刚',minAgo:'分钟前',hrAgo:'小时前',daysAgo:'天前',noUrl:'无下载链接',composeTitle:'新建消息',composeChannel:'通道',composeFormat:'格式',composeTo:'接收方',composeToHint:'Push: 客户端UUID或__broadcast__。Email: 收件人邮箱。',composeSubject:'标题',composeBody:'正文',composePriority:'优先级',composeUrl:'链接',composeTags:'标签',composeAttachment:'附件',composeSend:'发送',composeSending:'发送中...',composeSent:'消息已发送！',composeTagHint:'输入标签后按回车',composeAttHint:'附件文件URL',composePriHint:'0 = 普通，值越大越紧急',quickSendMsg:'快速发送消息',quickSendTitle:'快速发送',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'执行并发送',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'执行并发送',composeAdvanced:'高级选项',composeUploadFile:'上传文件' },
+  ja: { serverConfig:'サーバー設定',clientInfo:'クライアント情報',system:'システム',os:'OS',arch:'アーキテクチャ',de:'デスクトップ',name:'名前',connectBtn:'接続',connecting:'接続中...',connected:'接続済み',disconnected:'切断',lastPoll:'最終ポーリング',messages:'メッセージ',noMessages:'メッセージはまだありません。',noMessagesUnread:'未読メッセージはありません。',noMessagesRead:'既読メッセージはありません。',noMessagesFlagged:'フラグ付きメッセージはありません。',noMessagesSearch:'一致するメッセージがありません。',editConfig:'設定',saveBtn:'保存して再接続',saving:'保存中...',saved:'保存済み！',reconnected:'再接続済み！',cancel:'キャンセル',status:'ステータス',copyUuid:'UUID をコピー',copied:'コピーしました！',error:'エラー',clearAll:'すべて削除',clearConfirm:'すべてのメッセージを削除しますか？',deleteConfirmTitle:'削除の確認',markAllRead:'すべて既読にする',backupRestore:'バックアップと復元',backup:'バックアップ',restore:'復元',export:'メッセージをエクスポート',backupSuccess:'バックアップを保存しました',restoreConfirm:'バックアップから復元しますか？現在のすべてのメッセージが置き換えられます。',restoreSuccess:'{count} 件のメッセージを復元しました',restoreFailed:'復元に失敗しました',exportSuccess:'{format} にエクスポートしました',server:'サーバー',quickSend:'クイック送信',copyCurl:'コピー',tabServer:'サーバー',tabSystem:'システム',tabData:'データ',tabTools:'ツール',appVersion:'アプリバージョン',configFile:'設定ファイル',messagesFile:'メッセージファイル',autostart:'起動時に自動開始',autoDownloadImages:'5MB未満の画像を自動ダウンロード',settings:'設定',close:'閉じる',priority:'優先度',tags:'タグ',format:'フォーマット',search:'検索',filterAll:'すべて',filterUnread:'未読',filterRead:'既読',filterFlagged:'フラグ',untitled:'無題',msgDetail:'メッセージ詳細',msgDeleted:'メッセージを削除しました',undo:'元に戻す',selected:'選択中',flag:'フラグ',unflag:'フラグ解除',delete:'削除',copy:'コピー',copyTitle:'タイトルをコピー',download:'ダウンロード',justNow:'たった今',minAgo:'分前',hrAgo:'時間前',daysAgo:'日前',noUrl:'ダウンロードURLなし',composeTitle:'新規メッセージ',composeChannel:'チャンネル',composeFormat:'フォーマット',composeTo:'宛先',composeToHint:'Push: クライアントUUIDまたは__broadcast__。Email: 宛先メールアドレス。',composeSubject:'件名',composeBody:'本文',composePriority:'優先度',composeUrl:'URL',composeTags:'タグ',composeAttachment:'添付ファイル',composeSend:'送信',composeSending:'送信中...',composeSent:'メッセージを送信しました！',composeTagHint:'タグを入力してEnter',composeAttHint:'添付ファイルのURL',composePriHint:'0 = 通常、高いほど緊急',quickSendMsg:'メッセージを送信',quickSendTitle:'クイック送信',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'実行して送信',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'実行して送信',composeAdvanced:'詳細設定',composeUploadFile:'ファイルをアップロード' },
+  ko: { serverConfig:'서버 설정',clientInfo:'클라이언트 정보',system:'시스템',os:'OS',arch:'아키텍처',de:'데스크톱',name:'이름',connectBtn:'연결',connecting:'연결 중...',connected:'연결됨',disconnected:'연결 끊김',lastPoll:'마지막 폴링',messages:'메시지',noMessages:'수신된 메시지가 없습니다.',noMessagesUnread:'읽지 않은 메시지가 없습니다.',noMessagesRead:'읽은 메시지가 없습니다.',noMessagesFlagged:'플래그된 메시지가 없습니다.',noMessagesSearch:'일치하는 메시지가 없습니다.',editConfig:'설정',saveBtn:'저장 후 재연결',saving:'저장 중...',saved:'저장 완료！',reconnected:'재연결 완료！',cancel:'취소',status:'상태',copyUuid:'UUID 복사',copied:'복사됨！',error:'오류',clearAll:'모두 삭제',clearConfirm:'모든 메시지를 삭제하시겠습니까?',deleteConfirmTitle:'삭제 확인',markAllRead:'모두 읽음으로 표시',backupRestore:'백업 및 복원',backup:'백업',restore:'복원',export:'메시지 내보내기',backupSuccess:'백업이 저장되었습니다',restoreConfirm:'백업에서 복원하시겠습니까? 현재 모든 메시지가 대체됩니다.',restoreSuccess:'{count}개의 메시지를 복원했습니다',restoreFailed:'복원에 실패했습니다',exportSuccess:'{format}(으)로 내보냈습니다',server:'서버',quickSend:'빠른 전송',copyCurl:'복사',tabServer:'서버',tabSystem:'시스템',tabData:'데이터',tabTools:'도구',appVersion:'앱 버전',configFile:'설정 파일',messagesFile:'메시지 파일',autostart:'시작 시 자동 실행',autoDownloadImages:'5MB 미만 이미지 자동 다운로드',settings:'설정',close:'닫기',priority:'우선순위',tags:'태그',format:'형식',search:'검색',filterAll:'전체',filterUnread:'안 읽음',filterRead:'읽음',filterFlagged:'플래그',untitled:'제목 없음',msgDetail:'메시지 상세',msgDeleted:'메시지 삭제됨',undo:'실행 취소',selected:'선택됨',flag:'플래그',unflag:'플래그 해제',delete:'삭제',copy:'복사',copyTitle:'제목 복사',download:'다운로드',justNow:'방금',minAgo:'분 전',hrAgo:'시간 전',daysAgo:'일 전',noUrl:'다운로드 URL 없음',composeTitle:'새 메시지',composeChannel:'채널',composeFormat:'형식',composeTo:'수신자',composeToHint:'Push: 클라이언트 UUID 또는 __broadcast__. Email: 수신자 이메일.',composeSubject:'제목',composeBody:'본문',composePriority:'우선순위',composeUrl:'URL',composeTags:'태그',composeAttachment:'첨부파일',composeSend:'보내기',composeSending:'전송 중...',composeSent:'메시지를 보냈습니다!',composeTagHint:'태그 입력 후 Enter',composeAttHint:'첨부파일 URL',composePriHint:'0 = 보통, 높을수록 긴급',quickSendMsg:'빠른 메시지 보내기',quickSendTitle:'빠른 전송',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'실행 후 전송',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'실행 후 전송',composeAdvanced:'고급 옵션',composeUploadFile:'파일 업로드' },
 };
 function detectLang() { const c=(navigator.language||'en').split('-')[0].toLowerCase(); return I18N[c]?c:'en'; }
 const LANG=detectLang(); const T=I18N[LANG];
@@ -485,7 +726,7 @@ function applyI18n() {
     't-m-name-label':T.name,'t-quick-send':T.quickSend,'t-tab-server':T.tabServer,
     't-tab-system':T.tabSystem,'t-tab-data':T.tabData,'t-tab-tools':T.tabTools,
     't-app-version':T.appVersion,'t-config-path-label':T.configFile,
-    't-msg-path-label':T.messagesFile,'t-autostart-label':T.autostart,'t-filter-all':T.filterAll,
+    't-msg-path-label':T.messagesFile,'t-autostart-label':T.autostart,'t-auto-download-images':T.autoDownloadImages,'t-filter-all':T.filterAll,
     't-filter-unread':T.filterUnread,'t-filter-read':T.filterRead,'t-filter-flagged':T.filterFlagged,
     't-detail-title':T.msgDetail,
     't-delete-confirm-title':T.deleteConfirmTitle,
@@ -498,17 +739,39 @@ function applyI18n() {
     const el=document.getElementById(id);
     if(el){ const tn=document.createTextNode(T.messages); if(el.firstChild) el.replaceChild(tn,el.firstChild); else el.appendChild(tn); }
   });
-  document.getElementById('editConfigBtn').title=T.settings;
-  document.getElementById('markAllReadBtn').title=T.markAllRead;
-  document.getElementById('clearMsgsBtn').title=T.clearAll;
-  document.getElementById('modalCancelBtn').textContent=T.cancel;
-  document.getElementById('copyCurlBtn').title=T.copyCurl;
-  document.getElementById('searchInput').placeholder=T.search;
+  const _ecb=document.getElementById('editConfigBtn'); if(_ecb) _ecb.title=T.settings;
+  const _mar=document.getElementById('markAllReadBtn'); if(_mar) _mar.title=T.markAllRead;
+  const _clr=document.getElementById('clearMsgsBtn'); if(_clr) _clr.title=T.clearAll;
+  const _mcb=document.getElementById('modalCancelBtn'); if(_mcb) _mcb.textContent=T.cancel;
+  const _ccb=document.getElementById('copyCurlBtn'); if(_ccb) _ccb.title=T.copyCurl;
+  const _si=document.getElementById('searchInput'); if(_si) _si.placeholder=T.search;
+  const _cm = {
+    'composeBtn':[T.composeTitle,'title'],'t-compose-title':T.composeTitle,'t-compose-channel':T.composeChannel,
+    't-compose-format':T.composeFormat,'t-compose-to':T.composeTo,'t-compose-subject':T.composeSubject,
+    't-compose-body-label':T.composeBody,'t-compose-priority':T.composePriority,'t-compose-url-label':T.composeUrl,
+    't-compose-tags-label':T.composeTags,'t-compose-attachment':T.composeAttachment,'t-compose-send':T.composeSend,
+  };
+  for (const [k,v] of Object.entries(_cm)) {
+    const el=document.getElementById(k); if(!el) continue;
+    if(Array.isArray(v)) el.setAttribute(v[1],v[0]); else el.textContent=v;
+  }
+  const _ti=document.getElementById('composeTagsInput'); if(_ti) _ti.placeholder=T.composeTagHint;
+  const _ai=document.getElementById('composeAttachment'); if(_ai) _ai.placeholder=T.composeAttHint;
+  const _ub=document.getElementById('uploadAttBtn'); if(_ub) _ub.title=T.composeUploadFile;
+  const _adv=document.getElementById('t-compose-advanced'); if(_adv) _adv.textContent=T.composeAdvanced;
+  const _qst=document.getElementById('t-qs-title'); if(_qst) _qst.textContent=T.quickSendTitle;
+  const _qsc=document.getElementById('t-qs-curl'); if(_qsc) _qsc.textContent=T.quickSendCurl;
+  const _qsp=document.getElementById('t-qs-python'); if(_qsp) _qsp.textContent=T.quickSendPython;
+  const _qsr=document.getElementById('t-qs-run'); if(_qsr) _qsr.textContent=T.quickSendRun;
+  const _tc=document.getElementById('t-tools-curl'); if(_tc) _tc.textContent=T.toolsCurl;
+  const _tp=document.getElementById('t-tools-python'); if(_tp) _tp.textContent=T.toolsPython;
+  const _tr=document.getElementById('t-tools-run'); if(_tr) _tr.textContent=T.toolsRun;
 }
 applyI18n();
 
 /* ── State ── */
 let allMessages = [];
+let _newMsgIds = new Set(); // track newly arrived message IDs for animation
 let currentFilter = 'all';
 let searchQuery = '';
 let selectedIds = new Set();
@@ -660,6 +923,7 @@ function buildMessageCard(m) {
   const classes = ['msg-card'];
   if (isUnread) classes.push('unread');
   if (isSelected) classes.push('selected');
+  if (_newMsgIds.has(m.id)) classes.push('msg-new');
 
   let html = '<div class="' + classes.join(' ') + '" data-id="' + m.id + '">';
   if (selectMode) {
@@ -694,10 +958,22 @@ function renderMessages() {
   virtualFiltered = getFilteredMessages();
   const container = document.getElementById('msgListBody');
   const viewport = document.getElementById('msgViewport');
+  const hasMessages = allMessages.length > 0;
+  document.getElementById('markAllReadBtn').style.display = hasMessages ? '' : 'none';
+  document.getElementById('clearMsgsBtn').style.display = hasMessages ? '' : 'none';
 
   if (virtualFiltered.length === 0) {
-    viewport.innerHTML = '<div class="msg-empty"><div class="msg-empty-icon">📭</div>' + T.noMessages + '</div>';
+    let emptyMsg = T.noMessages;
+    if (searchQuery) emptyMsg = T.noMessagesSearch;
+    else if (currentFilter === 'unread') emptyMsg = T.noMessagesUnread;
+    else if (currentFilter === 'read') emptyMsg = T.noMessagesRead;
+    else if (currentFilter === 'flagged') emptyMsg = T.noMessagesFlagged;
+    const showQuickBtn = !searchQuery && currentFilter === 'all';
+    viewport.innerHTML = '<div class="msg-empty"><div class="msg-empty-icon">📭</div>' + emptyMsg
+      + (showQuickBtn ? '<br><button class="btn-primary" style="margin-top:14px;display:inline-flex;width:auto;padding:8px 18px" id="quickSendEmptyBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> ' + T.quickSendMsg + '</button>' : '')
+      + '</div>';
     viewport.style.height = 'auto';
+    document.getElementById('quickSendEmptyBtn')?.addEventListener('click', openQuickSendModal);
     return;
   }
 
@@ -904,10 +1180,26 @@ function openDetail(id) {
   if (att) {
     const sizeStr = att.size ? (att.size > 1048576 ? (att.size/1048576).toFixed(1)+'MB' : att.size > 1024 ? (att.size/1024).toFixed(1)+'KB' : att.size+'B') : '';
     html += '<div class="detail-section-title">Attachment</div>';
-    html += '<div class="detail-att-card" onclick="' + (att.url ? "invoke('open_url',{url:'" + escHtml(att.url) + "'})" : "alert('" + T.noUrl + "')") + '">';
+    // Show local image preview if available
+    const localPath = m.local_image_path;
+    const isImage = localPath && /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(localPath);
+    if (isImage) {
+      html += '<div id="localImagePreview" style="margin-bottom:12px;text-align:center"><div style="padding:20px;color:var(--text3)">Loading preview...</div></div>';
+    }
+    html += '<div class="detail-att-card" onclick="' + (att.url ? "invoke('download_file',{url:'" + escHtml(att.url) + "',filename:'" + escHtml(att.name || 'attachment') + "'})" : "alert('" + T.noUrl + "')") + '">';
     html += '<span style="font-size:20px">📎</span><div class="detail-att-info"><div class="detail-att-name">' + escHtml(att.name || 'attachment') + '</div>';
     if (sizeStr) html += '<div class="detail-att-size">' + sizeStr + '</div>';
     html += '</div><span style="font-size:12px;color:var(--accent)">' + T.download + ' →</span></div>';
+    // Load local image preview
+    if (isImage) {
+      invoke('read_image_data_url', { path: localPath }).then(dataUrl => {
+        const el = document.getElementById('localImagePreview');
+        if (el) el.innerHTML = '<img src="' + dataUrl + '" style="max-width:100%;max-height:400px;border-radius:8px;cursor:pointer" onclick="invoke(\'download_file\',{url:\'' + escHtml(att.url || '') + '\',filename:\'' + escHtml(att.name || 'image') + '\'})" />';
+      }).catch(() => {
+        const el = document.getElementById('localImagePreview');
+        if (el) el.remove();
+      });
+    }
   }
   document.getElementById('detailContent').innerHTML = html;
   document.getElementById('detailOverlay').classList.add('open');
@@ -937,19 +1229,30 @@ function copyToClipboard(text, btn) {
 }
 
 /* ── Unread Badge ── */
+function popBadge(el) {
+  if (!el) return;
+  el.classList.remove('pop');
+  void el.offsetWidth; // reflow to restart animation
+  el.classList.add('pop');
+}
+
 function updateUnreadBadge() {
   const count = allMessages.filter(m => !m.read).length;
   // Update header badge (in Messages header)
   const headerBadge = document.getElementById('headerUnreadBadge');
   if (headerBadge) {
+    const prev = headerBadge.textContent;
     if (count > 0) { headerBadge.textContent = count; headerBadge.style.display = 'inline-flex'; }
     else { headerBadge.style.display = 'none'; }
+    if (String(count) !== prev) popBadge(headerBadge);
   }
   // Update title badge (in view title)
   const badge = document.getElementById('unreadBadge');
   if (badge) {
+    const prev = badge.textContent;
     if (count > 0) { badge.textContent = count; badge.style.display = 'inline-flex'; }
     else { badge.style.display = 'none'; }
+    if (String(count) !== prev) popBadge(badge);
   }
   // Update filter chip counts
   updateFilterCounts();
@@ -987,8 +1290,12 @@ document.getElementById('searchInput').addEventListener('input', (e) => {
 /* ── Refresh Messages ── */
 async function refreshMessages() {
   try {
+    const oldIds = new Set(allMessages.map(m => m.id));
     allMessages = await invoke('get_messages');
+    _newMsgIds = new Set(allMessages.filter(m => !oldIds.has(m.id)).map(m => m.id));
     renderMessages();
+    // Clear new IDs after animation completes
+    if (_newMsgIds.size > 0) setTimeout(() => { _newMsgIds.clear(); }, 500);
   } catch {}
 }
 
@@ -1028,7 +1335,7 @@ document.getElementById('connectBtn').addEventListener('click', async () => {
   btn.disabled = true; label.textContent = T.saving;
   try {
     const cfg = await invoke('get_config');
-    const newCfg = { server:{ url:document.getElementById('c-url').value, api_key:document.getElementById('c-apiKey').value }, client:{ uuid:cfg.client.uuid, name:document.getElementById('c-name').value }, autostart:cfg.autostart||false };
+    const newCfg = { server:{ url:document.getElementById('c-url').value, username:document.getElementById('c-username').value, password:document.getElementById('c-password').value, jwt:'' }, client:{ uuid:cfg.client.uuid, name:document.getElementById('c-name').value }, autostart:cfg.autostart||false, auto_download_images:cfg.auto_download_images||false };
     await invoke('save_config', { cfg: newCfg });
     statusEl.innerHTML = '<span style="color:var(--success)"><span class="status-dot on"></span>' + T.connecting + '</span>';
     await invoke('reconnect');
@@ -1040,25 +1347,210 @@ document.getElementById('connectBtn').addEventListener('click', async () => {
 });
 
 /* ── Dashboard ── */
-function buildCurlExample(url, apiKey, uuid) {
-  return `curl -X POST ${url}/api/v1/send \\
+
+/* ── Tools Tab: Quick Send ── */
+let _toolsCurlRaw = '', _toolsPythonRaw = '';
+
+function renderToolsCode(url, apiKey, uuid) {
+  _toolsCurlRaw = buildQsCurl(url, apiKey, uuid);
+  _toolsPythonRaw = buildQsPython(url, apiKey, uuid);
+  const curlEl = document.getElementById('toolsCurlCode');
+  const pyEl = document.getElementById('toolsPythonCode');
+  if (curlEl) curlEl.innerHTML = highlightBash(_toolsCurlRaw);
+  if (pyEl) pyEl.innerHTML = highlightPython(_toolsPythonRaw);
+}
+
+document.getElementById('toolsQsTabs')?.addEventListener('click', (e) => {
+  const tab = e.target.closest('[data-tools-tab]');
+  if (!tab) return;
+  document.querySelectorAll('#toolsQsTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.toolsTab === tab.dataset.toolsTab));
+  document.querySelectorAll('.tools-tab-pane').forEach(p => p.classList.toggle('active', p.id === tab.dataset.toolsTab));
+});
+
+document.getElementById('toolsCopyCurl')?.addEventListener('click', () => {
+  navigator.clipboard.writeText(_toolsCurlRaw).then(() => {
+    const b = document.getElementById('toolsCopyCurl'); b.classList.add('copied'); setTimeout(() => b.classList.remove('copied'), 1500);
+  });
+});
+document.getElementById('toolsCopyPython')?.addEventListener('click', () => {
+  navigator.clipboard.writeText(_toolsPythonRaw).then(() => {
+    const b = document.getElementById('toolsCopyPython'); b.classList.add('copied'); setTimeout(() => b.classList.remove('copied'), 1500);
+  });
+});
+
+document.getElementById('toolsRunBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('toolsRunBtn');
+  const statusEl = document.getElementById('toolsQsStatus');
+  btn.disabled = true;
+  statusEl.className = 'compose-status';
+  statusEl.innerHTML = '<div class="compose-spinner"></div>' + T.composeSending;
+
+  let uuid = '';
+  try { const cfg = await invoke('get_config'); uuid = cfg?.client?.uuid || ''; } catch {}
+
+  try {
+    await invoke('send_message', {
+      channel: 'push', to: uuid || '__broadcast__',
+      subject: 'Hello from NotifyHub',
+      body: 'This is a test notification sent from the desktop client.',
+      tags: null, priority: null, url: null, format: null, attachment: null,
+    });
+    statusEl.className = 'compose-status success';
+    statusEl.textContent = '✓ ' + T.composeSent;
+    showToast(T.composeSent, 'success');
+    await refreshMessages();
+  } catch (e) {
+    statusEl.className = 'compose-status error';
+    statusEl.textContent = '✕ ' + T.error + ': ' + e;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* ── Quick Send Modal ── */
+let _qsCurlRaw = '', _qsPythonRaw = '';
+
+function buildQsCurl(url, apiKey, uuid) {
+  return `curl -X POST "${url}/api/v1/send" \\
   -H "Authorization: Bearer ${apiKey}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "channel": "push",
     "to": "${uuid}",
     "subject": "Hello from NotifyHub",
-    "body": "Welcome! This is a test notification"
+    "body": "This is a test notification sent from the desktop client."
   }'`;
 }
-function renderCurl(url, apiKey, uuid) {
-  const el = document.getElementById('curlExample');
-  const raw = buildCurlExample(url, apiKey, uuid);
-  let html = escHtml(raw).replace(/^(curl)/m,'<span class="kw">$1</span>').replace(/(-X\s+\S+)/g,'<span class="flag">$1</span>').replace(/(-H\s+)/g,'<span class="flag">$1</span>').replace(/(-d\s+)/g,'<span class="flag">$1</span>').replace(/(&quot;[^&]*?&quot;)/g,'<span class="str">$1</span>');
-  el.innerHTML = html;
+
+function buildQsPython(url, apiKey, uuid) {
+  return `import requests
+
+resp = requests.post(
+    "${url}/api/v1/send",
+    headers={
+        "Authorization": "Bearer ${apiKey}",
+        "Content-Type": "application/json",
+    },
+    json={
+        "channel": "push",
+        "to": "${uuid}",
+        "subject": "Hello from NotifyHub",
+        "body": "This is a test notification sent from the desktop client.",
+    },
+)
+print(resp.json())`;
 }
-let _curlRaw = '';
-document.getElementById('copyCurlBtn').addEventListener('click', () => { navigator.clipboard.writeText(_curlRaw).then(()=>{ const b=document.getElementById('copyCurlBtn'); b.classList.add('copied'); setTimeout(()=>b.classList.remove('copied'),1500); }).catch(()=>{}); });
+
+function highlightBash(raw) {
+  let h = escHtml(raw);
+  h = h.replace(/^(curl)/m, '<span class="kw">$1</span>');
+  h = h.replace(/(-X\s+\S+)/g, '<span class="flag">$1</span>');
+  h = h.replace(/(-H\s+)/g, '<span class="flag">$1</span>');
+  h = h.replace(/(-d\s+)/g, '<span class="flag">$1</span>');
+  h = h.replace(/(&quot;[^&]*?&quot;)/g, '<span class="str">$1</span>');
+  h = h.replace(/('[^']*?')/g, '<span class="str">$1</span>');
+  return h;
+}
+
+function highlightPython(raw) {
+  let h = escHtml(raw);
+  // keywords
+  h = h.replace(/\b(import|from|as|def|return|if|else|elif|for|while|in|not|and|or|True|False|None|print|class|try|except|finally|with|async|await|raise|yield)\b/g, '<span class="kw">$1</span>');
+  // strings (double-quoted)
+  h = h.replace(/(&quot;)(.*?)(&quot;)/g, '<span class="str">$1$2$3</span>');
+  // strings (single-quoted)
+  h = h.replace(/(')(.*?)(')/g, '<span class="str">$1$2$3</span>');
+  // comments
+  h = h.replace(/(#.*?)$/gm, '<span style="color:var(--text3)">$1</span>');
+  // function calls
+  h = h.replace(/\b([a-zA-Z_]\w*)\s*\(/g, '<span class="val">$1</span>(');
+  // numbers
+  h = h.replace(/\b(\d+)\b/g, '<span class="json-num">$1</span>');
+  return h;
+}
+
+function renderQsCode(url, apiKey, uuid) {
+  _qsCurlRaw = buildQsCurl(url, apiKey, uuid);
+  _qsPythonRaw = buildQsPython(url, apiKey, uuid);
+  document.getElementById('qsCurlCode').innerHTML = highlightBash(_qsCurlRaw);
+  document.getElementById('qsPythonCode').innerHTML = highlightPython(_qsPythonRaw);
+}
+
+async function openQuickSendModal() {
+  let url = '', apiKey = '', uuid = '';
+  try {
+    const cfg = await invoke('get_config');
+    if (cfg) { url = cfg.server.url || ''; apiKey = cfg.server.jwt || ''; uuid = cfg.client.uuid || ''; }
+  } catch {}
+  renderQsCode(url, apiKey, uuid);
+  document.getElementById('qsStatus').textContent = '';
+  document.getElementById('qsStatus').className = 'compose-status';
+  document.getElementById('quickSendRunBtn').disabled = false;
+  // Reset to curl tab
+  document.querySelectorAll('#qsTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.qsTab === 'qs-curl'));
+  document.querySelectorAll('.qs-tab-pane').forEach(p => p.classList.toggle('active', p.id === 'qs-curl'));
+  document.getElementById('quickSendModal').classList.add('open');
+}
+
+function closeQuickSendModal() {
+  document.getElementById('quickSendModal').classList.remove('open');
+}
+
+// Tab switching
+document.getElementById('qsTabs').addEventListener('click', (e) => {
+  const tab = e.target.closest('[data-qs-tab]');
+  if (!tab) return;
+  document.querySelectorAll('#qsTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.qsTab === tab.dataset.qsTab));
+  document.querySelectorAll('.qs-tab-pane').forEach(p => p.classList.toggle('active', p.id === tab.dataset.qsTab));
+});
+
+// Copy buttons
+document.getElementById('qsCopyCurl').addEventListener('click', () => {
+  navigator.clipboard.writeText(_qsCurlRaw).then(() => {
+    const b = document.getElementById('qsCopyCurl'); b.classList.add('copied'); setTimeout(() => b.classList.remove('copied'), 1500);
+  });
+});
+document.getElementById('qsCopyPython').addEventListener('click', () => {
+  navigator.clipboard.writeText(_qsPythonRaw).then(() => {
+    const b = document.getElementById('qsCopyPython'); b.classList.add('copied'); setTimeout(() => b.classList.remove('copied'), 1500);
+  });
+});
+
+// Close
+document.getElementById('quickSendCloseBtn').addEventListener('click', closeQuickSendModal);
+document.getElementById('quickSendCancelBtn').addEventListener('click', closeQuickSendModal);
+document.getElementById('quickSendModal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeQuickSendModal(); });
+
+// Run & Send
+document.getElementById('quickSendRunBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('quickSendRunBtn');
+  const statusEl = document.getElementById('qsStatus');
+  btn.disabled = true;
+  statusEl.className = 'compose-status';
+  statusEl.innerHTML = '<div class="compose-spinner"></div>' + T.composeSending;
+
+  let uuid = '';
+  try { const cfg = await invoke('get_config'); uuid = cfg?.client?.uuid || ''; } catch {}
+
+  try {
+    await invoke('send_message', {
+      channel: 'push', to: uuid || '__broadcast__',
+      subject: 'Hello from NotifyHub',
+      body: 'This is a test notification sent from the desktop client.',
+      tags: null, priority: null, url: null, format: null, attachment: null,
+    });
+    statusEl.className = 'compose-status success';
+    statusEl.textContent = '✓ ' + T.composeSent;
+    showToast(T.composeSent, 'success');
+    setTimeout(closeQuickSendModal, 1200);
+    await refreshMessages();
+  } catch (e) {
+    statusEl.className = 'compose-status error';
+    statusEl.textContent = '✕ ' + T.error + ': ' + e;
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 async function enterDashboard() {
   showView('dashboard');
@@ -1121,17 +1613,18 @@ async function loadSystemTab() {
   try { const i = await invoke('get_app_info'); document.getElementById('info-app-version').textContent = i.version; document.getElementById('info-config-path').textContent = i.config_path; document.getElementById('info-msg-path').textContent = i.messages_path; } catch {}
   _curlRaw = buildCurlExample(
     serverUrl,
-    (await invoke('get_config').catch(()=>({})))?.server?.api_key || '',
+    (await invoke('get_config').catch(()=>({})))?.server?.jwt || '',
     document.getElementById('info-uuid').textContent || ''
   );
   renderCurl(
     serverUrl,
-    (await invoke('get_config').catch(()=>({})))?.server?.api_key || '',
+    (await invoke('get_config').catch(()=>({})))?.server?.jwt || '',
     document.getElementById('info-uuid').textContent || ''
   );
   try { document.getElementById('autostartToggle').checked = !!(await invoke('get_autostart')); } catch { document.getElementById('autostartToggle').checked = false; }
+  try { const cfg = await invoke('get_config'); document.getElementById('autoDownloadImagesToggle').checked = !!(cfg?.auto_download_images); } catch {}
 }
-document.getElementById('editConfigBtn').addEventListener('click', async()=>{ try{const c=await invoke('get_config');if(c){document.getElementById('m-url').value=c.server.url;document.getElementById('m-apiKey').value=c.server.api_key;document.getElementById('m-name').value=c.client.name;}}catch{} switchTab('tab-server'); document.getElementById('configModal').classList.add('open'); });
+document.getElementById('editConfigBtn').addEventListener('click', async()=>{ try{const c=await invoke('get_config');if(c){document.getElementById('m-url').value=c.server.url;document.getElementById('m-username').value=c.server.username||'';document.getElementById('m-password').value=c.server.password||'';document.getElementById('m-name').value=c.client.name;}}catch{} switchTab('tab-server'); document.getElementById('configModal').classList.add('open'); });
 document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
 document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 document.getElementById('configModal').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeModal(); });
@@ -1146,20 +1639,36 @@ async function loadToolsTab() {
     const cfg = await invoke('get_config');
     if (cfg) {
       serverUrl = cfg.server.url || '';
-      apiKey = cfg.server.api_key || '';
+      apiKey = cfg.server.jwt || '';
       uuid = cfg.client.uuid || '';
     }
   } catch {}
   if (!uuid) {
     try { uuid = document.getElementById('info-uuid').textContent || ''; } catch {}
   }
-  _curlRaw = buildCurlExample(serverUrl, apiKey, uuid);
-  renderCurl(serverUrl, apiKey, uuid);
+  // Reset to curl tab
+  document.querySelectorAll('#toolsQsTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.toolsTab === 'tools-curl'));
+  document.querySelectorAll('.tools-tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tools-curl'));
+  const statusEl = document.getElementById('toolsQsStatus');
+  if (statusEl) { statusEl.textContent = ''; statusEl.className = 'compose-status'; }
+  renderToolsCode(serverUrl, apiKey, uuid);
 }
 document.getElementById('autostartToggle').addEventListener('change', async e=>{ try{await invoke('set_autostart',{enabled:e.target.checked});}catch(err){e.target.checked=!e.target.checked;alert(T.error+': '+err);} });
+document.getElementById('autoDownloadImagesToggle').addEventListener('change', async e=>{
+  try {
+    const cfg = await invoke('get_config');
+    if (cfg) {
+      cfg.auto_download_images = e.target.checked;
+      await invoke('save_config', { cfg });
+    }
+  } catch(err) {
+    e.target.checked = !e.target.checked;
+    alert(T.error+': '+err);
+  }
+});
 document.getElementById('modalSaveBtn').addEventListener('click', async()=>{
   const btn=document.getElementById('modalSaveBtn'), label=document.getElementById('t-save-btn'); btn.disabled=true; label.textContent=T.saving;
-  try{const cfg=await invoke('get_config');const newCfg={server:{url:document.getElementById('m-url').value,api_key:document.getElementById('m-apiKey').value},client:{uuid:cfg.client.uuid,name:document.getElementById('m-name').value},autostart:cfg.autostart||false}; await invoke('save_config',{cfg:newCfg}); await invoke('reconnect'); closeModal(); }catch(e){alert(T.error+': '+e);} finally{btn.disabled=false; label.textContent=T.saveBtn;}
+  try{const cfg=await invoke('get_config');const newCfg={server:{url:document.getElementById('m-url').value,username:document.getElementById('m-username').value,password:document.getElementById('m-password').value,jwt:''},client:{uuid:cfg.client.uuid,name:document.getElementById('m-name').value},autostart:cfg.autostart||false,auto_download_images:cfg.auto_download_images||false}; await invoke('save_config',{cfg:newCfg}); await invoke('reconnect'); closeModal(); }catch(e){alert(T.error+': '+e);} finally{btn.disabled=false; label.textContent=T.saveBtn;}
 });
 
 /* ── Backup & Restore ── */
@@ -1265,10 +1774,304 @@ document.getElementById('exportJsonBtn').addEventListener('click', async () => {
   } catch (e) { showToast(T.error + ': ' + e, 'error'); }
 });
 
+/* ── Compose Modal ── */
+let composeTags = [];
+let cachedClients = null;
+
+async function loadClients() {
+  if (cachedClients) return cachedClients;
+  try {
+    cachedClients = await invoke('get_clients');
+  } catch (e) {
+    cachedClients = [];
+  }
+  return cachedClients;
+}
+
+function buildClientLabel(c) {
+  const name = c.name || c.uuid;
+  const os = c.os || '';
+  const arch = c.arch || '';
+  const ver = c.appVersion || '';
+  let label = name;
+  const meta = [os, arch, ver].filter(Boolean).join(', ');
+  if (meta) label += ' (' + meta + ')';
+  return label;
+}
+
+async function updateToField() {
+  const ch = getComposeChannel();
+  const selectEl = document.getElementById('composeToSelect');
+  const inputEl = document.getElementById('composeTo');
+
+  if (ch === 'push') {
+    // Show select, hide input
+    selectEl.style.display = '';
+    inputEl.style.display = 'none';
+    // Load clients
+    selectEl.innerHTML = '<option value="">Loading...</option>';
+    const clients = await loadClients();
+    let opts = '<option value="__broadcast__">📢 ' + (LANG === 'zh' ? '广播所有设备' : 'Broadcast All') + '</option>';
+    for (const c of clients) {
+      const label = buildClientLabel(c);
+      opts += '<option value="' + escHtml(c.uuid) + '">' + escHtml(label) + '</option>';
+    }
+    if (clients.length === 0) {
+      opts += '<option value="" disabled>' + (LANG === 'zh' ? '无已注册设备' : 'No registered devices') + '</option>';
+    }
+    selectEl.innerHTML = opts;
+  } else {
+    // Show input, hide select
+    selectEl.style.display = 'none';
+    inputEl.style.display = '';
+    if (ch === 'email') { inputEl.placeholder = 'recipient@example.com'; }
+    else if (ch === 'sms') { inputEl.placeholder = '+1234567890'; }
+    else { inputEl.placeholder = 'Recipient'; }
+  }
+}
+
+function getComposeChannel() {
+  const active = document.querySelector('.channel-badge.active');
+  return active ? active.dataset.channel : 'push';
+}
+
+function getComposeTo() {
+  const ch = getComposeChannel();
+  if (ch === 'push') {
+    return document.getElementById('composeToSelect').value;
+  }
+  return document.getElementById('composeTo').value.trim();
+}
+
+function openCompose() {
+  // Reset form
+  setChannel('push');
+  document.getElementById('composeFormat').value = 'text';
+  document.getElementById('composeTo').value = '';
+  document.getElementById('composeSubject').value = '';
+  document.getElementById('composeBody').value = '';
+  document.getElementById('composePriority').value = '0';
+  document.getElementById('composeUrl').value = '';
+  document.getElementById('composeAttachment').value = '';
+  document.getElementById('composeAttachmentName').value = '';
+  composeTags = [];
+  renderComposeTags();
+  document.getElementById('composeStatus').textContent = '';
+  document.getElementById('composeStatus').className = 'compose-status';
+  document.getElementById('composeSendBtn').disabled = false;
+  document.getElementById('t-compose-send').textContent = T.composeSend;
+  cachedClients = null; // force refresh
+  updateToField();
+  // Reset advanced toggle
+  document.getElementById('composeAdvBody').style.display = 'none';
+  document.getElementById('composeAdvToggle').classList.remove('open');
+  document.getElementById('composeOverlay').classList.add('open');
+  document.getElementById('composeSubject').focus();
+}
+
+function closeCompose() {
+  document.getElementById('composeOverlay').classList.remove('open');
+}
+
+function setChannel(ch) {
+  document.querySelectorAll('.channel-badge').forEach(b => {
+    b.classList.toggle('active', b.dataset.channel === ch);
+  });
+  updateToField();
+}
+
+document.getElementById('channelBadges').addEventListener('click', (e) => {
+  const badge = e.target.closest('.channel-badge');
+  if (badge) {
+    setChannel(badge.dataset.channel);
+  }
+});
+
+function renderComposeTags() {
+  const container = document.getElementById('composeTagsContainer');
+  const input = document.getElementById('composeTagsInput');
+  // Remove existing chips
+  container.querySelectorAll('.compose-tag-chip').forEach(el => el.remove());
+  for (const tag of composeTags) {
+    const chip = document.createElement('span');
+    chip.className = 'compose-tag-chip';
+    chip.innerHTML = escHtml(tag) + '<button data-tag="' + escHtml(tag) + '">&times;</button>';
+    container.insertBefore(chip, input);
+  }
+}
+
+document.getElementById('composeTagsInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const val = e.target.value.trim().replace(/,/g, '');
+    if (val && !composeTags.includes(val)) {
+      composeTags.push(val);
+      renderComposeTags();
+    }
+    e.target.value = '';
+  }
+  if (e.key === 'Backspace' && !e.target.value && composeTags.length > 0) {
+    composeTags.pop();
+    renderComposeTags();
+  }
+});
+
+document.getElementById('composeTagsContainer').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-tag]');
+  if (btn) {
+    const tag = btn.dataset.tag;
+    composeTags = composeTags.filter(t => t !== tag);
+    renderComposeTags();
+  }
+  document.getElementById('composeTagsInput').focus();
+});
+
+document.getElementById('composeBtn').addEventListener('click', openCompose);
+document.getElementById('composeCloseBtn').addEventListener('click', closeCompose);
+document.getElementById('composeCancelBtn').addEventListener('click', closeCompose);
+document.getElementById('composeOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeCompose(); });
+
+// Advanced toggle
+document.getElementById('composeAdvToggle').addEventListener('click', () => {
+  const body = document.getElementById('composeAdvBody');
+  const toggle = document.getElementById('composeAdvToggle');
+  const open = body.style.display === 'none';
+  body.style.display = open ? '' : 'none';
+  toggle.classList.toggle('open', open);
+});
+
+// Upload attachment file
+document.getElementById('uploadAttBtn').addEventListener('click', () => {
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.style.display = 'none';
+  document.body.appendChild(fileInput);
+
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    if (!file) { fileInput.remove(); return; }
+
+    const btn = document.getElementById('uploadAttBtn');
+    btn.classList.add('uploading');
+
+    try {
+      const cfg = await invoke('get_config');
+      const serverUrl = cfg.server.url.replace(/\/+$/, '');
+      const apiKey = cfg.server.jwt;
+      const headers = { 'Authorization': 'Bearer ' + apiKey };
+
+      // Check quota before uploading
+      const quotaResp = await fetch(serverUrl + '/api/v1/upload/quota', { headers });
+      const quotaData = await quotaResp.json();
+      if (!quotaData.success) {
+        throw new Error(quotaData.error || 'Failed to check quota');
+      }
+      const q = quotaData.data;
+      const zh = LANG === 'zh';
+      // Admin has no limits (null values)
+      if (q.maxFileSize != null && file.size > q.maxFileSize) {
+        throw new Error(zh
+          ? `文件过大 (${fmtBytes(file.size)})，单文件上限 ${fmtBytes(q.maxFileSize)}`
+          : `File too large (${fmtBytes(file.size)}), max ${fmtBytes(q.maxFileSize)}`);
+      }
+      if (q.remainingBytes != null && file.size > q.remainingBytes) {
+        throw new Error(zh
+          ? `存储空间不足 (剩余 ${fmtBytes(q.remainingBytes)})，需要 ${fmtBytes(file.size)}`
+          : `Not enough storage (${fmtBytes(q.remainingBytes)} left), need ${fmtBytes(file.size)}`);
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const resp = await fetch(serverUrl + '/api/v1/upload', {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      const result = await resp.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Upload failed');
+      }
+
+      const fileUrl = serverUrl + result.data.url;
+      document.getElementById('composeAttachment').value = fileUrl;
+      document.getElementById('composeAttachmentName').value = file.name;
+      showToast((zh ? '上传成功: ' : 'Uploaded: ') + file.name, 'success');
+    } catch (e) {
+      showToast((LANG === 'zh' ? '上传失败: ' : 'Upload failed: ') + e.message, 'error');
+    } finally {
+      btn.classList.remove('uploading');
+      fileInput.remove();
+    }
+  });
+
+  fileInput.click();
+});
+
+function fmtBytes(bytes) {
+  if (bytes < 1024) return bytes + 'B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + 'KB';
+  return (bytes / 1048576).toFixed(1) + 'MB';
+}
+
+document.getElementById('composeSendBtn').addEventListener('click', async () => {
+  const channel = getComposeChannel();
+  const to = getComposeTo();
+  const subject = document.getElementById('composeSubject').value.trim();
+  const body = document.getElementById('composeBody').value.trim();
+  const priority = parseInt(document.getElementById('composePriority').value) || 0;
+  const url = document.getElementById('composeUrl').value.trim();
+  const format = document.getElementById('composeFormat').value;
+  const attachmentUrl = document.getElementById('composeAttachment').value.trim();
+
+  if (!to) { showToast(T.composeTo + ' is required', 'error'); return; }
+  if (!subject && !body) { showToast(T.composeSubject + ' / ' + T.composeBody + ' required', 'error'); return; }
+
+  const statusEl = document.getElementById('composeStatus');
+  const sendBtn = document.getElementById('composeSendBtn');
+  const sendLabel = document.getElementById('t-compose-send');
+
+  sendBtn.disabled = true;
+  sendLabel.textContent = T.composeSending;
+  statusEl.className = 'compose-status';
+  statusEl.innerHTML = '<div class="compose-spinner"></div>' + T.composeSending;
+
+  try {
+    const args = {
+      channel, to,
+      subject: subject || null,
+      body: body || null,
+      tags: composeTags.length > 0 ? composeTags : null,
+      priority: priority > 0 ? priority : null,
+      url: url || null,
+      format: format !== 'text' ? format : null,
+    };
+    // Add attachment as URL in the attachment field
+    if (attachmentUrl) {
+      const storedName = document.getElementById('composeAttachmentName').value.trim();
+      args.attachment = { name: storedName || attachmentUrl.split('/').pop() || 'attachment', url: attachmentUrl };
+    }
+    const msgId = await invoke('send_message', args);
+    statusEl.className = 'compose-status success';
+    statusEl.textContent = '✓ ' + T.composeSent;
+    showToast(T.composeSent, 'success');
+    setTimeout(closeCompose, 1200);
+  } catch (e) {
+    statusEl.className = 'compose-status error';
+    statusEl.textContent = '✕ ' + T.error + ': ' + e;
+  } finally {
+    sendBtn.disabled = false;
+    sendLabel.textContent = T.composeSend;
+  }
+});
+
 /* ── Keyboard shortcuts ── */
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    if (document.getElementById('detailOverlay').classList.contains('open')) closeDetail();
+    if (document.getElementById('quickSendModal').classList.contains('open')) closeQuickSendModal();
+    else if (document.getElementById('composeOverlay').classList.contains('open')) closeCompose();
+    else if (document.getElementById('detailOverlay').classList.contains('open')) closeDetail();
     else if (selectMode) exitSelectMode();
     else if (document.getElementById('configModal').classList.contains('open')) closeModal();
   }
@@ -1276,7 +2079,7 @@ document.addEventListener('keydown', (e) => {
 
 /* ── Init ── */
 (async()=>{
-  try{const cfg=await invoke('get_config');if(cfg&&cfg.server.api_key){document.getElementById('c-url').value=cfg.server.url;document.getElementById('c-apiKey').value=cfg.server.api_key;document.getElementById('c-name').value=cfg.client.name;await enterDashboard();}else{if(cfg){document.getElementById('c-url').value=cfg.server.url;document.getElementById('c-name').value=cfg.client.name;}showView('connect');}}catch{showView('connect')}
+  try{const cfg=await invoke('get_config');if(cfg&&cfg.server.jwt){document.getElementById('c-url').value=cfg.server.url;document.getElementById('c-name').value=cfg.client.name;await enterDashboard();}else{if(cfg){document.getElementById('c-url').value=cfg.server.url;document.getElementById('c-name').value=cfg.client.name;}showView('connect');}}catch{showView('connect')}
 })();
 setInterval(()=>{ if(currentView==='dashboard'&&!detailMsg) refreshMessages(); }, 5000);
 </script>

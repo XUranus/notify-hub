@@ -25,6 +25,8 @@ pub struct LocalMessage {
     pub attachment: Option<String>,
     #[serde(default)]
     pub format: Option<String>,
+    #[serde(default)]
+    pub local_image_path: Option<String>,
 }
 
 fn messages_path() -> PathBuf {

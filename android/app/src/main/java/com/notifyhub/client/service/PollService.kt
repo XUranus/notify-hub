@@ -20,8 +20,13 @@ import com.notifyhub.client.data.ConfigStore
 import com.notifyhub.client.data.I18n
 import com.notifyhub.client.data.LocalMessage
 import com.notifyhub.client.data.MessageStore
+import com.notifyhub.client.data.AppDatabase
 import com.notifyhub.client.data.PushMessage
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.*
+import java.io.File
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -93,14 +98,25 @@ class PollService : Service() {
         if (pollJob?.isActive == true) return
 
         pollJob = scope.launch {
-            val config = ConfigStore.load(this@PollService)
-            AppLogger.d(TAG, "Polling started: serverUrl=${config.serverUrl}, apiKey=${config.apiKey.take(8)}..., uuid=${config.clientUuid}")
-            if (config.apiKey.isBlank()) {
-                AppLogger.w(TAG, "No API key configured, skipping polling")
-                return@launch
+            var config = ConfigStore.load(this@PollService)
+            AppLogger.d(TAG, "Polling started: serverUrl=${config.serverUrl}, username=${config.username}, uuid=${config.clientUuid}")
+
+            // Login if JWT is empty
+            var jwt = config.jwtToken
+            if (jwt.isBlank()) {
+                if (config.username.isBlank()) {
+                    AppLogger.w(TAG, "No JWT and no username configured, skipping polling")
+                    isConnected.value = false
+                    lastError.value = I18n["notif_conn_failed"]
+                    return@launch
+                }
+                AppLogger.d(TAG, "No JWT, attempting login...")
+                val loginPair = loginAndCreateApi(config.serverUrl, config.username, config.password)
+                if (loginPair == null) return@launch
+                jwt = loginPair.second
             }
 
-            val api = ApiClient(config.serverUrl, config.apiKey)
+            var api = ApiClient(config.serverUrl, jwt)
 
             // Initial registration
             AppLogger.d(TAG, "Attempting register...")
@@ -112,12 +128,43 @@ class PollService : Service() {
             // Poll loop
             while (isActive) {
                 try {
-                    val messages = api.poll(config.clientUuid)
+                    val (code, messages) = api.pollRawResponse(config.clientUuid)
+
+                    // Re-login on 401 (JWT expired)
+                    if (code == 401) {
+                        if (config.username.isBlank()) {
+                            AppLogger.w(TAG, "JWT expired (401) and no credentials for re-login")
+                            isConnected.value = false
+                            lastError.value = "JWT expired, please re-login"
+                            delay(POLL_INTERVAL_MS)
+                            continue
+                        }
+                        AppLogger.w(TAG, "JWT expired (401), re-logging in...")
+                        val reloginPair = loginAndCreateApi(config.serverUrl, config.username, config.password)
+                        if (reloginPair != null) {
+                            api = reloginPair.first
+                            jwt = reloginPair.second
+                            AppLogger.d(TAG, "Re-login successful")
+                            api.register(config.clientUuid, config.clientName)
+                            continue
+                        } else {
+                            delay(POLL_INTERVAL_MS)
+                            continue
+                        }
+                    }
+
                     val now = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
                     lastPollTime.value = now
 
                     if (messages.isNotEmpty()) {
                         MessageStore.save(this@PollService, messages)
+
+                        // Auto-download images if enabled
+                        if (ConfigStore.getAutoDownloadImages(this@PollService)) {
+                            for (msg in messages) {
+                                tryAutoDownloadImage(msg)
+                            }
+                        }
 
                         if (!ConfigStore.isMuted(this@PollService)) {
                             for (msg in messages) {
@@ -145,6 +192,26 @@ class PollService : Service() {
         pollJob?.cancel()
         pollJob = null
         isConnected.value = false
+    }
+
+    /**
+     * Attempt login, save JWT, return (ApiClient, jwt) or null on failure.
+     * Sets isConnected/lastError on failure.
+     */
+    private suspend fun loginAndCreateApi(
+        serverUrl: String, username: String, password: String
+    ): Pair<ApiClient, String>? {
+        val result = ApiClient.login(serverUrl, username, password)
+        if (result.isFailure) {
+            AppLogger.e(TAG, "Login failed", result.exceptionOrNull())
+            isConnected.value = false
+            lastError.value = result.exceptionOrNull()?.message ?: I18n["notif_conn_failed"]
+            return null
+        }
+        val newJwt = result.getOrThrow()
+        ConfigStore.saveJwtToken(this@PollService, newJwt)
+        AppLogger.d(TAG, "Login successful, JWT saved")
+        return Pair(ApiClient(serverUrl, newJwt), newJwt)
     }
 
     private fun showPushNotification(msg: PushMessage) {
@@ -249,4 +316,54 @@ class PollService : Service() {
         attachment = attachment,
         format = format ?: "text"
     )
+
+    private val MAX_AUTO_DOWNLOAD_SIZE = 5 * 1024 * 1024L // 5MB
+
+    private fun tryAutoDownloadImage(msg: PushMessage) {
+        if (msg.attachment == null) return
+        try {
+            val att: Map<*, *> = Gson().fromJson(msg.attachment, Map::class.java)
+            val url = att["url"]?.toString() ?: return
+            val name = att["name"]?.toString() ?: "image"
+            val size = (att["size"] as? Number)?.toLong() ?: 0
+
+            // Only download images
+            val isImage = name.lowercase().let {
+                it.endsWith(".png") || it.endsWith(".jpg") || it.endsWith(".jpeg") ||
+                it.endsWith(".gif") || it.endsWith(".webp") || it.endsWith(".svg") || it.endsWith(".bmp")
+            }
+            if (!isImage) return
+
+            // Size check
+            if (size > MAX_AUTO_DOWNLOAD_SIZE) return
+
+            // Build full URL
+            val serverUrl = ConfigStore.load(this).serverUrl.trimEnd('/')
+            val fullUrl = if (url.startsWith("http")) url else "$serverUrl$url"
+
+            // Download
+            val bytes = URL(fullUrl).readBytes()
+            if (bytes.size > MAX_AUTO_DOWNLOAD_SIZE) return
+
+            // Save to internal storage
+            val imagesDir = File(filesDir, "notifyhub_images")
+            imagesDir.mkdirs()
+            val ext = name.substringAfterLast('.', "jpg")
+            val safeName = url.replace(Regex("[^a-zA-Z0-9_-]"), "_").take(64)
+            val file = File(imagesDir, "$safeName.$ext")
+            file.writeBytes(bytes)
+
+            // Update message entity with local path (tied to service lifecycle)
+            scope.launch {
+                try {
+                    val dao = AppDatabase.getInstance(this@PollService).messageDao()
+                    dao.setLocalImagePath(msg.id, file.absolutePath)
+                } catch (e: Exception) {
+                    AppLogger.e(TAG, "Failed to update local image path", e)
+                }
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Auto-download image failed", e)
+        }
+    }
 }

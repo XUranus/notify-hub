@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flag
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -101,6 +103,7 @@ fun MainScreen(
     config: ClientConfig,
     pollService: PollService?,
     onOpenSettings: () -> Unit,
+    onCompose: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -191,6 +194,18 @@ fun MainScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            if (!selectionMode) {
+                FloatingActionButton(
+                    onClick = onCompose,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = CircleShape,
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = i18n("compose_title"))
+                }
+            }
+        },
         topBar = {
             TopAppBar(
                 title = {
@@ -323,6 +338,14 @@ fun MainScreen(
             }
 
             if (filtered.isEmpty()) {
+                val emptyMessage = when {
+                    searchQuery.isNotBlank() -> i18n("no_messages_search")
+                    currentFilter == MessageFilter.UNREAD -> i18n("no_messages_unread")
+                    currentFilter == MessageFilter.READ -> i18n("no_messages_read")
+                    currentFilter == MessageFilter.FLAGGED -> i18n("no_messages_flagged")
+                    else -> i18n("no_messages")
+                }
+                val emptyHint = if (currentFilter == MessageFilter.ALL && searchQuery.isBlank()) i18n("no_messages_hint") else null
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -333,17 +356,19 @@ fun MainScreen(
                         Text("📭", fontSize = 48.sp)
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            i18n("no_messages"),
+                            emptyMessage,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            i18n("no_messages_hint"),
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (emptyHint != null) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                emptyHint,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             } else {

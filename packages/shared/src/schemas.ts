@@ -95,6 +95,11 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 })
 
+export const clientLoginSchema = z.object({
+  emailOrUsername: z.string().min(1),
+  password: z.string().min(1),
+})
+
 export const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
@@ -148,11 +153,22 @@ export const updateChannelSchema = z.object({
   isDefault: z.boolean().optional(),
 })
 
+export const TOKEN_EXPIRATION_OPTIONS = [
+  { value: '1d', label: '1 Day', ms: 86_400_000 },
+  { value: '7d', label: '1 Week', ms: 604_800_000 },
+  { value: '30d', label: '1 Month', ms: 2_592_000_000 },
+  { value: '365d', label: '1 Year', ms: 31_536_000_000 },
+  { value: 'never', label: 'Never', ms: 0 },
+] as const
+
+export type TokenExpiration = (typeof TOKEN_EXPIRATION_OPTIONS)[number]['value']
+
 export const createTokenSchema = z.object({
   name: z.string().min(1).max(100),
   scopes: z.array(z.enum(CHANNEL_TYPES)).default(['email', 'sms', 'push']),
   rateLimit: z.number().int().min(1).max(10000).default(100),
   ipWhitelist: z.array(z.string()).optional(),
+  expiresIn: z.enum(['1d', '7d', '30d', '365d', 'never']).default('never'),
 })
 
 export const updateTokenSchema = z.object({

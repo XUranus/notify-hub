@@ -9,9 +9,11 @@ import {
   Bell,
   Settings,
   User,
+  Paperclip,
+  Shield,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { clearToken, getCurrentUser } from '@/lib/api'
+import { clearToken, getCurrentUser, isAdmin } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
 
@@ -20,6 +22,7 @@ export default function AdminLayout() {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const currentUser = getCurrentUser()
+  const admin = isAdmin()
 
   const navItems = [
     { href: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
@@ -27,12 +30,18 @@ export default function AdminLayout() {
     { href: '/messages', label: t('nav.messages'), icon: MessageSquare },
     { href: '/templates', label: t('nav.templates'), icon: FileText },
     { href: '/tokens', label: t('nav.tokens'), icon: Key },
+    { href: '/attachments', label: t('nav.attachments'), icon: Paperclip },
   ]
 
   const handleLogout = () => {
     clearToken()
     navigate('/login')
   }
+
+  const isActive = (href: string) =>
+    href === '/'
+      ? location.pathname === '/'
+      : location.pathname.startsWith(href)
 
   return (
     <div className="flex h-screen bg-background">
@@ -48,18 +57,13 @@ export default function AdminLayout() {
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon
-            const isActive =
-              item.href === '/'
-                ? location.pathname === '/'
-                : location.pathname.startsWith(item.href)
-
             return (
               <Link
                 key={item.href}
                 to={item.href}
                 className={cn(
                   'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                  isActive
+                  isActive(item.href)
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 )}
@@ -83,6 +87,21 @@ export default function AdminLayout() {
                 </span>
               )}
             </div>
+          )}
+          {/* Admin link — above Settings, admin only */}
+          {admin && (
+            <Link
+              to="/admin"
+              className={cn(
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors w-full',
+                location.pathname.startsWith('/admin')
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+              )}
+            >
+              <Shield className="h-4 w-4" />
+              {t('nav.admin')}
+            </Link>
           )}
           <Link
             to="/settings"

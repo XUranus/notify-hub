@@ -27,8 +27,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.notifyhub.client.data.I18n
 import com.notifyhub.client.data.LocalMessage
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -281,6 +284,39 @@ fun MessageDetailScreen(
                             else -> "$bytes B"
                         }
                     } else ""
+
+                    // Show local image preview if available
+                    val localPath = msg.localImagePath
+                    val isImage = localPath != null && localPath.lowercase().let {
+                        it.endsWith(".png") || it.endsWith(".jpg") || it.endsWith(".jpeg") ||
+                        it.endsWith(".gif") || it.endsWith(".webp") || it.endsWith(".bmp")
+                    }
+                    if (isImage && localPath != null) {
+                        val file = File(localPath)
+                        if (file.exists()) {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                )
+                            ) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(file)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = name,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 400.dp),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                                )
+                            }
+                        }
+                    }
 
                     OutlinedCard(
                         modifier = Modifier.fillMaxWidth(),

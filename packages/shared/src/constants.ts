@@ -36,6 +36,7 @@ export const API_TOKEN_PREFIX = 'nfkey_'
 
 // JWT
 export const JWT_EXPIRY = '24h'
+export const CLIENT_JWT_EXPIRY = '90d'
 
 // Admin default credentials
 export const DEFAULT_ADMIN_USERNAME = 'admin'

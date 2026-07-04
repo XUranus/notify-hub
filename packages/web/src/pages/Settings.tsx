@@ -8,70 +8,66 @@ import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useTranslation } from '@/lib/i18n'
 import { useTheme } from '@/lib/theme'
-import { authApi, usersApi, isAdmin } from '@/lib/api'
-import { Globe, Moon, Sun, Shield, FileText, CheckCircle, Users, Plus, Trash2, Pencil } from 'lucide-react'
+import { authApi, userSettingsApi, getCurrentUser } from '@/lib/api'
+import { Globe, Moon, Sun, Shield, FileText, CheckCircle, Clock, HardDrive } from 'lucide-react'
 
-// ── Language Tab ──
+// ── General Tab (Language + Theme) ──
 
-function LanguageSettings() {
+function GeneralSettings() {
   const { locale, setLocale, t } = useTranslation()
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Globe className="h-5 w-5" />
-          {t('settings.language.title')}
-        </CardTitle>
-        <CardDescription>{t('settings.language.desc')}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Select value={locale} onValueChange={(v) => setLocale(v as any)}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="zh-CN">{t('settings.language.zh')}</SelectItem>
-            <SelectItem value="en-US">{t('settings.language.en')}</SelectItem>
-          </SelectContent>
-        </Select>
-      </CardContent>
-    </Card>
-  )
-}
-
-// ── Theme Tab ──
-
-function ThemeSettings() {
   const { theme, setTheme } = useTheme()
-  const { t } = useTranslation()
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {theme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-          {t('settings.theme.title')}
-        </CardTitle>
-        <CardDescription>{t('settings.theme.desc')}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Sun className="h-4 w-4" />
-            <span className="text-sm">{t('settings.theme.light')}</span>
+    <div className="space-y-6">
+      {/* Language */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Globe className="h-5 w-5" />
+            {t('settings.language.title')}
+          </CardTitle>
+          <CardDescription>{t('settings.language.desc')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Select value={locale} onValueChange={(v) => setLocale(v as any)}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="zh-CN">{t('settings.language.zh')}</SelectItem>
+              <SelectItem value="en-US">{t('settings.language.en')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      {/* Theme */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            {theme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            {t('settings.theme.title')}
+          </CardTitle>
+          <CardDescription>{t('settings.theme.desc')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Sun className="h-4 w-4" />
+              <span className="text-sm">{t('settings.theme.light')}</span>
+            </div>
+            <Switch
+              checked={theme === 'dark'}
+              onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+            />
+            <div className="flex items-center gap-2">
+              <Moon className="h-4 w-4" />
+              <span className="text-sm">{t('settings.theme.dark')}</span>
+            </div>
           </div>
-          <Switch
-            checked={theme === 'dark'}
-            onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-          />
-          <div className="flex items-center gap-2">
-            <Moon className="h-4 w-4" />
-            <span className="text-sm">{t('settings.theme.dark')}</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 
@@ -79,6 +75,7 @@ function ThemeSettings() {
 
 function SecuritySettings() {
   const { t } = useTranslation()
+  const user = getCurrentUser()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -114,6 +111,33 @@ function SecuritySettings() {
   }
 
   return (
+    <div className="space-y-6">
+      {user && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              {t('settings.security.account')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-16">ID</span>
+                <span className="font-mono">{user.id}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-16">Email</span>
+                <span className="font-mono">{user.email}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-16">{t('settings.security.role')}</span>
+                <span className="font-mono">{user.role}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -176,6 +200,7 @@ function SecuritySettings() {
         </form>
       </CardContent>
     </Card>
+    </div>
   )
 }
 
@@ -234,251 +259,118 @@ function LogSettings() {
   )
 }
 
-// ── Users Tab (admin only) ──
+// ── Attachment Settings Tab ──
 
-interface UserItem {
-  id: number
-  email: string
-  username: string
-  role: 'admin' | 'user'
-  createdAt: string
-}
-
-function UserManagement() {
+function AttachmentSettings() {
   const { t } = useTranslation()
-  const [users, setUsers] = useState<UserItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showCreate, setShowCreate] = useState(false)
-  const [editingUser, setEditingUser] = useState<UserItem | null>(null)
-  const [error, setError] = useState('')
+  const [attachmentExpiration, setAttachmentExpiration] = useState(0)
+  const [messageExpiration, setMessageExpiration] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
 
-  // Create form
-  const [newEmail, setNewEmail] = useState('')
-  const [newUsername, setNewUsername] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [newRole, setNewRole] = useState<'admin' | 'user'>('user')
-
-  // Edit form
-  const [editEmail, setEditEmail] = useState('')
-  const [editUsername, setEditUsername] = useState('')
-  const [editRole, setEditRole] = useState<'admin' | 'user'>('user')
-
-  const fetchUsers = async () => {
-    setLoading(true)
-    const result = await usersApi.list()
-    if (result.success && result.data) {
-      setUsers(result.data)
-    }
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchUsers() }, [])
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    if (newPassword.length < 6) {
-      setError(t('settings.security.minLength'))
-      return
-    }
-    const result = await usersApi.create({
-      email: newEmail, username: newUsername, password: newPassword, role: newRole,
+  useEffect(() => {
+    userSettingsApi.get().then((res) => {
+      if (res.success && res.data) {
+        setAttachmentExpiration(res.data.attachmentExpiration)
+        setMessageExpiration(res.data.messageExpiration)
+      }
     })
-    if (result.success) {
-      setShowCreate(false)
-      setNewEmail('')
-      setNewUsername('')
-      setNewPassword('')
-      setNewRole('user')
-      fetchUsers()
-    } else {
-      setError(result.error || t('common.error'))
-    }
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setSaved(false)
+    const res = await userSettingsApi.update({ attachmentExpiration, messageExpiration })
+    setSaving(false)
+    if (res.success) setSaved(true)
   }
 
-  const handleEdit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editingUser) return
-    setError('')
-    const result = await usersApi.update(editingUser.id, {
-      email: editEmail, username: editUsername, role: editRole,
-    })
-    if (result.success) {
-      setEditingUser(null)
-      fetchUsers()
-    } else {
-      setError(result.error || t('common.error'))
-    }
-  }
+  const attachmentOptions = [
+    { value: 0, label: t('settings.attachments.never') },
+    { value: 1, label: t('settings.attachments.24h') },
+    { value: 3, label: t('settings.attachments.3d') },
+    { value: 7, label: t('settings.attachments.1w') },
+    { value: 30, label: t('settings.attachments.1m') },
+  ]
 
-  const handleDelete = async (id: number) => {
-    if (!confirm(t('users.deleteConfirm'))) return
-    setError('')
-    const result = await usersApi.delete(id)
-    if (result.success) {
-      fetchUsers()
-    } else {
-      setError(result.error || t('common.error'))
-    }
-  }
-
-  const startEdit = (user: UserItem) => {
-    setEditingUser(user)
-    setEditEmail(user.email)
-    setEditUsername(user.username)
-    setEditRole(user.role)
-    setShowCreate(false)
-  }
+  const messageOptions = [
+    { value: 0, label: t('settings.attachments.never') },
+    { value: 1, label: t('settings.attachments.24h') },
+    { value: 3, label: t('settings.attachments.3d') },
+    { value: 7, label: t('settings.attachments.1w') },
+  ]
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              {t('users.title')}
-            </CardTitle>
-            <CardDescription>{t('users.title')}</CardDescription>
-          </div>
-          <Button size="sm" onClick={() => { setShowCreate(true); setEditingUser(null); setError('') }}>
-            <Plus className="h-4 w-4 mr-1" />
-            {t('users.add')}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {error && (
-          <div className="mb-4 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-            {error}
-          </div>
-        )}
-
-        {/* Create form */}
-        {showCreate && (
-          <form onSubmit={handleCreate} className="mb-6 p-4 border rounded-lg space-y-3">
-            <h4 className="font-medium">{t('users.new')}</h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{t('users.email')}</Label>
-                <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder={t('users.emailPlaceholder')} required />
-              </div>
-              <div className="space-y-1">
-                <Label>{t('users.username')}</Label>
-                <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value)}
-                  placeholder={t('users.usernamePlaceholder')} required />
-              </div>
-              <div className="space-y-1">
-                <Label>{t('users.password')}</Label>
-                <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder={t('users.passwordPlaceholder')} required />
-              </div>
-              <div className="space-y-1">
-                <Label>{t('users.role')}</Label>
-                <Select value={newRole} onValueChange={(v) => setNewRole(v as 'admin' | 'user')}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">{t('users.roleUser')}</SelectItem>
-                    <SelectItem value="admin">{t('users.roleAdmin')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit" size="sm">{t('users.create')}</Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => setShowCreate(false)}>
-                {t('users.cancel')}
-              </Button>
-            </div>
-          </form>
-        )}
-
-        {/* Edit form */}
-        {editingUser && (
-          <form onSubmit={handleEdit} className="mb-6 p-4 border rounded-lg space-y-3">
-            <h4 className="font-medium">{t('users.editUser')}</h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{t('users.email')}</Label>
-                <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} required />
-              </div>
-              <div className="space-y-1">
-                <Label>{t('users.username')}</Label>
-                <Input value={editUsername} onChange={(e) => setEditUsername(e.target.value)} required />
-              </div>
-              <div className="space-y-1">
-                <Label>{t('users.role')}</Label>
-                <Select value={editRole} onValueChange={(v) => setEditRole(v as 'admin' | 'user')}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">{t('users.roleUser')}</SelectItem>
-                    <SelectItem value="admin">{t('users.roleAdmin')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit" size="sm">{t('users.save')}</Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => setEditingUser(null)}>
-                {t('users.cancel')}
-              </Button>
-            </div>
-          </form>
-        )}
-
-        {/* Users table */}
-        {loading ? (
-          <p className="text-muted-foreground text-sm">{t('common.loading')}</p>
-        ) : users.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t('users.empty')}</p>
-        ) : (
-          <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium">{t('users.email')}</th>
-                  <th className="text-left px-4 py-2 font-medium">{t('users.username')}</th>
-                  <th className="text-left px-4 py-2 font-medium">{t('users.role')}</th>
-                  <th className="text-left px-4 py-2 font-medium">{t('users.createdAt')}</th>
-                  <th className="text-right px-4 py-2 font-medium">{t('users.actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr key={user.id} className="border-t hover:bg-muted/30">
-                    <td className="px-4 py-2">{user.email}</td>
-                    <td className="px-4 py-2">{user.username}</td>
-                    <td className="px-4 py-2">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                        user.role === 'admin'
-                          ? 'bg-primary/10 text-primary'
-                          : 'bg-muted text-muted-foreground'
-                      }`}>
-                        {user.role === 'admin' ? t('users.roleAdmin') : t('users.roleUser')}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-muted-foreground">
-                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => startEdit(user)}
-                        className="h-7 px-2 text-muted-foreground hover:text-foreground">
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleDelete(user.id)}
-                        className="h-7 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </td>
-                  </tr>
+    <div className="space-y-6">
+      {/* Message Expiration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            {t('settings.messages.title')}
+          </CardTitle>
+          <CardDescription>{t('settings.messages.desc')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>{t('settings.messages.expiration')}</Label>
+            <Select value={String(messageExpiration)} onValueChange={(v) => { setMessageExpiration(Number(v)); setSaved(false) }}>
+              <SelectTrigger className="w-[300px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {messageOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={String(opt.value)}>
+                    {opt.label}
+                  </SelectItem>
                 ))}
-              </tbody>
-            </table>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{t('settings.messages.expirationHint')}</p>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Attachment Expiration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            {t('settings.attachments.title')}
+          </CardTitle>
+          <CardDescription>{t('settings.attachments.desc')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>{t('settings.attachments.expiration')}</Label>
+            <Select value={String(attachmentExpiration)} onValueChange={(v) => { setAttachmentExpiration(Number(v)); setSaved(false) }}>
+              <SelectTrigger className="w-[300px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {attachmentOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={String(opt.value)}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Save */}
+      <div className="flex items-center gap-3">
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? t('common.loading') : t('settings.attachments.save')}
+        </Button>
+        {saved && (
+          <span className="text-sm text-green-600 flex items-center gap-1">
+            <CheckCircle className="h-4 w-4" /> {t('settings.attachments.saved')}
+          </span>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
@@ -486,21 +378,16 @@ function UserManagement() {
 
 export default function Settings() {
   const { t } = useTranslation()
-  const admin = isAdmin()
 
   return (
     <div>
       <h2 className="text-3xl font-bold tracking-tight mb-6">{t('settings.title')}</h2>
 
-      <Tabs defaultValue="language" className="space-y-4">
+      <Tabs defaultValue="general" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="language">
+          <TabsTrigger value="general">
             <Globe className="h-4 w-4 mr-2" />
-            {t('settings.language')}
-          </TabsTrigger>
-          <TabsTrigger value="theme">
-            <Sun className="h-4 w-4 mr-2" />
-            {t('settings.theme')}
+            {t('settings.general')}
           </TabsTrigger>
           <TabsTrigger value="security">
             <Shield className="h-4 w-4 mr-2" />
@@ -510,20 +397,14 @@ export default function Settings() {
             <FileText className="h-4 w-4 mr-2" />
             {t('settings.logs')}
           </TabsTrigger>
-          {admin && (
-            <TabsTrigger value="users">
-              <Users className="h-4 w-4 mr-2" />
-              {t('users.title')}
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="attachments">
+            <HardDrive className="h-4 w-4 mr-2" />
+            {t('settings.attachments')}
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="language">
-          <LanguageSettings />
-        </TabsContent>
-
-        <TabsContent value="theme">
-          <ThemeSettings />
+        <TabsContent value="general">
+          <GeneralSettings />
         </TabsContent>
 
         <TabsContent value="security">
@@ -534,11 +415,9 @@ export default function Settings() {
           <LogSettings />
         </TabsContent>
 
-        {admin && (
-          <TabsContent value="users">
-            <UserManagement />
-          </TabsContent>
-        )}
+        <TabsContent value="attachments">
+          <AttachmentSettings />
+        </TabsContent>
       </Tabs>
     </div>
   )

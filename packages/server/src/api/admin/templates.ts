@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { eq, and, ne } from 'drizzle-orm'
 import { createTemplateSchema, updateTemplateSchema } from '@notify-hub/shared'
 import { getDb, schema } from '../../db/index.js'
+import { templateCache } from '../../cache.js'
 
 const templates = new Hono()
 
@@ -83,6 +84,7 @@ templates.post('/', async (c) => {
     })
     .returning()
 
+  templateCache.clear()
   return c.json({ success: true, data: { id: result.id } }, 201)
 })
 
@@ -126,6 +128,7 @@ templates.put('/:id', async (c) => {
     .set(updates)
     .where(eq(schema.templates.id, id))
 
+  templateCache.clear()
   return c.json({ success: true })
 })
 
@@ -137,6 +140,7 @@ templates.delete('/:id', async (c) => {
   const db = getDb()
 
   await db.delete(schema.templates).where(eq(schema.templates.id, id))
+  templateCache.clear()
   return c.json({ success: true })
 })
 

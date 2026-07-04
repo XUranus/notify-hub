@@ -14,7 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -34,17 +33,55 @@ fun ConfigScreen(
     val config = remember { ConfigStore.load(context) }
 
     var serverUrl by remember { mutableStateOf(config.serverUrl) }
-    var apiKey by remember { mutableStateOf(config.apiKey) }
-    var clientName by remember { mutableStateOf(config.clientName) }
-    var showApiKey by remember { mutableStateOf(false) }
+    var username by remember { mutableStateOf(config.username) }
+    var password by remember { mutableStateOf(config.password) }
+    var showPassword by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
 
+    // QR auto-connect — uses ConnectHelper to avoid coroutine scope cancellation
     LaunchedEffect(qrData) {
-        if (qrData != null) {
-            serverUrl = qrData.serverUrl
-            apiKey = qrData.apiKey
+        if (qrData?.jwt != null) {
+            val qrServerUrl = qrData.serverUrl
+            val qrJwt = qrData.jwt
+            val deviceUuid = config.clientUuid
+            val deviceName = android.os.Build.MODEL
+
+            isLoading = true
+            onQrDataConsumed()
+
+            ConnectHelper.connectWithJwt(
+                context = context,
+                serverUrl = qrServerUrl,
+                jwt = qrJwt,
+                clientUuid = deviceUuid,
+                clientName = deviceName,
+                onSuccess = { newConfig -> isLoading = false; onSaved(newConfig) },
+                onError = { msg -> isLoading = false; Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
+            )
+        } else if (qrData != null) {
+            username = qrData.username
+            password = qrData.password
             onQrDataConsumed()
         }
+    }
+
+    // Manual login — uses ConnectHelper
+    var loginTrigger by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(loginTrigger) {
+        if (loginTrigger == 0) return@LaunchedEffect
+
+        isLoading = true
+        ConnectHelper.connectWithCredentials(
+            context = context,
+            serverUrl = serverUrl.trim(),
+            username = username.trim(),
+            password = password.trim(),
+            clientUuid = config.clientUuid,
+            clientName = android.os.Build.MODEL,
+            onSuccess = { newConfig -> isLoading = false; onSaved(newConfig) },
+            onError = { msg -> isLoading = false; Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
+        )
     }
 
     Column(
@@ -80,26 +117,6 @@ fun ConfigScreen(
 
         Spacer(Modifier.height(8.dp))
 
-        // UUID display
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    i18n("config_uuid"),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = config.clientUuid,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
-
         // Server URL
         OutlinedTextField(
             value = serverUrl,
@@ -112,37 +129,38 @@ fun ConfigScreen(
             isError = serverUrl.isBlank()
         )
 
-        // API Key
+        // Username
         OutlinedTextField(
-            value = apiKey,
-            onValueChange = { apiKey = it },
-            label = { Text(i18n("config_api_key")) },
-            placeholder = { Text("nfkey_xxxxx") },
+            value = username,
+            onValueChange = { username = it },
+            label = { Text(i18n("config_username")) },
+            placeholder = { Text("admin@example.com") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             enabled = !isLoading,
-            isError = apiKey.isBlank(),
-            visualTransformation = if (showApiKey) VisualTransformation.None
+            isError = username.isBlank()
+        )
+
+        // Password
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text(i18n("config_password")) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            enabled = !isLoading,
+            isError = password.isBlank(),
+            visualTransformation = if (showPassword) VisualTransformation.None
                 else PasswordVisualTransformation(),
             trailingIcon = {
-                IconButton(onClick = { showApiKey = !showApiKey }) {
+                IconButton(onClick = { showPassword = !showPassword }) {
                     Icon(
-                        if (showApiKey) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        if (showPassword) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-        )
-
-        // Device Name
-        OutlinedTextField(
-            value = clientName,
-            onValueChange = { clientName = it },
-            label = { Text(i18n("config_device_name")) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            enabled = !isLoading
         )
 
         // Scan QR Code button
@@ -156,26 +174,18 @@ fun ConfigScreen(
             Text(i18n("config_scan_qr"))
         }
 
-        // Connect button
+        // Login button
         Button(
             onClick = {
                 if (serverUrl.isBlank()) {
                     Toast.makeText(context, i18n("config_err_server"), Toast.LENGTH_SHORT).show()
                     return@Button
                 }
-                if (apiKey.isBlank()) {
-                    Toast.makeText(context, i18n("config_err_apikey"), Toast.LENGTH_SHORT).show()
+                if (username.isBlank() || password.isBlank()) {
+                    Toast.makeText(context, i18n("settings_err_required"), Toast.LENGTH_SHORT).show()
                     return@Button
                 }
-                isLoading = true
-                val newConfig = ClientConfig(
-                    serverUrl = serverUrl.trim(),
-                    apiKey = apiKey.trim(),
-                    clientUuid = config.clientUuid,
-                    clientName = clientName.trim().ifBlank { android.os.Build.MODEL }
-                )
-                ConfigStore.save(context, newConfig)
-                onSaved(newConfig)
+                loginTrigger++
             },
             modifier = Modifier.fillMaxWidth(),
             enabled = !isLoading

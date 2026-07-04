@@ -3,6 +3,7 @@ import { eq, and, ne } from 'drizzle-orm'
 import { createChannelSchema, updateChannelSchema, RESERVED_CHANNEL_NAMES } from '@notify-hub/shared'
 import { getDb, schema } from '../../db/index.js'
 import { getAdapter } from '../../channel/index.js'
+import { channelCache } from '../../cache.js'
 
 const channels = new Hono()
 
@@ -126,6 +127,7 @@ channels.post('/', async (c) => {
     return inserted
   })
 
+  channelCache.clear()
   return c.json({ success: true, data: { id: result.id } }, 201)
 })
 
@@ -204,6 +206,7 @@ channels.put('/:id', async (c) => {
       .where(eq(schema.channels.id, id))
   }
 
+  channelCache.clear()
   return c.json({ success: true })
 })
 
@@ -225,6 +228,7 @@ channels.delete('/:id', async (c) => {
   }
 
   await db.delete(schema.channels).where(eq(schema.channels.id, id))
+  channelCache.clear()
   return c.json({ success: true })
 })
 

@@ -56,6 +56,9 @@ dependencies {
     // JSON
     implementation("com.google.code.gson:gson:2.11.0")
 
+    // Image loading
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
     // Material Icons Extended
     implementation("androidx.compose.material:material-icons-extended")
 

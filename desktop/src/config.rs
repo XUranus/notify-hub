@@ -85,7 +85,12 @@ fn device_stable_uuid() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
     pub url: String,
-    pub api_key: String,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub password: String,
+    #[serde(default)]
+    pub jwt: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,6 +105,8 @@ pub struct AppConfig {
     pub client: ClientConfig,
     #[serde(default)]
     pub autostart: bool,
+    #[serde(default)]
+    pub auto_download_images: bool,
 }
 
 impl AppConfig {
@@ -131,13 +138,16 @@ impl AppConfig {
         Self {
             server: ServerConfig {
                 url: "http://localhost:4321".to_string(),
-                api_key: String::new(),
+                username: String::new(),
+                password: String::new(),
+                jwt: String::new(),
             },
             client: ClientConfig {
                 uuid: device_stable_uuid(),
                 name: whoami::fallible::hostname().unwrap_or_else(|_| "desktop".to_string()),
             },
             autostart: false,
+            auto_download_images: false,
         }
     }
 }

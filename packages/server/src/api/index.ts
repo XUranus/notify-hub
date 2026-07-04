@@ -6,13 +6,21 @@ import { getDb, schema } from '../db/index.js'
 import { send } from './send.js'
 import { messages } from './messages.js'
 import { push } from './push.js'
+import { clients } from './clients.js'
+import { attachments } from './attachments.js'
+import { userSettings } from './user-settings.js'
+import { systemSettings } from './system-settings.js'
+import { cleanupLogs } from './cleanup-logs.js'
+import { upload } from './upload.js'
 import { auth } from './admin/auth.js'
+import { clientAuth as clientAuthRoute } from './client-auth.js'
 import { channels } from './admin/channels.js'
 import { tokens } from './admin/tokens.js'
 import { templates } from './admin/templates.js'
 import { stats } from './admin/stats.js'
 import { users } from './admin/users.js'
 import { messages as adminMessages } from './admin/messages.js'
+import { adminPush } from './admin/push.js'
 import type { HonoEnv } from '../types.js'
 
 export function createApiRouter(): Hono<HonoEnv> {
@@ -22,6 +30,15 @@ export function createApiRouter(): Hono<HonoEnv> {
   api.route('/v1/send', send)
   api.route('/v1/messages', messages)
   api.route('/v1/push', push)
+  api.route('/v2/clients', clients)
+  api.route('/v1/upload', upload)
+  api.route('/admin/attachments', attachments)
+  api.route('/admin/settings', userSettings)
+  api.route('/admin/system-settings', systemSettings)
+  api.route('/admin/cleanup-logs', cleanupLogs)
+
+  // Client auth (no auth required — login with email/username + password, returns JWT)
+  api.route('/auth', clientAuthRoute)
 
   // Admin auth (no auth required for login/register)
   api.route('/admin', auth)
@@ -30,12 +47,29 @@ export function createApiRouter(): Hono<HonoEnv> {
   const admin = new Hono<HonoEnv>()
   admin.use('*', authMiddleware)
 
-  admin.route('/channels', channels)
+  // Token management is user-scoped (any authenticated user can manage their own tokens)
   admin.route('/tokens', tokens)
+
+  // Admin-only routes: require admin role
+  admin.use('/channels/*', requireAdmin)
+  admin.use('/channels', requireAdmin)
+  admin.route('/channels', channels)
+
+  admin.use('/templates/*', requireAdmin)
+  admin.use('/templates', requireAdmin)
   admin.route('/templates', templates)
+
+  admin.use('/stats/*', requireAdmin)
+  admin.use('/stats', requireAdmin)
   admin.route('/stats', stats)
+
+  admin.use('/messages/*', requireAdmin)
+  admin.use('/messages', requireAdmin)
   admin.route('/messages', adminMessages)
-  admin.route('/push', push)
+
+  // Push admin endpoints only (clients list/delete).
+  // Client endpoints (poll/ack/register) are at /api/v1/push with apiAuth.
+  admin.route('/push', adminPush)
 
   // Users management (admin only)
   const adminUsersRouter = new Hono<HonoEnv>()

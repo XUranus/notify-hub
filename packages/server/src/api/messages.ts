@@ -1,13 +1,14 @@
 import { Hono } from 'hono'
-import { apiAuth } from '../auth/index.js'
+import { dualAuth } from '../auth/index.js'
 import { getMessage, getMessages } from '../queue/index.js'
+import type { HonoEnv } from '../types.js'
 
-const messages = new Hono()
+const messages = new Hono<HonoEnv>()
 
-messages.use('*', apiAuth)
+messages.use('*', dualAuth)
 
 /**
- * GET /api/v1/messages - List messages.
+ * GET /api/v1/messages - List messages (scoped to API token owner).
  */
 messages.get('/', async (c) => {
   const page = parseInt(c.req.query('page') || '1', 10)
@@ -15,27 +16,36 @@ messages.get('/', async (c) => {
   const status = c.req.query('status') as any
   const channelType = c.req.query('channel') as any
 
-  const result = await getMessages({ page, pageSize, status, channelType })
+  const user = c.get('currentUser')
+  const userId = user?.userId
+
+  const result = await getMessages({ page, pageSize, status, channelType, userId })
   return c.json({ success: true, data: result })
 })
 
 /**
- * GET /api/v1/messages/export - Export all messages (no pagination).
+ * GET /api/v1/messages/export - Export messages (scoped to auth user).
  */
 messages.get('/export', async (c) => {
   const status = c.req.query('status') as any
   const channelType = c.req.query('channel') as any
 
-  const result = await getMessages({ page: 1, pageSize: 10000, status, channelType })
+  const user = c.get('currentUser')
+  const userId = user?.userId
+
+  const result = await getMessages({ page: 1, pageSize: 10000, status, channelType, userId })
   return c.json({ success: true, data: result.items })
 })
 
 /**
- * GET /api/v1/messages/:id - Get message by ID.
+ * GET /api/v1/messages/:id - Get message by ID (scoped to auth user).
  */
 messages.get('/:id', async (c) => {
   const id = c.req.param('id')
-  const msg = await getMessage(id)
+  const user = c.get('currentUser')
+  const userId = user?.userId
+
+  const msg = await getMessage(id, userId)
 
   if (!msg) {
     return c.json({ success: false, error: 'Message not found' }, 404)

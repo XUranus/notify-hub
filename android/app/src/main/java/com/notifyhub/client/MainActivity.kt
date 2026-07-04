@@ -23,6 +23,7 @@ import com.notifyhub.client.data.ConfigStore
 import com.notifyhub.client.data.I18n
 import com.notifyhub.client.data.MessageStore
 import com.notifyhub.client.service.PollService
+import com.notifyhub.client.ui.ComposeScreen
 import com.notifyhub.client.ui.ConfigScreen
 import com.notifyhub.client.ui.MainScreen
 import com.notifyhub.client.ui.QrConnectData
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
                 var showQrScanner by remember { mutableStateOf(false) }
                 var pendingQrData by remember { mutableStateOf<QrConnectData?>(null) }
                 var showSettings by remember { mutableStateOf(false) }
+                var showCompose by remember { mutableStateOf(false) }
                 var qrScanTarget by remember { mutableStateOf<String?>(null) } // "config" or "settings"
 
                 when {
@@ -86,6 +88,13 @@ class MainActivity : ComponentActivity() {
                             onScanQr = { qrScanTarget = "config"; showQrScanner = true },
                             qrData = if (qrScanTarget == "config") pendingQrData else null,
                             onQrDataConsumed = { pendingQrData = null }
+                        )
+                    }
+                    showCompose -> {
+                        BackHandler { showCompose = false }
+                        ComposeScreen(
+                            config = currentConfig,
+                            onBack = { showCompose = false }
                         )
                     }
                     showSettings -> {
@@ -108,7 +117,8 @@ class MainActivity : ComponentActivity() {
                         MainScreen(
                             config = currentConfig,
                             pollService = pollService,
-                            onOpenSettings = { showSettings = true }
+                            onOpenSettings = { showSettings = true },
+                            onCompose = { showCompose = true }
                         )
                     }
                 }

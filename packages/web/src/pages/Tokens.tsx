@@ -5,9 +5,10 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { tokensApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
-import { Plus, Copy, Trash2, Key, Code2, RotateCw } from 'lucide-react'
+import { Plus, Copy, Trash2, Key, Code2, RotateCw, Timer } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { CodeBlock } from '@/components/ui/code-block'
 
@@ -18,6 +19,7 @@ interface Token {
   scopes: string[]
   rateLimit: number
   enabled: boolean
+  expiresAt: string | null
   lastUsedAt: string | null
   createdAt: string
 }
@@ -211,6 +213,25 @@ function ApiExamples({ token }: { token: string }) {
   )
 }
 
+function ExpirationBadge({ expiresAt, t }: { expiresAt: string | null; t: (k: string) => string }) {
+  if (!expiresAt) {
+    return <span className="text-xs text-muted-foreground">{t('tokens.never')}</span>
+  }
+  const isExpired = new Date(expiresAt) < new Date()
+  if (isExpired) {
+    return (
+      <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+        {t('tokens.expired')}
+      </span>
+    )
+  }
+  return (
+    <span className="text-xs text-muted-foreground">
+      {new Date(expiresAt).toLocaleDateString()}
+    </span>
+  )
+}
+
 export default function Tokens() {
   const { t } = useTranslation()
   const [tokens, setTokens] = useState<Token[]>([])
@@ -219,6 +240,7 @@ export default function Tokens() {
     name: '',
     scopes: ['email', 'sms', 'push'],
     rateLimit: '100',
+    expiresIn: 'never' as string,
   })
 
   const load = () => tokensApi.list().then((res) => {
@@ -232,11 +254,12 @@ export default function Tokens() {
       name: formData.name,
       scopes: formData.scopes,
       rateLimit: parseInt(formData.rateLimit),
+      expiresIn: formData.expiresIn,
     })
 
     if (result.success && result.data) {
       setShowForm(false)
-      setFormData({ name: '', scopes: ['email', 'sms', 'push'], rateLimit: '100' })
+      setFormData({ name: '', scopes: ['email', 'sms', 'push'], rateLimit: '100', expiresIn: 'never' })
       load()
     }
   }
@@ -319,6 +342,21 @@ export default function Tokens() {
                   ))}
                 </div>
               </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{t('tokens.expiresIn')}</Label>
+                <Select value={formData.expiresIn} onValueChange={(v) => setFormData({ ...formData, expiresIn: v })}>
+                  <SelectTrigger className="h-9 w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1d">{t('tokens.expires1d')}</SelectItem>
+                    <SelectItem value="7d">{t('tokens.expires7d')}</SelectItem>
+                    <SelectItem value="30d">{t('tokens.expires30d')}</SelectItem>
+                    <SelectItem value="365d">{t('tokens.expires365d')}</SelectItem>
+                    <SelectItem value="never">{t('tokens.never')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Button className="h-9" onClick={handleCreate}>{t('tokens.create')}</Button>
               <Button className="h-9" variant="outline" onClick={() => setShowForm(false)}>{t('tokens.cancel')}</Button>
             </div>
@@ -335,6 +373,7 @@ export default function Tokens() {
                 <th className="text-left p-4 text-sm font-medium text-muted-foreground">Key</th>
                 <th className="text-left p-4 text-sm font-medium text-muted-foreground">{t('tokens.scopes')}</th>
                 <th className="text-left p-4 text-sm font-medium text-muted-foreground">{t('tokens.rateLimit')}</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">{t('tokens.expiresAt')}</th>
                 <th className="text-left p-4 text-sm font-medium text-muted-foreground">{t('tokens.lastUsed')}</th>
                 <th className="text-left p-4 text-sm font-medium text-muted-foreground">{t('tokens.createdAt')}</th>
                 <th className="text-right p-4 text-sm font-medium text-muted-foreground">{t('messages.colActions')}</th>
@@ -375,6 +414,9 @@ export default function Tokens() {
                   <td className="p-4 text-sm text-muted-foreground">
                     {tok.rateLimit}{t('tokens.perMin')}
                   </td>
+                  <td className="p-4">
+                    <ExpirationBadge expiresAt={tok.expiresAt} t={t} />
+                  </td>
                   <td className="p-4 text-sm text-muted-foreground">
                     {tok.lastUsedAt ? formatDate(tok.lastUsedAt) : '—'}
                   </td>
@@ -407,7 +449,7 @@ export default function Tokens() {
               ))}
               {tokens.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="p-8 text-center text-muted-foreground">
                     {t('tokens.empty')}
                   </td>
                 </tr>

@@ -1,10 +1,13 @@
 import { Hono } from 'hono'
+import jwt from 'jsonwebtoken'
 import { eq, and } from 'drizzle-orm'
 import { customAlphabet } from 'nanoid'
 
 const nanoid = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', 32)
-import { createTokenSchema, updateTokenSchema } from '@notify-hub/shared'
+import { createTokenSchema, updateTokenSchema, TOKEN_EXPIRATION_OPTIONS, CLIENT_JWT_EXPIRY } from '@notify-hub/shared'
 import { getDb, schema } from '../../db/index.js'
+import { getConfig } from '../../config.js'
+import { apiTokenCache } from '../../cache.js'
 import { API_TOKEN_PREFIX } from '@notify-hub/shared'
 import type { HonoEnv } from '../../types.js'
 
@@ -80,10 +83,16 @@ tokens.post('/', async (c) => {
     return c.json({ success: false, error: parsed.error.issues[0].message }, 400)
   }
 
-  const { name, scopes, rateLimit, ipWhitelist } = parsed.data
+  const { name, scopes, rateLimit, ipWhitelist, expiresIn } = parsed.data
   const db = getDb()
 
   const tokenValue = API_TOKEN_PREFIX + nanoid(32)
+
+  // Compute expiration
+  const expirationOpt = TOKEN_EXPIRATION_OPTIONS.find(o => o.value === expiresIn)
+  const expiresAt = expirationOpt && expirationOpt.ms > 0
+    ? new Date(Date.now() + expirationOpt.ms)
+    : null
 
   const [result] = await db
     .insert(schema.apiTokens)
@@ -94,6 +103,7 @@ tokens.post('/', async (c) => {
       scopes: JSON.stringify(scopes),
       rateLimit,
       ipWhitelist: ipWhitelist ? JSON.stringify(ipWhitelist) : null,
+      expiresAt,
     })
     .returning()
 
@@ -105,6 +115,7 @@ tokens.post('/', async (c) => {
       token: tokenValue, // Full token, only shown on create
       scopes,
       rateLimit,
+      expiresAt: result.expiresAt,
     },
   }, 201)
 })
@@ -153,6 +164,9 @@ tokens.put('/:id', async (c) => {
     .set(updates)
     .where(eq(schema.apiTokens.id, id))
 
+  // Invalidate cache for this token's value
+  apiTokenCache.delete(existing.token)
+
   return c.json({ success: true })
 })
 
@@ -180,6 +194,7 @@ tokens.delete('/:id', async (c) => {
   }
 
   await db.delete(schema.apiTokens).where(eq(schema.apiTokens.id, id))
+  apiTokenCache.delete(existing.token)
   return c.json({ success: true })
 })
 
@@ -189,6 +204,7 @@ tokens.delete('/:id', async (c) => {
 tokens.post('/:id/rotate', async (c) => {
   const currentUser = c.get('currentUser')
   const id = parseInt(c.req.param('id'), 10)
+  const body = await c.req.json().catch(() => ({}))
   const db = getDb()
 
   const [existing] = await db
@@ -207,12 +223,42 @@ tokens.post('/:id/rotate', async (c) => {
 
   const newTokenValue = API_TOKEN_PREFIX + nanoid(32)
 
+  // Optionally update expiration
+  const updates: Record<string, unknown> = { token: newTokenValue }
+  if (body.expiresIn) {
+    const expirationOpt = TOKEN_EXPIRATION_OPTIONS.find(o => o.value === body.expiresIn)
+    if (expirationOpt) {
+      updates.expiresAt = expirationOpt.ms > 0 ? new Date(Date.now() + expirationOpt.ms) : null
+    }
+  }
+
   await db
     .update(schema.apiTokens)
-    .set({ token: newTokenValue })
+    .set(updates)
     .where(eq(schema.apiTokens.id, id))
 
-  return c.json({ success: true, data: { token: newTokenValue } })
+  // Invalidate old token from cache
+  apiTokenCache.delete(existing.token)
+
+  return c.json({ success: true, data: { token: newTokenValue, expiresAt: updates.expiresAt ?? existing.expiresAt } })
+})
+
+/**
+ * POST /api/admin/tokens/generate-client-token
+ * Generate a long-lived JWT for client (mobile/desktop) connection via QR code.
+ * Returns a 90-day JWT scoped to the current user.
+ */
+tokens.post('/generate-client-token', async (c) => {
+  const user = c.get('currentUser')!
+  const config = getConfig()
+
+  const token = jwt.sign(
+    { userId: user.userId, email: user.email, role: user.role },
+    config.jwtSecret,
+    { expiresIn: CLIENT_JWT_EXPIRY }
+  )
+
+  return c.json({ success: true, data: { token } })
 })
 
 export { tokens }

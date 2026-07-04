@@ -8,10 +8,21 @@ import { registerBuiltinAdapters } from './channel/index.js'
 import { startWorker } from './queue/index.js'
 import { initAdminUser } from './init.js'
 import { runMigrations } from './db/migrate.js'
+import { startCleanupScheduler } from './cleanup.js'
 
 export function createApp(): Hono {
   const app = new Hono()
   const config = getConfig()
+
+  // Body size limit: 10MB max for any request
+  // Individual upload routes enforce their own file-size checks after parsing
+  app.use('*', async (c, next) => {
+    const contentLength = c.req.header('content-length')
+    if (contentLength && parseInt(contentLength) > 10 * 1024 * 1024) {
+      return c.json({ success: false, error: 'Request body too large (max 10MB)' }, 413)
+    }
+    await next()
+  })
 
   // Middleware
   app.use('*', cors({
@@ -27,6 +38,12 @@ export function createApp(): Hono {
   // API routes
   const api = createApiRouter()
   app.route('/api', api)
+
+  // Serve uploaded files.
+  // Filenames are random UUIDs, so direct access requires knowing the exact path.
+  // The API layer (attachments.ts) enforces ownership; this endpoint only serves the file.
+  // For full auth-gated downloads, use GET /api/admin/attachments/:id/download instead.
+  app.use('/uploads/*', serveStatic({ root: './data' }))
 
   // Serve static frontend files in production
   if (config.nodeEnv === 'production') {
@@ -68,6 +85,9 @@ export async function bootstrap() {
 
   // Start background worker
   startWorker()
+
+  // Start cleanup scheduler
+  await startCleanupScheduler()
 
   return createApp()
 }
