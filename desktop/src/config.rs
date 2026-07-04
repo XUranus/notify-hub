@@ -91,6 +91,8 @@ pub struct ServerConfig {
     pub password: String,
     #[serde(default)]
     pub jwt: String,
+    #[serde(default)]
+    pub api_key: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -141,6 +143,7 @@ impl AppConfig {
                 username: String::new(),
                 password: String::new(),
                 jwt: String::new(),
+                api_key: String::new(),
             },
             client: ClientConfig {
                 uuid: device_stable_uuid(),
