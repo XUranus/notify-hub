@@ -43,10 +43,6 @@ function buildExamples(token: string) {
 
   const curlStatus = `# 查询消息状态
 curl ${base}/api/v1/messages/1 \\
-  -H "Authorization: Bearer ${token}"
-
-# 查询消息列表
-curl "${base}/api/v1/messages?page=1&pageSize=10&status=failed" \\
   -H "Authorization: Bearer ${token}"`
 
   const jsSend = `const response = await fetch("${base}/api/v1/send", {
