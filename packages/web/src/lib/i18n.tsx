@@ -416,6 +416,9 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'settings.cleanup.colExpiredMsgs': '过期消息',
     'settings.cleanup.colTrimmedMsgs': '超额消息',
     'settings.cleanup.colDuration': '耗时',
+    'settings.cleanup.statusSuccess': '成功',
+    'settings.cleanup.statusError': '失败',
+    'settings.cleanup.statusRunning': '运行中',
 
     // ── Settings: Messages ──
     'settings.messages': '消息设置',
@@ -830,6 +833,9 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'settings.cleanup.colExpiredMsgs': 'Expired Msgs',
     'settings.cleanup.colTrimmedMsgs': 'Trimmed Msgs',
     'settings.cleanup.colDuration': 'Duration',
+    'settings.cleanup.statusSuccess': 'Success',
+    'settings.cleanup.statusError': 'Error',
+    'settings.cleanup.statusRunning': 'Running',
 
     // ── Settings: Messages ──
     'settings.messages': 'Messages',

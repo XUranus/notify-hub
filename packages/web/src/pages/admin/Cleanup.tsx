@@ -44,7 +44,7 @@ export default function AdminCleanup() {
     }
     return (
       <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${styles[status] || ''}`}>
-        {status}
+        {t(`settings.cleanup.status${status.charAt(0).toUpperCase() + status.slice(1)}`) || status}
       </span>
     )
   }
