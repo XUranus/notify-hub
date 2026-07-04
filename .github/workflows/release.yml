@@ -38,10 +38,10 @@ jobs:
         run: pnpm run build
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/build
+          branch: gh-pages
+          folder: docs/build
 
   # ─────────────────────────────────────────────
   # 2. Tauri Desktop — Linux amd64
@@ -206,12 +206,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android licenses
-        run: yes | sdkmanager --licenses || true
 
       - name: Build APK
         working-directory: android
