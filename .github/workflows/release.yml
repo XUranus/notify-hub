@@ -176,19 +176,20 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli
+
       - name: Build
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: desktop
-          args: --bundles msi
+        working-directory: desktop
+        shell: bash
+        run: npx tauri build --bundles msi 2>&1 | tail -80
 
       - name: Rename artifact
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           MSI=$(find desktop/target/release/bundle/msi -name "*.msi" | head -1)
+          echo "Found MSI: $MSI"
           cp "$MSI" "NotifyHub-Desktop_${VERSION}_windows-amd64.msi"
 
       - uses: actions/upload-artifact@v4
@@ -215,11 +216,21 @@ jobs:
           yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses || true
           "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
 
+      - name: Create debug keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkeypair -v \
+            -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US"
+
       - name: Build APK
         working-directory: android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tail -50
 
       - name: Rename artifact
         run: |
