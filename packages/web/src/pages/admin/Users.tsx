@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { EmptyState } from '@/components/ui/empty-state'
 import { useTranslation } from '@/lib/i18n'
 import { usersApi } from '@/lib/api'
 import { Users, Plus, Trash2, Pencil } from 'lucide-react'
@@ -202,7 +203,7 @@ export default function AdminUsers() {
           {loading ? (
             <p className="text-muted-foreground text-sm">{t('common.loading')}</p>
           ) : users.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{t('users.empty')}</p>
+            <EmptyState title={t('users.empty')} />
           ) : (
             <div className="border rounded-lg overflow-hidden">
               <table className="w-full text-sm">

@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { EmptyState } from '@/components/ui/empty-state'
 import { attachmentsApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import {
@@ -266,9 +267,7 @@ export default function Attachments() {
       <Card>
         <CardContent className="p-0">
           {attachments.length === 0 ? (
-            <div className="py-16 text-center text-muted-foreground text-sm">
-              {t('attachments_empty')}
-            </div>
+            <EmptyState title={t('attachments_empty')} />
           ) : (
             <table className="w-full">
               <thead>

@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { EmptyState } from '@/components/ui/empty-state'
 import { messagesApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { RefreshCw, RotateCw, Trash2, Download, Link, Paperclip, ExternalLink } from 'lucide-react'
@@ -282,8 +283,8 @@ export default function Messages() {
               ))}
               {messages.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="p-8 text-center text-muted-foreground">
-                    {t('messages.empty')}
+                  <td colSpan={12}>
+                    <EmptyState title={t('messages.empty')} />
                   </td>
                 </tr>
               )}

@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { EmptyState } from '@/components/ui/empty-state'
 import { templatesApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { Plus, Trash2, FileText, Pencil } from 'lucide-react'
@@ -192,8 +193,8 @@ export default function Templates() {
 
         {templates.length === 0 && (
           <Card className="col-span-full">
-            <CardContent className="py-8 text-center text-muted-foreground">
-              {t('templates.empty')}
+            <CardContent>
+              <EmptyState title={t('templates.empty')} />
             </CardContent>
           </Card>
         )}

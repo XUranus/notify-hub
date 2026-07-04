@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { EmptyState } from '@/components/ui/empty-state'
 import { tokensApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { Plus, Copy, Trash2, Key, Code2, RotateCw, Timer } from 'lucide-react'
@@ -459,8 +460,8 @@ export default function Tokens() {
               ))}
               {tokens.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                    {t('tokens.empty')}
+                  <td colSpan={8}>
+                    <EmptyState title={t('tokens.empty')} />
                   </td>
                 </tr>
               )}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { EmptyState } from '@/components/ui/empty-state'
 import { pushApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { Trash2, Monitor, Smartphone, RefreshCw } from 'lucide-react'
@@ -124,8 +125,8 @@ export default function PushClients() {
               })}
               {clients.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-muted-foreground">
-                    {t('push.empty')}
+                  <td colSpan={9}>
+                    <EmptyState title={t('push.empty')} />
                   </td>
                 </tr>
               )}

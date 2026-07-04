@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { statsApi, messagesApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { formatDate } from '@/lib/utils'
@@ -201,7 +202,7 @@ export default function Dashboard() {
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-12">{t('dashboard.noData')}</p>
+              <EmptyState title={t('dashboard.noData')} />
             )}
           </CardContent>
         </Card>
@@ -243,7 +244,7 @@ export default function Dashboard() {
                 </div>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-12">{t('dashboard.noData')}</p>
+              <EmptyState title={t('dashboard.noData')} />
             )}
           </CardContent>
         </Card>
@@ -293,7 +294,9 @@ export default function Dashboard() {
                 )
               }) : (
                 <tr>
-                  <td colSpan={5} className="p-6 text-center text-sm text-muted-foreground">{t('dashboard.noData')}</td>
+                  <td colSpan={5}>
+                    <EmptyState title={t('dashboard.noData')} />
+                  </td>
                 </tr>
               )}
             </tbody>

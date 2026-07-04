@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { useTranslation } from '@/lib/i18n'
 import { cleanupLogsApi } from '@/lib/api'
 import { Trash, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -60,7 +61,7 @@ export default function AdminCleanup() {
         </CardHeader>
         <CardContent>
           {logs.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{t('settings.cleanup.empty')}</p>
+            <EmptyState title={t('settings.cleanup.empty')} />
           ) : (
             <>
               <div className="border rounded-lg overflow-hidden">
