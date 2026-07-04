@@ -461,7 +461,6 @@
           <div class="field"><label for="m-url">URL</label><input type="text" id="m-url" placeholder="http://localhost:4321"></div>
           <div class="field"><label for="m-username" id="t-m-username-label">Username</label><input type="text" id="m-username" placeholder="admin@example.com"></div>
           <div class="field"><label for="m-password" id="t-m-password-label">Password</label><input type="password" id="m-password"></div>
-          <div class="field"><label for="m-api-key" id="t-m-apikey-label">API Key</label><input type="text" id="m-api-key" placeholder="nhk_xxxxxxxx... (optional, for curl examples)"></div>
           <div class="field"><label for="m-name" id="t-m-name-label">Name</label><input type="text" id="m-name" placeholder="My Desktop"></div>
         </div>
         <div class="modal-footer">
@@ -710,7 +709,7 @@ function applyI18n() {
     't-server-config':T.serverConfig,'t-system-label':T.system,'t-name-label':T.name,
     't-connect-btn':T.connectBtn,'t-msgs-label':T.messages,
     't-no-messages':T.noMessages,'t-edit-config':T.settings,'t-save-btn':T.saveBtn,
-    't-m-name-label':T.name,'t-m-apikey-label':T.apiKey,'t-quick-send':T.quickSend,'t-tab-server':T.tabServer,
+    't-m-name-label':T.name,'t-quick-send':T.quickSend,'t-tab-server':T.tabServer,
     't-tab-system':T.tabSystem,'t-tab-data':T.tabData,'t-tab-tools':T.tabTools,
     't-app-version':T.appVersion,'t-config-path-label':T.configFile,
     't-msg-path-label':T.messagesFile,'t-autostart-label':T.autostart,'t-auto-download-images':T.autoDownloadImages,'t-filter-all':T.filterAll,
@@ -1451,11 +1450,29 @@ function renderQsCode(url, apiKey, uuid) {
   }
 }
 
+async function fetchFirstApiKey(url, jwt) {
+  try {
+    const resp = await fetch(url.replace(/\/+$/, '') + '/api/admin/tokens', {
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    });
+    if (!resp.ok) return '';
+    const data = await resp.json();
+    if (data.success && data.data?.length > 0) {
+      return data.data[0].token || '';
+    }
+  } catch {}
+  return '';
+}
+
 async function openQuickSendModal() {
   let url = '', apiKey = '', uuid = '';
   try {
     const cfg = await invoke('get_config');
-    if (cfg) { url = cfg.server.url || ''; apiKey = cfg.server.api_key || ''; uuid = cfg.client.uuid || ''; }
+    if (cfg) {
+      url = cfg.server.url || '';
+      uuid = cfg.client.uuid || '';
+      if (cfg.server.jwt) apiKey = await fetchFirstApiKey(url, cfg.server.jwt);
+    }
   } catch {}
   renderQsCode(url, apiKey, uuid);
   document.getElementById('qsStatus').textContent = '';
@@ -1583,7 +1600,7 @@ async function loadSystemTab() {
   try { document.getElementById('autostartToggle').checked = !!(await invoke('get_autostart')); } catch { document.getElementById('autostartToggle').checked = false; }
   try { const cfg = await invoke('get_config'); document.getElementById('autoDownloadImagesToggle').checked = !!(cfg?.auto_download_images); } catch {}
 }
-document.getElementById('editConfigBtn').addEventListener('click', async()=>{ try{const c=await invoke('get_config');if(c){document.getElementById('m-url').value=c.server.url;document.getElementById('m-username').value=c.server.username||'';document.getElementById('m-password').value=c.server.password||'';document.getElementById('m-api-key').value=c.server.api_key||'';document.getElementById('m-name').value=c.client.name;}}catch{} switchTab('tab-server'); document.getElementById('configModal').classList.add('open'); });
+document.getElementById('editConfigBtn').addEventListener('click', async()=>{ try{const c=await invoke('get_config');if(c){document.getElementById('m-url').value=c.server.url;document.getElementById('m-username').value=c.server.username||'';document.getElementById('m-password').value=c.server.password||'';document.getElementById('m-name').value=c.client.name;}}catch{} switchTab('tab-server'); document.getElementById('configModal').classList.add('open'); });
 document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
 document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 document.getElementById('configModal').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeModal(); });
@@ -1598,8 +1615,8 @@ async function loadToolsTab() {
     const cfg = await invoke('get_config');
     if (cfg) {
       serverUrl = cfg.server.url || '';
-      apiKey = cfg.server.api_key || '';
       uuid = cfg.client.uuid || '';
+      if (cfg.server.jwt) apiKey = await fetchFirstApiKey(serverUrl, cfg.server.jwt);
     }
   } catch {}
   if (!uuid) {
@@ -1624,7 +1641,7 @@ document.getElementById('autoDownloadImagesToggle').addEventListener('change', a
 });
 document.getElementById('modalSaveBtn').addEventListener('click', async()=>{
   const btn=document.getElementById('modalSaveBtn'), label=document.getElementById('t-save-btn'); btn.disabled=true; label.textContent=T.saving;
-  try{const cfg=await invoke('get_config');const newCfg={server:{url:document.getElementById('m-url').value,username:document.getElementById('m-username').value,password:document.getElementById('m-password').value,jwt:'',api_key:document.getElementById('m-api-key').value},client:{uuid:cfg.client.uuid,name:document.getElementById('m-name').value},autostart:cfg.autostart||false,auto_download_images:cfg.auto_download_images||false}; await invoke('save_config',{cfg:newCfg}); await invoke('reconnect'); closeModal(); }catch(e){alert(T.error+': '+e);} finally{btn.disabled=false; label.textContent=T.saveBtn;}
+  try{const cfg=await invoke('get_config');const newCfg={server:{url:document.getElementById('m-url').value,username:document.getElementById('m-username').value,password:document.getElementById('m-password').value,jwt:''},client:{uuid:cfg.client.uuid,name:document.getElementById('m-name').value},autostart:cfg.autostart||false,auto_download_images:cfg.auto_download_images||false}; await invoke('save_config',{cfg:newCfg}); await invoke('reconnect'); closeModal(); }catch(e){alert(T.error+': '+e);} finally{btn.disabled=false; label.textContent=T.saveBtn;}
 });
 
 /* ── Backup & Restore ── */
