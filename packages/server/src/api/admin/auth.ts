@@ -7,6 +7,7 @@ import { getDb, schema } from '../../db/index.js'
 import { getConfig } from '../../config.js'
 import { JWT_EXPIRY } from '@notify-hub/shared'
 import { checkRegistrationRateLimit } from '../../auth/rate-limit.js'
+import { getLoginLockoutRemaining, recordLoginFailure, clearLoginFailures } from '../../auth/login-rate-limit.js'
 import { generateUserId } from '../../init.js'
 import type { HonoEnv } from '../../types.js'
 
@@ -28,6 +29,13 @@ auth.post('/login', async (c) => {
   const db = getDb()
   const config = getConfig()
 
+  // Check lockout
+  const lockoutRemaining = getLoginLockoutRemaining(email)
+  if (lockoutRemaining > 0) {
+    const minutes = Math.ceil(lockoutRemaining / 60)
+    return c.json({ success: false, error: `Too many failed attempts. Try again in ${minutes} minutes.` }, 429)
+  }
+
   const [user] = await db
     .select()
     .from(schema.users)
@@ -35,13 +43,18 @@ auth.post('/login', async (c) => {
     .limit(1)
 
   if (!user) {
+    recordLoginFailure(email)
     return c.json({ success: false, error: 'Invalid credentials' }, 401)
   }
 
   const valid = await bcrypt.compare(password, user.password)
   if (!valid) {
+    recordLoginFailure(email)
     return c.json({ success: false, error: 'Invalid credentials' }, 401)
   }
+
+  // Success — clear failures
+  clearLoginFailures(email)
 
   const token = jwt.sign(
     { userId: user.id, email: user.email, role: user.role },
