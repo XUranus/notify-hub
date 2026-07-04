@@ -21,21 +21,18 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-
-      - name: Install pnpm
-        run: corepack enable && corepack prepare pnpm@9 --activate
+          node-version: 22
 
       - name: Install dependencies
         working-directory: docs
-        run: pnpm install --no-frozen-lockfile
+        run: npm install
 
       - name: Build docs
         working-directory: docs
         env:
           SITE_URL: https://xuranus.github.io
           BASE_URL: /notify-hub/
-        run: pnpm run build
+        run: npm run build
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
@@ -175,12 +172,16 @@ jobs:
         with:
           workspaces: desktop
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2"
+        run: npm install -g @tauri-apps/cli@latest
 
       - name: Build
         working-directory: desktop
-        run: cargo tauri build --bundles msi --verbose
+        run: npx tauri build --bundles msi
 
       - name: Rename artifact
         shell: bash
@@ -206,6 +207,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+
+      - name: Install Android SDK components
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Build APK
         working-directory: android
