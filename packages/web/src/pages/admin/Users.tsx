@@ -39,7 +39,7 @@ export default function AdminUsers() {
     setLoading(true)
     const result = await usersApi.list()
     if (result.success && result.data) {
-      setUsers(result.data)
+      setUsers(result.data.filter(u => u.role !== 'admin'))
     }
     setLoading(false)
   }
