@@ -285,7 +285,7 @@ export default function Dashboard() {
                     <td className="px-4 py-2 text-xs max-w-[200px] truncate text-muted-foreground">{msg.subject || '—'}</td>
                     <td className="px-4 py-2 text-xs">
                       <Badge variant={statusVariant[msg.status] || 'secondary'} className="text-[10px] px-1.5 py-0">
-                        {msg.status}
+                        {t(`status.${msg.status}`) || msg.status}
                       </Badge>
                     </td>
                     <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">{formatDate(msg.createdAt)}</td>
