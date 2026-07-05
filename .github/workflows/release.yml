@@ -216,8 +216,8 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: 21
+          distribution: corretto
+          java-version: 17
 
       - name: Install Android SDK components
         run: |
@@ -233,15 +233,7 @@ jobs:
           ANDROID_HOME: ${{ env.ANDROID_HOME || '/usr/local/lib/android/sdk' }}
         run: |
           chmod +x ./gradlew
-          set -o pipefail
-          ./gradlew assembleRelease --stacktrace 2>&1 | tee ../build.log
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-build-log
-          path: build.log
+          ./gradlew assembleRelease --stacktrace
 
       - name: Rename artifact
         run: |
