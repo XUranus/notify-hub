@@ -181,7 +181,17 @@ jobs:
 
       - name: Build
         working-directory: desktop
-        run: cargo tauri build --bundles msi
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo tauri build --bundles msi 2>&1 | tee ../windows-build.log
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-log
+          path: windows-build.log
 
       - name: Rename artifact
         shell: bash
@@ -223,7 +233,15 @@ jobs:
           ANDROID_HOME: ${{ env.ANDROID_HOME || '/usr/local/lib/android/sdk' }}
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          set -o pipefail
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee ../build.log
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-log
+          path: build.log
 
       - name: Rename artifact
         run: |
