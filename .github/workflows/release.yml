@@ -234,7 +234,7 @@ jobs:
         run: |
           chmod +x ./gradlew
           set -o pipefail
-          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee ../build.log
+          ./gradlew assembleRelease --stacktrace 2>&1 | tee ../build.log
 
       - name: Upload build log
         if: always()
