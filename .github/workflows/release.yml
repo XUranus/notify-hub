@@ -219,8 +219,6 @@ jobs:
           distribution: corretto
           java-version: 17
 
-      - uses: gradle/actions/setup-gradle@v4
-
       - name: Install Android SDK components
         run: |
           ANDROID_SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
@@ -235,7 +233,7 @@ jobs:
           ANDROID_HOME: ${{ env.ANDROID_HOME || '/usr/local/lib/android/sdk' }}
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Rename artifact
         run: |
