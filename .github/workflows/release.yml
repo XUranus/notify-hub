@@ -216,13 +216,14 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          distribution: corretto
+          distribution: zulu
           java-version: 17
 
       - name: Build APK
         working-directory: android
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME || '/usr/local/lib/android/sdk' }}
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2g"
         run: |
           chmod +x ./gradlew
           ./gradlew assembleRelease --stacktrace
