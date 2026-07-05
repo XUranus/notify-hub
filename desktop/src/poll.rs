@@ -1,7 +1,7 @@
 use crate::api::ApiClient;
 use crate::config::AppConfig;
 use crate::messages::{LocalMessage, MessageStore};
-use crate::notify::show_notification;
+use crate::notify::{show_notification, show_notification_with_icon, decode_topic_icon};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -163,10 +163,20 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
                                 attachment: msg.attachment.clone(),
                                 format: msg.format.clone(),
                                 local_image_path,
+                                topic_id: msg.topic_id.clone(),
+                                topic_name: msg.topic_name.clone(),
+                                topic_display_name: msg.topic_display_name.clone(),
+                                topic_icon: msg.topic_icon.clone(),
                             };
                             msg_store.add(local);
-                            // Show desktop notification
-                            show_notification(&msg.title, &msg.body);
+                            // Show desktop notification with topic icon if available
+                            let icon_path = msg.topic_icon.as_deref()
+                                .and_then(decode_topic_icon);
+                            if let Some(ref path) = icon_path {
+                                show_notification_with_icon(&msg.title, &msg.body, Some(&path.to_string_lossy()));
+                            } else {
+                                show_notification(&msg.title, &msg.body);
+                            }
                         }
                     }
                     Err(e) => {

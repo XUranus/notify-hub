@@ -159,6 +159,14 @@ export const templatesApi = {
 
 // ── Messages ──
 
+export const topicsApi = {
+  list: () => request<any[]>('GET', '/admin/topics'),
+  get: (id: string) => request<any>('GET', `/admin/topics/${id}`),
+  create: (data: any) => request<any>('POST', '/admin/topics', data),
+  update: (id: string, data: any) => request<any>('PUT', `/admin/topics/${id}`, data),
+  delete: (id: string) => request<any>('DELETE', `/admin/topics/${id}`),
+}
+
 export const messagesApi = {
   list: (params?: { page?: number; pageSize?: number; status?: string; channel?: string }) => {
     const query = new URLSearchParams()
@@ -258,4 +266,27 @@ export const cleanupLogsApi = {
     request<{ items: any[]; total: number; page: number; pageSize: number }>(
       'GET', `/admin/cleanup-logs?page=${page}&pageSize=${pageSize}`
     ),
+}
+
+// ── App Logs (admin only) ──
+
+export const appLogsApi = {
+  list: (page = 1, pageSize = 50, level?: string) => {
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+    if (level) params.set('level', level)
+    return request<{ items: Array<{ id: number; level: string; message: string; source: string | null; createdAt: string }>; total: number; page: number; pageSize: number }>(
+      'GET', `/admin/logs?${params}`
+    )
+  },
+  exportUrl: (level?: string, limit = 5000) => {
+    const token = getToken()
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (level) params.set('level', level)
+    return `${BASE_URL}/admin/logs/export?${params}`
+  },
+  getSettings: () =>
+    request<{ logLevel: string; logRetentionDays: number }>('GET', '/admin/logs/settings'),
+  updateSettings: (data: { logLevel?: string; logRetentionDays?: number }) =>
+    request<void>('PUT', '/admin/logs/settings', data),
+  streamUrl: () => `${BASE_URL}/admin/logs/stream`,
 }

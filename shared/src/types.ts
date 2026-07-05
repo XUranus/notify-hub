@@ -51,6 +51,16 @@ export interface Template {
   createdAt: number
 }
 
+export interface Topic {
+  id: string
+  userId: number
+  name: string
+  displayName: string | null
+  icon: string | null // base64
+  createdAt: number
+  updatedAt: number
+}
+
 export interface MessageAttachment {
   name: string
   url?: string
@@ -75,6 +85,7 @@ export interface Message {
   ipAddress: string | null
   ipLocation: string | null
   app: string | null
+  topicId: string | null
   scheduledAt: number | null
   sentAt: number | null
   createdAt: number
@@ -103,6 +114,8 @@ export interface MessagePayload {
   url?: string
   attachment?: MessageAttachment
   format?: string
+  userId?: number
+  topicId?: string | null
 }
 
 export interface ChannelAdapter {

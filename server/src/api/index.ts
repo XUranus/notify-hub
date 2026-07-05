@@ -21,6 +21,8 @@ import { stats } from './admin/stats.js'
 import { users } from './admin/users.js'
 import { messages as adminMessages } from './admin/messages.js'
 import { adminPush } from './admin/push.js'
+import { logs } from './admin/logs.js'
+import { topics } from './topics.js'
 import type { HonoEnv } from '../types.js'
 
 export function createApiRouter(): Hono<HonoEnv> {
@@ -50,6 +52,9 @@ export function createApiRouter(): Hono<HonoEnv> {
   // Token management is user-scoped (any authenticated user can manage their own tokens)
   admin.route('/tokens', tokens)
 
+  // Topic management (any authenticated user can manage their own topics)
+  admin.route('/topics', topics)
+
   // Admin-only routes: require admin role
   admin.use('/channels/*', requireAdmin)
   admin.use('/channels', requireAdmin)
@@ -70,6 +75,9 @@ export function createApiRouter(): Hono<HonoEnv> {
   // Push admin endpoints only (clients list/delete).
   // Client endpoints (poll/ack/register) are at /api/v1/push with apiAuth.
   admin.route('/push', adminPush)
+
+  // Logs management (admin only)
+  admin.route('/logs', logs)
 
   // Users management (admin only)
   const adminUsersRouter = new Hono<HonoEnv>()

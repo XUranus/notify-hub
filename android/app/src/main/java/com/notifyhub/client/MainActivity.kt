@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
 
     private var pollService by mutableStateOf<PollService?>(null)
     private var bound by mutableStateOf(false)
+    private var pendingOpenMessageId by mutableStateOf<String?>(null)
 
     companion object {
         private const val TAG = "MainActivity"
@@ -63,6 +64,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         I18n.init(this)
         AppLogger.init(this)
+        ConfigStore.init(this)
         requestNotificationPermission()
         handleNotificationIntent()
 
@@ -75,6 +77,15 @@ class MainActivity : ComponentActivity() {
                 var showSettings by remember { mutableStateOf(false) }
                 var showCompose by remember { mutableStateOf(false) }
                 var qrScanTarget by remember { mutableStateOf<String?>(null) } // "config" or "settings"
+
+                // Handle notification click — open message detail
+                LaunchedEffect(intent) {
+                    val msgId = intent?.getStringExtra("open_message_id")
+                    if (msgId != null) {
+                        pendingOpenMessageId = msgId
+                        intent.removeExtra("open_message_id")
+                    }
+                }
 
                 when {
                     !configured -> {
@@ -121,7 +132,9 @@ class MainActivity : ComponentActivity() {
                             config = currentConfig,
                             pollService = pollService,
                             onOpenSettings = { showSettings = true },
-                            onCompose = { showCompose = true }
+                            onCompose = { showCompose = true },
+                            openMessageId = pendingOpenMessageId,
+                            onMessageOpened = { pendingOpenMessageId = null }
                         )
                     }
                 }
@@ -152,10 +165,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleNotificationIntent() {
-        val messageId = intent?.getStringExtra("read_message_id")
+        val messageId = intent?.getStringExtra("open_message_id")
         if (messageId != null) {
-            lifecycleScope.launch { MessageStore.markAsRead(this@MainActivity, messageId) }
-            intent.removeExtra("read_message_id")
+            pendingOpenMessageId = messageId
+            intent.removeExtra("open_message_id")
         }
     }
 

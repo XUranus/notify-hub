@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, eq } from 'drizzle-orm'
+import { and, or, eq } from 'drizzle-orm'
 import { sendMessageSchema, sendBatchSchema, CHANNEL_TYPES, type ChannelType } from '@notify-hub/shared'
 import { dualAuth, requireScope } from '../auth/index.js'
 import { getDb, schema } from '../db/index.js'
@@ -116,7 +116,7 @@ send.post('/', async (c) => {
     )
   }
 
-  const { channel, to, subject, body: msgBody, template, variables, idempotencyKey, scheduledAt, app, tags, priority, url, delay, attachment, format } = parsed.data
+  const { channel, to, subject, body: msgBody, template, variables, idempotencyKey, scheduledAt, topic, tags, priority, url, delay, attachment, format } = parsed.data
 
   // Parse delay into scheduledAt
   let resolvedScheduledAt: Date | undefined
@@ -140,6 +140,31 @@ send.post('/', async (c) => {
     )
   }
 
+  // Validate `to` based on channel type
+  const trimmedTo = to.trim()
+  if (channelType === 'push') {
+    if (trimmedTo !== '' && trimmedTo !== '*' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedTo)) {
+      return c.json(
+        { success: false, error: `Invalid push target '${to}'. Use '*' for broadcast or a valid client UUID.` },
+        400
+      )
+    }
+  } else if (channelType === 'email') {
+    if (!trimmedTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedTo)) {
+      return c.json(
+        { success: false, error: `Invalid email address '${to}'` },
+        400
+      )
+    }
+  } else if (channelType === 'sms') {
+    if (!trimmedTo || !/^\+?[1-9]\d{4,14}$/.test(trimmedTo.replace(/[\s\-()]/g, ''))) {
+      return c.json(
+        { success: false, error: `Invalid phone number '${to}'. Use E.164 format (e.g. +8613800138000).` },
+        400
+      )
+    }
+  }
+
   // Check scope (based on channel type)
   const token = c.get('apiToken')
   if (token && !token.scopes.includes('*') && !token.scopes.includes(channelType)) {
@@ -147,6 +172,32 @@ send.post('/', async (c) => {
       { success: false, error: `Token does not have '${channelType}' scope` },
       403
     )
+  }
+
+  // Resolve topic (by ID or name) → topicId
+  let topicId: string | null = null
+  if (topic) {
+    const currentUser = c.get('currentUser')
+    const userId = currentUser?.userId
+    if (!userId) {
+      return c.json({ success: false, error: 'Authentication required to use topic' }, 401)
+    }
+    const db = getDb()
+    const [existing] = await db
+      .select({ id: schema.topics.id })
+      .from(schema.topics)
+      .where(and(
+        or(eq(schema.topics.id, topic), eq(schema.topics.name, topic)),
+        eq(schema.topics.userId, userId)
+      ))
+      .limit(1)
+    if (!existing) {
+      return c.json(
+        { success: false, error: `Topic '${topic}' not found (accepts topic ID or name). Create it first in the web dashboard.` },
+        400
+      )
+    }
+    topicId = existing.id
   }
 
   // Resolve template if specified (with cache)
@@ -212,7 +263,7 @@ send.post('/', async (c) => {
       channelId,
       ipAddress,
       ipLocation: ipLocation ?? undefined,
-      app,
+      topicId,
       tags,
       priority,
       url,
@@ -285,6 +336,25 @@ send.post('/batch', async (c) => {
         continue
       }
 
+      // Validate `to` based on channel type
+      const trimmedTo = msg.to.trim()
+      if (channelType === 'push') {
+        if (trimmedTo !== '' && trimmedTo !== '*' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedTo)) {
+          results.push({ error: `Invalid push target '${msg.to}'. Use '*' for broadcast or a valid client UUID.` })
+          continue
+        }
+      } else if (channelType === 'email') {
+        if (!trimmedTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedTo)) {
+          results.push({ error: `Invalid email address '${msg.to}'` })
+          continue
+        }
+      } else if (channelType === 'sms') {
+        if (!trimmedTo || !/^\+?[1-9]\d{4,14}$/.test(trimmedTo.replace(/[\s\-()]/g, ''))) {
+          results.push({ error: `Invalid phone number '${msg.to}'. Use E.164 format (e.g. +8613800138000).` })
+          continue
+        }
+      }
+
       let templateId: string | undefined
       if (msg.template) {
         const tplCacheKey = `${msg.template}:${channelType}`
@@ -313,6 +383,28 @@ send.post('/batch', async (c) => {
         templateId = tpl.id
       }
 
+      // Resolve topic (by ID or name)
+      let batchTopicId: string | null = null
+      if (msg.topic) {
+        if (!userId) {
+          results.push({ error: 'Authentication required to use topic' })
+          continue
+        }
+        const [existingTopic] = await db
+          .select({ id: schema.topics.id })
+          .from(schema.topics)
+          .where(and(
+            or(eq(schema.topics.id, msg.topic), eq(schema.topics.name, msg.topic)),
+            eq(schema.topics.userId, userId)
+          ))
+          .limit(1)
+        if (!existingTopic) {
+          results.push({ error: `Topic '${msg.topic}' not found` })
+          continue
+        }
+        batchTopicId = existingTopic.id
+      }
+
       let batchScheduledAt: Date | undefined
       if (msg.delay) {
         batchScheduledAt = parseDelay(msg.delay)
@@ -332,7 +424,7 @@ send.post('/batch', async (c) => {
         channelId,
         ipAddress,
         ipLocation: ipLocation ?? undefined,
-        app: msg.app,
+        topicId: batchTopicId,
         tags: msg.tags,
         priority: msg.priority,
         url: msg.url,

@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +38,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VolumeOff
@@ -76,10 +79,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -96,6 +108,108 @@ import com.notifyhub.client.data.ClientConfig
 import com.notifyhub.client.service.PollService
 import java.text.SimpleDateFormat
 import java.util.Locale
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Notifications
+
+// ── Topic Grouping ──
+private data class TopicGroup(
+    val key: String,
+    val topicId: String?,
+    val topicName: String?,
+    val topicDisplayName: String?,
+    val topicIcon: String?,
+    val messages: List<LocalMessage>,
+)
+
+private fun groupByTopic(messages: List<LocalMessage>): List<TopicGroup> {
+    val groups = mutableMapOf<String, MutableList<LocalMessage>>()
+    for (m in messages) {
+        val key = m.topicId ?: "__no_topic__"
+        groups.getOrPut(key) { mutableListOf() }.add(m)
+    }
+    return groups.entries.map { (key, msgs) ->
+        val first = msgs.first()
+        TopicGroup(
+            key = key,
+            topicId = first.topicId,
+            topicName = first.topicName,
+            topicDisplayName = first.topicDisplayName,
+            topicIcon = first.topicIcon,
+            messages = msgs.sortedByDescending { it.receivedAt },
+        )
+    }.sortedWith(compareByDescending<TopicGroup> { it.topicId != null }.thenByDescending { it.messages.firstOrNull()?.receivedAt ?: "" })
+}
+
+@Composable
+private fun TopicAvatar(
+    topicIcon: String?,
+    topicName: String?,
+    topicDisplayName: String?,
+    size: Int = 40,
+    borderColor: Color = MaterialTheme.colorScheme.primary,
+) {
+    val label = topicDisplayName ?: topicName
+    Box(
+        modifier = Modifier
+            .size(size.dp)
+            .clip(CircleShape)
+            .background(borderColor.copy(alpha = 0.12f)),
+        contentAlignment = Alignment.Center
+    ) {
+        when {
+            !topicIcon.isNullOrEmpty() -> {
+                if (topicIcon.startsWith("data:")) {
+                    // Base64 data URI
+                    val bitmap = remember(topicIcon) {
+                        try {
+                            val base64 = topicIcon.substringAfter(",")
+                            val bytes = Base64.decode(base64, Base64.DEFAULT)
+                            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                        } catch (_: Exception) { null }
+                    }
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                        )
+                    }
+                } else {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current).data(topicIcon).crossfade(true).build(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                }
+            }
+            !label.isNullOrEmpty() -> {
+                val initials = if (label.length <= 2) label else label.substring(0, 2)
+                Text(initials, fontSize = (size * 0.35).sp, fontWeight = FontWeight.Bold, color = borderColor)
+            }
+            else -> {
+                Icon(
+                    Icons.Default.Notifications,
+                    contentDescription = null,
+                    modifier = Modifier.size((size * 0.5).dp),
+                    tint = borderColor.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -104,6 +218,8 @@ fun MainScreen(
     pollService: PollService?,
     onOpenSettings: () -> Unit,
     onCompose: () -> Unit = {},
+    openMessageId: String? = null,
+    onMessageOpened: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -125,8 +241,32 @@ fun MainScreen(
     val selectedIds = remember { mutableStateListOf<String>() }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
+    // Range selection state (long-press + drag)
+    var rangeSelectStartId by remember { mutableStateOf<String?>(null) }
+    var rangeSelectStartY by remember { mutableStateOf(0f) }
+    var rangeSelectPrevId by remember { mutableStateOf<String?>(null) }
+    val listState = remember { androidx.compose.foundation.lazy.LazyListState(0, 0) }
+    var listTopPx by remember { mutableStateOf(0f) }
+
     // Detail screen state
     var selectedMessage by remember { mutableStateOf<LocalMessage?>(null) }
+
+    // Handle notification click — open message detail or show deleted toast
+    LaunchedEffect(openMessageId) {
+        if (openMessageId != null) {
+            val msg = withContext(Dispatchers.IO) { MessageStore.getById(context, openMessageId) }
+            if (msg != null) {
+                selectedMessage = msg
+            } else {
+                Toast.makeText(context, I18n["msg_deleted"], Toast.LENGTH_SHORT).show()
+            }
+            onMessageOpened()
+        }
+    }
+
+    // Topic view state
+    var viewMode by remember { mutableStateOf(ConfigStore.getViewMode(context)) }
+    var topicDetailKey by remember { mutableStateOf<String?>(null) }
 
     // Snackbar state for undo
     val snackbarHostState = remember { SnackbarHostState() }
@@ -178,6 +318,18 @@ fun MainScreen(
     fun exitSelectionMode() {
         selectionMode = false
         selectedIds.clear()
+        rangeSelectStartId = null
+        rangeSelectPrevId = null
+    }
+
+    fun selectRange(list: List<LocalMessage>, fromId: String, toId: String) {
+        val fromIdx = list.indexOfFirst { it.id == fromId }
+        val toIdx = list.indexOfFirst { it.id == toId }
+        if (fromIdx < 0 || toIdx < 0) return
+        val (start, end) = if (fromIdx <= toIdx) fromIdx to toIdx else toIdx to fromIdx
+        val rangeIds = (start..end).map { list[it].id }.toSet()
+        selectedIds.clear()
+        selectedIds.addAll(rangeIds)
     }
 
     // Show snackbar when message is deleted
@@ -265,7 +417,13 @@ fun MainScreen(
                                 selectedIds.addAll(filtered.map { it.id })
                             }
                         }) {
-                            Icon(Icons.Default.SelectAll, contentDescription = i18n("select_all"))
+                            val allSelected = selectedIds.size == filtered.size && filtered.isNotEmpty()
+                            Icon(
+                                Icons.Default.SelectAll,
+                                contentDescription = i18n("select_all"),
+                                tint = if (allSelected) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                         IconButton(onClick = { showDeleteConfirm = true }) {
                             Icon(Icons.Default.Delete, contentDescription = i18n("delete"), tint = MaterialTheme.colorScheme.error)
@@ -276,6 +434,19 @@ fun MainScreen(
                     } else {
                         IconButton(onClick = { showSearch = !showSearch }) {
                             Icon(Icons.Default.Search, contentDescription = i18n("search"))
+                        }
+                        // View toggle
+                        IconButton(onClick = {
+                            val newMode = if (viewMode == "messages") "topics" else "messages"
+                            viewMode = newMode
+                            topicDetailKey = null
+                            ConfigStore.setViewMode(context, newMode)
+                        }) {
+                            Icon(
+                                if (viewMode == "messages") Icons.Default.GridView else Icons.Default.ViewList,
+                                contentDescription = if (viewMode == "messages") I18n["topic_view"] else I18n["message_view"],
+                                tint = if (viewMode == "topics") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
                         }
                         // Filter button
                         Box {
@@ -335,10 +506,17 @@ fun MainScreen(
                     onValueChange = { searchQuery = it },
                     placeholder = { Text(i18n("search_hint"), fontSize = 14.sp) },
                     singleLine = true,
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(20.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = i18n("cancel"), modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(24.dp),
                     colors = TextFieldDefaults.colors(
                         focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent,
@@ -346,6 +524,59 @@ fun MainScreen(
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                     )
                 )
+            }
+
+            // Swipe from left edge or press system back to return from topic detail
+            if (topicDetailKey != null) {
+                BackHandler { topicDetailKey = null }
+            }
+
+            // Topic detail back bar (when viewing a specific topic's messages)
+            if (topicDetailKey != null) {
+                val topicGroup = groupByTopic(filtered).find { it.key == topicDetailKey }
+                if (topicGroup != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .pointerInput(Unit) {
+                                val threshold = 50f * density
+                                var totalDragX = 0f
+                                detectHorizontalDragGestures(
+                                    onDragEnd = {
+                                        if (totalDragX > threshold) {
+                                            topicDetailKey = null
+                                        }
+                                        totalDragX = 0f
+                                    },
+                                    onDragCancel = { totalDragX = 0f },
+                                    onHorizontalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        if (dragAmount > 0) totalDragX += dragAmount
+                                    }
+                                )
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { topicDetailKey = null }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = I18n["back"])
+                        }
+                        TopicAvatar(
+                            topicIcon = topicGroup.topicIcon,
+                            topicName = topicGroup.topicName,
+                            topicDisplayName = topicGroup.topicDisplayName,
+                            size = 28,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            topicGroup.topicDisplayName ?: topicGroup.topicName ?: I18n["no_topic"],
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
 
             if (filtered.isEmpty()) {
@@ -364,7 +595,12 @@ fun MainScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("📭", fontSize = 48.sp)
+                        Icon(
+                            if (searchQuery.isNotBlank()) Icons.Default.SearchOff else Icons.Default.Inbox,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
                         Spacer(Modifier.height(16.dp))
                         Text(
                             emptyMessage,
@@ -382,12 +618,102 @@ fun MainScreen(
                         }
                     }
                 }
+            } else if (viewMode == "topics" && topicDetailKey == null) {
+                // ── Topic List View ──
+                val topicGroups = remember(filtered) { groupByTopic(filtered) }
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(topicGroups, key = { it.key }) { group ->
+                        val latest = group.messages.first()
+                        val totalCount = group.messages.size
+                        val unreadCount = group.messages.count { !it.read }
+                        val displayName = group.topicDisplayName ?: group.topicName ?: I18n["no_topic"]
+                        val preview = latest.title.ifBlank { latest.body }.take(80)
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { topicDetailKey = group.key }
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TopicAvatar(
+                                topicIcon = group.topicIcon,
+                                topicName = group.topicName,
+                                topicDisplayName = group.topicDisplayName,
+                                size = 40,
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(displayName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, false))
+                                    Spacer(Modifier.width(6.dp))
+                                    Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                                        Text(totalCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                                    }
+                                    if (unreadCount > 0) {
+                                        Spacer(Modifier.width(4.dp))
+                                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.error) {
+                                            Text(unreadCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.height(2.dp))
+                                Text(preview, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(formatRelativeTime(latest.receivedAt), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             } else {
+                // ── Message List View (or topic detail messages) ──
+                val displayMessages = if (topicDetailKey != null) {
+                    filtered.filter { (it.topicId ?: "__no_topic__") == topicDetailKey }
+                } else filtered
+
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .onGloballyPositioned { listTopPx = it.positionInWindow().y }
+                        .pointerInput(selectionMode) {
+                            if (!selectionMode) return@pointerInput
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { offset ->
+                                    rangeSelectStartY = offset.y
+                                    rangeSelectPrevId = rangeSelectStartId
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    rangeSelectStartY += dragAmount.y
+                                    val fingerY = rangeSelectStartY + listTopPx
+                                    val visibleItems = listState.layoutInfo.visibleItemsInfo
+                                    val targetItem = visibleItems.lastOrNull { item ->
+                                        val itemTop = listTopPx + item.offset
+                                        val itemBottom = itemTop + item.size
+                                        fingerY >= itemTop && fingerY < itemBottom
+                                    } ?: visibleItems.lastOrNull { item ->
+                                        listTopPx + item.offset <= fingerY
+                                    }
+                                    if (targetItem != null && targetItem.key is String) {
+                                        val targetId = targetItem.key as String
+                                        if (targetId != rangeSelectPrevId) {
+                                            rangeSelectPrevId = targetId
+                                            selectRange(filtered, rangeSelectStartId!!, targetId)
+                                        }
+                                    }
+                                },
+                                onDragEnd = {
+                                    rangeSelectPrevId = null
+                                },
+                                onDragCancel = {
+                                    rangeSelectPrevId = null
+                                }
+                            )
+                        },
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(filtered, key = { it.id }) { msg ->
+                    items(displayMessages, key = { it.id }) { msg ->
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { value ->
                                 when (value) {
@@ -452,6 +778,7 @@ fun MainScreen(
                                         selectionMode = true
                                         selectedIds.add(msg.id)
                                     }
+                                    rangeSelectStartId = msg.id
                                 },
                                 onClick = {
                                     if (selectionMode) {
@@ -573,6 +900,13 @@ private fun MessageItem(
         else -> MaterialTheme.colorScheme.surface
     }
 
+    val levelColor = when (msg.level.uppercase()) {
+        "ERROR" -> MaterialTheme.colorScheme.error
+        "WARN", "WARNING" -> Color(0xFFF59E0B)
+        "DEBUG" -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.primary
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -592,20 +926,14 @@ private fun MessageItem(
                 modifier = Modifier.padding(end = 8.dp).size(20.dp)
             )
         } else {
-            Box(
-                modifier = Modifier
-                    .padding(top = 6.dp, end = 10.dp)
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(
-                        when (msg.level.uppercase()) {
-                            "ERROR" -> MaterialTheme.colorScheme.error
-                            "WARN", "WARNING" -> Color(0xFFF59E0B)
-                            "DEBUG" -> MaterialTheme.colorScheme.tertiary
-                            else -> MaterialTheme.colorScheme.primary
-                        }
-                    )
+            TopicAvatar(
+                topicIcon = msg.topicIcon,
+                topicName = msg.topicName,
+                topicDisplayName = msg.topicDisplayName,
+                size = 36,
+                borderColor = levelColor,
             )
+            Spacer(Modifier.width(10.dp))
         }
 
         Column(modifier = Modifier.weight(1f)) {

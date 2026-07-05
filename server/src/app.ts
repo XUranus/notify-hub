@@ -9,6 +9,7 @@ import { startWorker } from './queue/index.js'
 import { initAdminUser } from './init.js'
 import { runMigrations } from './db/migrate.js'
 import { startCleanupScheduler } from './cleanup.js'
+import { initLogger } from './logger.js'
 import { stat } from 'node:fs/promises'
 import { createReadStream } from 'node:fs'
 import { join, extname } from 'node:path'
@@ -114,6 +115,9 @@ export async function bootstrap() {
 
   // Start cleanup scheduler
   await startCleanupScheduler()
+
+  // Initialize server-side logging (intercepts console.*)
+  await initLogger()
 
   return createApp()
 }

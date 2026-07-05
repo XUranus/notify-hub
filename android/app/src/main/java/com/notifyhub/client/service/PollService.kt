@@ -169,8 +169,8 @@ class PollService : Service() {
                         isConnected.value = true
                         lastError.value = null
                     }
-                    // Connection restored - exit offline mode if it was active
-                    if (isOfflineMode.value) {
+                    // Connection restored - exit offline mode and close dialog
+                    if (isOfflineMode.value || showOfflineDialog.value) {
                         isOfflineMode.value = false
                         showOfflineDialog.value = false
                     }
@@ -266,7 +266,7 @@ class PollService : Service() {
             this, msg.id.hashCode(),
             Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra("read_message_id", msg.id)
+                putExtra("open_message_id", msg.id)
             },
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )

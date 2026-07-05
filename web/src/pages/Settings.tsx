@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { useTranslation } from '@/lib/i18n'
 import { useTheme } from '@/lib/theme'
 import { authApi, userSettingsApi, getCurrentUser, clearToken } from '@/lib/api'
-import { Globe, Moon, Sun, Shield, FileText, CheckCircle, Clock, HardDrive, AlertTriangle } from 'lucide-react'
+import { Globe, Moon, Sun, Shield, CheckCircle, Clock, HardDrive, AlertTriangle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 // ── General Tab (Language + Theme) ──
@@ -287,61 +287,6 @@ function SecuritySettings() {
   )
 }
 
-// ── Logs Tab ──
-
-const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const
-type LogLevel = (typeof LOG_LEVELS)[number]
-
-const LOG_STORAGE_KEY = 'notifyhub_log_level'
-
-function LogSettings() {
-  const { t } = useTranslation()
-  const [level, setLevel] = useState<LogLevel>(
-    () => (localStorage.getItem(LOG_STORAGE_KEY) as LogLevel) || 'info'
-  )
-
-  const handleChange = (newLevel: LogLevel) => {
-    setLevel(newLevel)
-    localStorage.setItem(LOG_STORAGE_KEY, newLevel)
-  }
-
-  const levelDesc: Record<LogLevel, string> = {
-    debug: t('settings.logs.debug'),
-    info: t('settings.logs.info'),
-    warn: t('settings.logs.warn'),
-    error: t('settings.logs.error'),
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          {t('settings.logs.title')}
-        </CardTitle>
-        <CardDescription>{t('settings.logs.desc')}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <Label>{t('settings.logs.level')}</Label>
-          <Select value={level} onValueChange={(v) => handleChange(v as LogLevel)}>
-            <SelectTrigger className="w-[300px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LOG_LEVELS.map((l) => (
-                <SelectItem key={l} value={l}>
-                  {levelDesc[l]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
 // ── Attachment Settings Tab ──
 
 function AttachmentSettings() {
@@ -485,10 +430,6 @@ export default function Settings() {
             <Shield className="h-4 w-4 mr-2" />
             {t('settings.security')}
           </TabsTrigger>
-          <TabsTrigger value="logs">
-            <FileText className="h-4 w-4 mr-2" />
-            {t('settings.logs')}
-          </TabsTrigger>
           <TabsTrigger value="attachments">
             <HardDrive className="h-4 w-4 mr-2" />
             {t('settings.attachments')}
@@ -501,10 +442,6 @@ export default function Settings() {
 
         <TabsContent value="security">
           <SecuritySettings />
-        </TabsContent>
-
-        <TabsContent value="logs">
-          <LogSettings />
         </TabsContent>
 
         <TabsContent value="attachments">

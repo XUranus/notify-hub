@@ -4,44 +4,103 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+    /* ── Material You (MD3) Light Theme ── */
+    --background: 270 20% 98%;
+    --foreground: 270 15% 11%;
+
+    --card: 270 20% 99%;
+    --card-foreground: 270 15% 11%;
+
+    --primary: 270 50% 47%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 270 15% 40%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 270 16% 93%;
+    --muted-foreground: 270 10% 45%;
+
+    --accent: 270 16% 93%;
+    --accent-foreground: 270 15% 11%;
+
+    --destructive: 0 72% 42%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 270 14% 83%;
+    --input: 270 14% 83%;
+    --ring: 270 50% 47%;
+    --radius: 1rem;
+
+    /* ── Material You extras ── */
+    --surface-variant: 270 16% 90%;
+    --on-surface-variant: 270 10% 30%;
+    --outline: 270 10% 50%;
+    --outline-variant: 270 14% 80%;
+    --primary-container: 270 80% 92%;
+    --on-primary-container: 270 60% 20%;
+    --secondary-container: 270 25% 90%;
+    --on-secondary-container: 270 20% 20%;
+    --tertiary: 330 40% 45%;
+    --tertiary-foreground: 0 0% 100%;
+    --tertiary-container: 330 60% 92%;
+    --on-tertiary-container: 330 40% 20%;
+    --error-container: 0 80% 92%;
+    --on-error-container: 0 70% 25%;
+    --surface: 270 20% 99%;
+    --inverse-surface: 270 15% 18%;
+    --inverse-foreground: 270 10% 95%;
+    --inverse-primary: 270 60% 75%;
+    --shadow: 270 30% 60%;
   }
 
   .dark {
-    --background: 0 0% 5%;
-    --foreground: 0 0% 95%;
-    --card: 0 0% 7%;
-    --card-foreground: 0 0% 95%;
-    --primary: 0 0% 95%;
-    --primary-foreground: 0 0% 7%;
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 0 0% 95%;
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 60%;
-    --accent: 0 0% 12%;
-    --accent-foreground: 0 0% 95%;
-    --destructive: 0 72% 40%;
-    --destructive-foreground: 0 0% 95%;
-    --border: 0 0% 12%;
-    --input: 0 0% 12%;
-    --ring: 0 0% 70%;
+    /* ── Material You (MD3) Dark Theme ── */
+    --background: 270 15% 8%;
+    --foreground: 270 10% 93%;
+
+    --card: 270 15% 11%;
+    --card-foreground: 270 10% 93%;
+
+    --primary: 270 60% 75%;
+    --primary-foreground: 270 50% 15%;
+
+    --secondary: 270 20% 72%;
+    --secondary-foreground: 270 15% 15%;
+
+    --muted: 270 12% 18%;
+    --muted-foreground: 270 10% 60%;
+
+    --accent: 270 12% 18%;
+    --accent-foreground: 270 10% 93%;
+
+    --destructive: 0 65% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 270 12% 24%;
+    --input: 270 12% 24%;
+    --ring: 270 60% 75%;
+    --radius: 1rem;
+
+    /* ── Material You extras ── */
+    --surface-variant: 270 12% 22%;
+    --on-surface-variant: 270 10% 65%;
+    --outline: 270 10% 42%;
+    --outline-variant: 270 10% 28%;
+    --primary-container: 270 40% 25%;
+    --on-primary-container: 270 80% 90%;
+    --secondary-container: 270 15% 22%;
+    --on-secondary-container: 270 20% 85%;
+    --tertiary: 330 50% 70%;
+    --tertiary-foreground: 330 30% 15%;
+    --tertiary-container: 330 30% 25%;
+    --on-tertiary-container: 330 60% 90%;
+    --error-container: 0 40% 22%;
+    --on-error-container: 0 80% 88%;
+    --surface: 270 15% 10%;
+    --inverse-surface: 270 10% 90%;
+    --inverse-foreground: 270 15% 12%;
+    --inverse-primary: 270 50% 47%;
+    --shadow: 0 0% 0%;
   }
 }
 
@@ -51,5 +110,6 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Google Sans', 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 }

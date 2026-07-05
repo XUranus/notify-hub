@@ -27,6 +27,7 @@ export async function enqueue(params: {
   ipAddress?: string
   ipLocation?: string
   app?: string
+  topicId?: string | null
   tags?: string[]
   priority?: number
   url?: string
@@ -86,6 +87,7 @@ export async function enqueue(params: {
       ipAddress: params.ipAddress ?? null,
       ipLocation: params.ipLocation ?? null,
       app: params.app ?? null,
+      topicId: params.topicId ?? null,
       scheduledAt: params.scheduledAt ?? null,
       tags: params.tags ? JSON.stringify(params.tags) : '[]',
       priority: params.priority ?? 0,
@@ -166,8 +168,42 @@ export async function getMessage(id: string, userId?: number) {
     conditions.push(eq(schema.messages.userId, userId))
   }
   const [msg] = await db
-    .select()
+    .select({
+      id: schema.messages.id,
+      userId: schema.messages.userId,
+      channelType: schema.messages.channelType,
+      channelId: schema.messages.channelId,
+      toAddress: schema.messages.toAddress,
+      subject: schema.messages.subject,
+      body: schema.messages.body,
+      templateId: schema.messages.templateId,
+      templateVars: schema.messages.templateVars,
+      status: schema.messages.status,
+      retryCount: schema.messages.retryCount,
+      maxRetries: schema.messages.maxRetries,
+      nextRetryAt: schema.messages.nextRetryAt,
+      errorMessage: schema.messages.errorMessage,
+      idempotencyKey: schema.messages.idempotencyKey,
+      ipAddress: schema.messages.ipAddress,
+      ipLocation: schema.messages.ipLocation,
+      app: schema.messages.app,
+      topicId: schema.messages.topicId,
+      scheduledAt: schema.messages.scheduledAt,
+      sentAt: schema.messages.sentAt,
+      createdAt: schema.messages.createdAt,
+      tags: schema.messages.tags,
+      priority: schema.messages.priority,
+      url: schema.messages.url,
+      attachment: schema.messages.attachment,
+      format: schema.messages.format,
+      channelName: schema.channels.name,
+      topicName: schema.topics.name,
+      topicDisplayName: schema.topics.displayName,
+      topicIcon: schema.topics.icon,
+    })
     .from(schema.messages)
+    .leftJoin(schema.channels, eq(schema.messages.channelId, schema.channels.id))
+    .leftJoin(schema.topics, eq(schema.messages.topicId, schema.topics.id))
     .where(and(...conditions))
     .limit(1)
   return msg
@@ -225,6 +261,7 @@ export async function getMessages(params: {
       ipAddress: schema.messages.ipAddress,
       ipLocation: schema.messages.ipLocation,
       app: schema.messages.app,
+      topicId: schema.messages.topicId,
       createdAt: schema.messages.createdAt,
       tags: schema.messages.tags,
       priority: schema.messages.priority,
@@ -232,9 +269,13 @@ export async function getMessages(params: {
       attachment: schema.messages.attachment,
       format: schema.messages.format,
       channelName: schema.channels.name,
+      topicName: schema.topics.name,
+      topicDisplayName: schema.topics.displayName,
+      topicIcon: schema.topics.icon,
     })
     .from(schema.messages)
     .leftJoin(schema.channels, eq(schema.messages.channelId, schema.channels.id))
+    .leftJoin(schema.topics, eq(schema.messages.topicId, schema.topics.id))
     .where(where)
     .orderBy(sql`${schema.messages.createdAt} DESC`)
     .limit(pageSize)
@@ -355,6 +396,8 @@ export async function processMessage(msg: typeof schema.messages.$inferSelect) {
         url: msg.url || undefined,
         attachment: safeJsonParse(msg.attachment, undefined),
         format: msg.format || undefined,
+        userId: msg.userId ?? undefined,
+        topicId: msg.topicId ?? null,
       }
       const result = await adapter.send({}, payload)
       if (result.success) {
@@ -390,6 +433,8 @@ export async function processMessage(msg: typeof schema.messages.$inferSelect) {
       url: msg.url || undefined,
       attachment: safeJsonParse(msg.attachment, undefined),
       format: msg.format || undefined,
+      userId: msg.userId ?? undefined,
+      topicId: msg.topicId ?? null,
     }
 
     // Send!

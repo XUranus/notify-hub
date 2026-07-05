@@ -58,14 +58,14 @@ const datetimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
 
 export const sendMessageSchema = z.object({
   channel: z.string().min(1), // channel type ("email"/"sms"/"push") or channel name
-  to: z.string().min(1),
+  to: z.string(),
   subject: z.string().optional(),
   body: z.string().optional(),
   template: z.string().optional(),
   variables: z.record(z.string()).optional(),
   idempotencyKey: z.string().optional(),
   scheduledAt: z.string().datetime().optional(),
-  app: z.string().optional(),
+  topic: z.string().optional(), // topic name (resolved to topicId server-side)
   // Extended fields
   tags: z.array(z.string()).default([]),
   priority: z.number().int().min(0).max(99).default(0),
@@ -188,6 +188,20 @@ export const createTemplateSchema = z.object({
 })
 
 export const updateTemplateSchema = createTemplateSchema.partial()
+
+// ── Topic Schemas ──
+
+export const createTopicSchema = z.object({
+  name: z.string().min(1).max(50),
+  displayName: z.string().max(100).optional(),
+  icon: z.string().optional(), // base64
+})
+
+export const updateTopicSchema = z.object({
+  name: z.string().min(1).max(50).optional(),
+  displayName: z.string().max(100).nullable().optional(),
+  icon: z.string().nullable().optional(), // base64 or null to remove
+})
 
 // ── API Response Schema ──
 

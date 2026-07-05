@@ -32,6 +32,10 @@ push.post('/register', dualAuth, async (c) => {
     return c.json({ success: false, error: 'uuid and os are required' }, 400)
   }
 
+  if (name === '*') {
+    return c.json({ success: false, error: "Device name '*' is reserved" }, 400)
+  }
+
   const user = c.get('currentUser')!
   const userId = user.userId
 
@@ -98,6 +102,9 @@ push.patch('/client', clientAuth, async (c) => {
   const updates: Record<string, unknown> = {}
   if (name !== undefined) {
     const trimmed = typeof name === 'string' ? name.trim() : ''
+    if (trimmed === '*') {
+      return c.json({ success: false, error: "Device name '*' is reserved" }, 400)
+    }
     if (trimmed.length > 100) {
       return c.json({ success: false, error: 'Name too long (max 100 characters)' }, 400)
     }
@@ -169,17 +176,32 @@ push.get('/poll', dualAuth, async (c) => {
       .where(eq(schema.pushClients.uuid, uuid))
   }
 
-  // Fetch undelivered messages for this client (targeted or broadcast)
+  // Fetch undelivered messages for this client
   const messages = await db
-    .select()
+    .select({
+      id: schema.pushMessages.id,
+      clientUuid: schema.pushMessages.clientUuid,
+      title: schema.pushMessages.title,
+      body: schema.pushMessages.body,
+      level: schema.pushMessages.level,
+      delivered: schema.pushMessages.delivered,
+      createdAt: schema.pushMessages.createdAt,
+      tags: schema.pushMessages.tags,
+      priority: schema.pushMessages.priority,
+      url: schema.pushMessages.url,
+      attachment: schema.pushMessages.attachment,
+      format: schema.pushMessages.format,
+      topicId: schema.pushMessages.topicId,
+      topicName: schema.topics.name,
+      topicDisplayName: schema.topics.displayName,
+      topicIcon: schema.topics.icon,
+    })
     .from(schema.pushMessages)
+    .leftJoin(schema.topics, eq(schema.pushMessages.topicId, schema.topics.id))
     .where(
       and(
         eq(schema.pushMessages.delivered, false),
-        or(
-          eq(schema.pushMessages.clientUuid, uuid),
-          eq(schema.pushMessages.clientUuid, '__broadcast__')
-        )
+        eq(schema.pushMessages.clientUuid, uuid)
       )
     )
     .orderBy(schema.pushMessages.createdAt)
@@ -236,7 +258,7 @@ push.post('/ack', dualAuth, async (c) => {
       .where(sql`${schema.pushMessages.id} IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`)
 
     for (const msg of msgs) {
-      if (msg.clientUuid && !ownedUuids.has(msg.clientUuid) && msg.clientUuid !== '__broadcast__') {
+      if (msg.clientUuid && !ownedUuids.has(msg.clientUuid)) {
         return c.json({ success: false, error: `Message ${msg.id} not found or access denied` }, 403)
       }
     }

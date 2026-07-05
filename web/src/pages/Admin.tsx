@@ -1,9 +1,10 @@
-import { Shield, Users, HardDrive, Trash } from 'lucide-react'
+import { Shield, Users, HardDrive, Trash, FileText } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTranslation } from '@/lib/i18n'
 import AdminUsers from './admin/Users'
 import AdminSystem from './admin/System'
 import AdminCleanup from './admin/Cleanup'
+import AdminLogs from './admin/Logs'
 
 export default function Admin() {
   const { t } = useTranslation()
@@ -22,6 +23,10 @@ export default function Admin() {
             <HardDrive className="h-4 w-4 mr-2" />
             {t('nav.system')}
           </TabsTrigger>
+          <TabsTrigger value="logs">
+            <FileText className="h-4 w-4 mr-2" />
+            {t('nav.logs')}
+          </TabsTrigger>
           <TabsTrigger value="cleanup">
             <Trash className="h-4 w-4 mr-2" />
             {t('nav.cleanup')}
@@ -34,6 +39,10 @@ export default function Admin() {
 
         <TabsContent value="system">
           <AdminSystem />
+        </TabsContent>
+
+        <TabsContent value="logs">
+          <AdminLogs />
         </TabsContent>
 
         <TabsContent value="cleanup">

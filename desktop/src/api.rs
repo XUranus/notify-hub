@@ -17,6 +17,15 @@ pub struct PushMessage {
     pub url: Option<String>,
     pub attachment: Option<String>,
     pub format: Option<String>,
+    // Topic fields
+    #[serde(alias = "topicId")]
+    pub topic_id: Option<String>,
+    #[serde(alias = "topicName")]
+    pub topic_name: Option<String>,
+    #[serde(alias = "topicDisplayName")]
+    pub topic_display_name: Option<String>,
+    #[serde(alias = "topicIcon")]
+    pub topic_icon: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -27,6 +27,15 @@ pub struct LocalMessage {
     pub format: Option<String>,
     #[serde(default)]
     pub local_image_path: Option<String>,
+    // Topic fields
+    #[serde(default)]
+    pub topic_id: Option<String>,
+    #[serde(default)]
+    pub topic_name: Option<String>,
+    #[serde(default)]
+    pub topic_display_name: Option<String>,
+    #[serde(default)]
+    pub topic_icon: Option<String>,
 }
 
 fn messages_path() -> PathBuf {

@@ -467,7 +467,7 @@ pub fn detect_desktop_env() -> String {
     }
 }
 
-// ── Single Instance Lock ──
+// ── Single Instance Lock (flock) ──
 
 fn lock_path() -> std::path::PathBuf {
     let dir = dirs::config_dir()
@@ -477,81 +477,43 @@ fn lock_path() -> std::path::PathBuf {
     dir.join("lock")
 }
 
-fn is_process_alive(pid: u32) -> bool {
-    #[cfg(unix)]
-    {
-        // Send signal 0 — doesn't kill, just checks existence
-        unsafe { libc::kill(pid as i32, 0) == 0 }
-    }
-    #[cfg(windows)]
-    {
-        use std::process::Command;
-        Command::new("tasklist")
-            .args(["/FI", &format!("PID eq {}", pid), "/NH"])
-            .output()
-            .map(|o| {
-                let out = String::from_utf8_lossy(&o.stdout);
-                out.contains(&pid.to_string())
-            })
-            .unwrap_or(false)
-    }
-}
-
-/// Try to acquire single-instance lock. Returns Ok(lock) on success, Err(existing_pid) if another instance is running.
-fn acquire_lock() -> Result<LockGuard, u32> {
+/// Try to acquire an exclusive flock. Returns Ok(guard) on success.
+/// The lock is held until the guard is dropped (process exit).
+fn acquire_lock() -> Result<LockGuard, ()> {
+    use std::os::unix::io::AsRawFd;
     let path = lock_path();
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(&path)
+        .map_err(|_| ())?;
 
-    // Check if lock file exists
-    if path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&path) {
-            if let Ok(pid) = content.trim().parse::<u32>() {
-                if pid != std::process::id() && is_process_alive(pid) {
-                    return Err(pid);
-                }
-            }
-        }
+    let fd = file.as_raw_fd();
+    let ret = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
+    if ret != 0 {
+        return Err(());
     }
 
-    // Write our PID
-    std::fs::write(&path, std::process::id().to_string()).ok();
+    // Write PID for debugging purposes
+    use std::io::Write;
+    let _ = (&file).write_all(std::process::id().to_string().as_bytes());
 
-    // Verify we won the race (double-check)
-    if let Ok(content) = std::fs::read_to_string(&path) {
-        if let Ok(pid) = content.trim().parse::<u32>() {
-            if pid != std::process::id() && is_process_alive(pid) {
-                return Err(pid);
-            }
-        }
-    }
-
-    Ok(LockGuard { path })
+    Ok(LockGuard { _file: file })
 }
 
 struct LockGuard {
-    path: std::path::PathBuf,
-}
-
-impl Drop for LockGuard {
-    fn drop(&mut self) {
-        // Only remove if we own it
-        if let Ok(content) = std::fs::read_to_string(&self.path) {
-            if let Ok(pid) = content.trim().parse::<u32>() {
-                if pid == std::process::id() {
-                    std::fs::remove_file(&self.path).ok();
-                }
-            }
-        }
-    }
+    _file: std::fs::File,
 }
 
 // ── Main ──
 
 fn main() {
-    // Single instance check
+    // Single instance check (flock)
     let _lock = match acquire_lock() {
         Ok(lock) => lock,
-        Err(pid) => {
-            eprintln!("Another instance is already running (PID {}). Exiting.", pid);
+        Err(()) => {
+            eprintln!("Another instance is already running. Exiting.");
             std::process::exit(0);
         }
     };

@@ -1,4 +1,73 @@
 use notify_rust::Notification;
+use std::path::PathBuf;
+
+/// Cache dir for decoded topic icons.
+fn icon_cache_dir() -> PathBuf {
+    let dir = dirs::config_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("notifyhub-client")
+        .join("icons");
+    std::fs::create_dir_all(&dir).ok();
+    dir
+}
+
+/// Find the app icon in standard Linux locations or relative to the executable.
+fn find_app_icon() -> Option<PathBuf> {
+    let candidates = [
+        "/usr/share/icons/hicolor/128x128/apps/com.notifyhub.client.png",
+        "/usr/share/pixmaps/notifyhub-client.png",
+    ];
+    for path in &candidates {
+        if std::path::Path::new(path).exists() {
+            return Some(PathBuf::from(path));
+        }
+    }
+    // Fallback: look for icons/128x128.png relative to the executable
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            // Try: exe_dir/icons/128x128.png  (dev build: target/debug/ → desktop/icons/)
+            // Try: exe_dir/../icons/128x128.png  (installed: bin/ → share/icons/)
+            // Try: exe_dir/../../../icons/128x128.png  (cargo run: target/debug/deps/ → desktop/icons/)
+            for rel in ["icons/128x128.png", "../icons/128x128.png", "../../icons/128x128.png"] {
+                let candidate = exe_dir.join(rel);
+                if candidate.exists() {
+                    return Some(candidate);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Decode a base64 topic icon (with optional data URI prefix) and save to cache.
+/// Returns the file path if successful.
+pub fn decode_topic_icon(icon_b64: &str) -> Option<PathBuf> {
+    use base64::Engine;
+    let engine = base64::engine::general_purpose::STANDARD;
+    // Strip data URI prefix if present (e.g. "data:image/png;base64,...")
+    let raw = if let Some(idx) = icon_b64.find(",") {
+        let prefix = &icon_b64[..idx];
+        if prefix.contains("base64") { &icon_b64[idx + 1..] } else { icon_b64 }
+    } else {
+        icon_b64
+    };
+    let bytes = engine.decode(raw).ok()?;
+    if bytes.is_empty() {
+        return None;
+    }
+    let hash = {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut h = DefaultHasher::new();
+        icon_b64.hash(&mut h);
+        h.finish()
+    };
+    let path = icon_cache_dir().join(format!("{:x}.png", hash));
+    if !path.exists() {
+        std::fs::write(&path, &bytes).ok()?;
+    }
+    Some(path)
+}
 
 /// Strip HTML tags for plain-text display in notifications.
 fn strip_html(input: &str) -> String {
@@ -16,12 +85,30 @@ fn strip_html(input: &str) -> String {
 }
 
 pub fn show_notification(title: &str, body: &str) {
+    show_notification_with_icon(title, body, None);
+}
+
+pub fn show_notification_with_icon(title: &str, body: &str, content_icon_path: Option<&str>) {
     let plain_body = strip_html(body);
-    let _ = Notification::new()
+    let mut notif = Notification::new();
+    notif
         .summary(title)
         .body(&plain_body)
         .appname("NotifyHub")
-        .icon("dialog-information")
-        .timeout(10000)
-        .show();
+        .timeout(10000);
+
+    // App icon (top-left corner) — always the product logo
+    // D-Bus spec requires file:// URI or theme icon name
+    if let Some(path) = find_app_icon() {
+        notif.icon(&format!("file://{}", path.to_string_lossy()));
+    } else {
+        notif.icon("dialog-information");
+    }
+
+    // Content image (inline) — topic icon when available
+    if let Some(path) = content_icon_path {
+        notif.image_path(&format!("file://{}", path));
+    }
+
+    let _ = notif.show();
 }

@@ -6,39 +6,88 @@
   <title>NotifyHub Client</title>
   <style>
     :root {
-      --bg: #f4f5f7; --card: #fff; --border: #e2e4e8;
-      --text: #1a1d23; --text2: #6b7280; --text3: #9ca3af;
+      /* ── Light Theme (aligned with Android) ── */
+      --bg: #f5f5f5; --card: #f5f5f5; --border: #e8e8e8;
+      --text: #1d1b20; --text2: #6b7280; --text3: #9ca3af;
       --accent: #4f46e5; --accent-hover: #4338ca; --accent-soft: #eef2ff;
-      --success: #16a34a; --success-soft: #f0fdf4;
+      --success: #16a34a; --success-soft: #dcfce7;
       --error: #dc2626; --error-soft: #fef2f2;
-      --warn: #d97706; --warn-soft: #fffbeb;
-      --debug: #7c3aed; --debug-soft: #f5f3ff;
-      --input-bg: #fff; --badge-bg: #f3f4f6; --badge-border: #d1d5db; --badge-text: #374151;
-      --shadow: 0 1px 3px rgba(0,0,0,0.06); --radius: 8px;
-      --overlay: rgba(0,0,0,0.3);
+      --warn: #f97316; --warn-soft: #fff7ed;
+      --debug: #4f46e5; --debug-soft: #eef2ff;
+      --input-bg: transparent; --badge-bg: #e8e8e8; --badge-border: #d4d4d4; --badge-text: #6b7280;
+      --shadow: 0 1px 3px 1px rgba(79,70,229,0.15), 0 1px 2px 0 rgba(79,70,229,0.3); --radius: 16px;
+      --overlay: rgba(0,0,0,0.4);
+      --primary-container: #eef2ff; --on-primary-container: #312e81;
+      --secondary: #6366f1; --secondary-container: #e0e7ff;
+      --surface-variant: #e8e8e8; --on-surface-variant: #6b7280;
+      --outline: #9ca3af; --outline-variant: #d4d4d4;
+      --tertiary: #8b5cf6; --tertiary-container: #ede9fe; --on-tertiary-container: #581c87;
+      --inverse-surface: #322f35; --inverse-foreground: #f5eff7;
     }
+    /* system theme: follow OS preference */
     @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #111318; --card: #1a1d24; --border: #2d313a;
+      :root:not(.light):not(.dark) {
+        --bg: #111318; --card: #111318; --border: #22252e;
         --text: #e5e7eb; --text2: #9ca3af; --text3: #6b7280;
-        --accent: #818cf8; --accent-hover: #6366f1; --accent-soft: #1e1b4b;
-        --success: #4ade80; --success-soft: #052e16;
+        --accent: #3f37c9; --accent-hover: #4f46e5; --accent-soft: #1e1b4b;
+        --success: #22c55e; --success-soft: #14532d;
         --error: #f87171; --error-soft: #450a0a;
-        --warn: #fbbf24; --warn-soft: #451a03;
-        --debug: #a78bfa; --debug-soft: #1e1533;
-        --input-bg: #22252e; --badge-bg: #22252e; --badge-border: #3f4550; --badge-text: #d1d5db;
-        --shadow: 0 1px 3px rgba(0,0,0,0.3);
+        --warn: #fb923c; --warn-soft: #431407;
+        --debug: #3f37c9; --debug-soft: #1e1b4b;
+        --input-bg: transparent; --badge-bg: #22252e; --badge-border: #333845; --badge-text: #9ca3af;
+        --shadow: 0 1px 3px 1px rgba(0,0,0,0.4), 0 1px 2px 0 rgba(0,0,0,0.6);
         --overlay: rgba(0,0,0,0.6);
+        --primary-container: #312e81; --on-primary-container: #eef2ff;
+        --secondary: #524ee0; --secondary-container: #312e81;
+        --surface-variant: #22252e; --on-surface-variant: #9ca3af;
+        --outline: #6b7280; --outline-variant: #22252e;
+        --tertiary: #7c3aed; --tertiary-container: #581c87; --on-tertiary-container: #ede9fe;
+        --inverse-surface: #e5e7eb; --inverse-foreground: #111318;
       }
     }
+    /* ── Color Schemes (aligned with Android) ── */
+    :root.purple { --accent:#4f46e5; --accent-hover:#4338ca; --accent-soft:#eef2ff; --success:#16a34a; --success-soft:#dcfce7; --error:#dc2626; --error-soft:#fef2f2; --warn:#f97316; --warn-soft:#fff7ed; --debug:#4f46e5; --debug-soft:#eef2ff; --primary-container:#eef2ff; --on-primary-container:#312e81; --secondary:#6366f1; --secondary-container:#e0e7ff; --tertiary:#8b5cf6; --tertiary-container:#ede9fe; --on-tertiary-container:#581c87; --shadow:0 1px 3px 1px rgba(79,70,229,0.15),0 1px 2px 0 rgba(79,70,229,0.3); }
+    :root.purple.dark { --accent:#3f37c9; --accent-hover:#4f46e5; --accent-soft:#1e1b4b; --success:#22c55e; --success-soft:#14532d; --error:#f87171; --error-soft:#450a0a; --warn:#fb923c; --warn-soft:#431407; --debug:#3f37c9; --debug-soft:#1e1b4b; --primary-container:#312e81; --on-primary-container:#eef2ff; --secondary:#524ee0; --secondary-container:#312e81; --tertiary:#7c3aed; --tertiary-container:#581c87; --on-tertiary-container:#ede9fe; }
+    :root.blue { --accent:#2563eb; --accent-hover:#1d4ed8; --accent-soft:#dbeafe; --success:#16a34a; --success-soft:#dcfce7; --error:#dc2626; --error-soft:#fef2f2; --warn:#f97316; --warn-soft:#fff7ed; --debug:#2563eb; --debug-soft:#dbeafe; --primary-container:#dbeafe; --on-primary-container:#1e3a5f; --secondary:#3b82f6; --secondary-container:#bfdbfe; --tertiary:#0ea5e9; --tertiary-container:#e0f2fe; --on-tertiary-container:#0c4a6e; --shadow:0 1px 3px 1px rgba(37,99,235,0.15),0 1px 2px 0 rgba(37,99,235,0.3); }
+    :root.blue.dark { --accent:#1d4ed8; --accent-hover:#2563eb; --accent-soft:#1e3a5f; --success:#22c55e; --success-soft:#14532d; --error:#f87171; --error-soft:#450a0a; --warn:#fb923c; --warn-soft:#431407; --debug:#1d4ed8; --debug-soft:#1e3a5f; --primary-container:#1e3a5f; --on-primary-container:#dbeafe; --secondary:#2563eb; --secondary-container:#1e3a5f; --tertiary:#0284c7; --tertiary-container:#0c4a6e; --on-tertiary-container:#e0f2fe; }
+    :root.teal { --accent:#0d9488; --accent-hover:#0f766e; --accent-soft:#ccfbf1; --success:#16a34a; --success-soft:#dcfce7; --error:#dc2626; --error-soft:#fef2f2; --warn:#f97316; --warn-soft:#fff7ed; --debug:#0d9488; --debug-soft:#ccfbf1; --primary-container:#ccfbf1; --on-primary-container:#134e4a; --secondary:#14b8a6; --secondary-container:#99f6e4; --tertiary:#06b6d4; --tertiary-container:#cffafe; --on-tertiary-container:#164e63; --shadow:0 1px 3px 1px rgba(13,148,136,0.15),0 1px 2px 0 rgba(13,148,136,0.3); }
+    :root.teal.dark { --accent:#0f766e; --accent-hover:#0d9488; --accent-soft:#134e4a; --success:#22c55e; --success-soft:#14532d; --error:#f87171; --error-soft:#450a0a; --warn:#fb923c; --warn-soft:#431407; --debug:#0f766e; --debug-soft:#134e4a; --primary-container:#134e4a; --on-primary-container:#ccfbf1; --secondary:#0d9488; --secondary-container:#134e4a; --tertiary:#0891b2; --tertiary-container:#164e63; --on-tertiary-container:#cffafe; }
+    :root.green { --accent:#16a34a; --accent-hover:#15803d; --accent-soft:#dcfce7; --success:#16a34a; --success-soft:#dcfce7; --error:#dc2626; --error-soft:#fef2f2; --warn:#f97316; --warn-soft:#fff7ed; --debug:#16a34a; --debug-soft:#dcfce7; --primary-container:#dcfce7; --on-primary-container:#14532d; --secondary:#22c55e; --secondary-container:#bbf7d0; --tertiary:#84cc16; --tertiary-container:#ecfccb; --on-tertiary-container:#365314; --shadow:0 1px 3px 1px rgba(22,163,74,0.15),0 1px 2px 0 rgba(22,163,74,0.3); }
+    :root.green.dark { --accent:#15803d; --accent-hover:#16a34a; --accent-soft:#14532d; --success:#22c55e; --success-soft:#14532d; --error:#f87171; --error-soft:#450a0a; --warn:#fb923c; --warn-soft:#431407; --debug:#15803d; --debug-soft:#14532d; --primary-container:#14532d; --on-primary-container:#dcfce7; --secondary:#16a34a; --secondary-container:#14532d; --tertiary:#65a30d; --tertiary-container:#365314; --on-tertiary-container:#ecfccb; }
+    :root.orange { --accent:#f97316; --accent-hover:#ea580c; --accent-soft:#ffedd5; --success:#16a34a; --success-soft:#dcfce7; --error:#dc2626; --error-soft:#fef2f2; --warn:#f97316; --warn-soft:#ffedd5; --debug:#f97316; --debug-soft:#ffedd5; --primary-container:#ffedd5; --on-primary-container:#7c2d12; --secondary:#fb923c; --secondary-container:#fed7aa; --tertiary:#f59e0b; --tertiary-container:#fef3c7; --on-tertiary-container:#78350f; --shadow:0 1px 3px 1px rgba(249,115,22,0.15),0 1px 2px 0 rgba(249,115,22,0.3); }
+    :root.orange.dark { --accent:#ea580c; --accent-hover:#f97316; --accent-soft:#7c2d12; --success:#22c55e; --success-soft:#14532d; --error:#f87171; --error-soft:#450a0a; --warn:#fb923c; --warn-soft:#431407; --debug:#ea580c; --debug-soft:#7c2d12; --primary-container:#7c2d12; --on-primary-container:#ffedd5; --secondary:#f97316; --secondary-container:#7c2d12; --tertiary:#d97706; --tertiary-container:#78350f; --on-tertiary-container:#fef3c7; }
+    :root.rose { --accent:#dc2626; --accent-hover:#b91c1c; --accent-soft:#fef2f2; --success:#16a34a; --success-soft:#dcfce7; --error:#dc2626; --error-soft:#fef2f2; --warn:#f97316; --warn-soft:#fff7ed; --debug:#dc2626; --debug-soft:#fef2f2; --primary-container:#fef2f2; --on-primary-container:#7f1d1d; --secondary:#ef4444; --secondary-container:#fecaca; --tertiary:#f43f5e; --tertiary-container:#ffe4e6; --on-tertiary-container:#881337; --shadow:0 1px 3px 1px rgba(220,38,38,0.15),0 1px 2px 0 rgba(220,38,38,0.3); }
+    :root.rose.dark { --accent:#b91c1c; --accent-hover:#dc2626; --accent-soft:#7f1d1d; --success:#22c55e; --success-soft:#14532d; --error:#f87171; --error-soft:#450a0a; --warn:#fb923c; --warn-soft:#431407; --debug:#b91c1c; --debug-soft:#7f1d1d; --primary-container:#7f1d1d; --on-primary-container:#fef2f2; --secondary:#dc2626; --secondary-container:#7f1d1d; --tertiary:#e11d48; --tertiary-container:#881337; --on-tertiary-container:#ffe4e6; }
+
+    /* explicit dark class */
+    :root.dark {
+      --bg: #111318; --card: #111318; --border: #22252e;
+      --text: #e5e7eb; --text2: #9ca3af; --text3: #6b7280;
+      --accent: #3f37c9; --accent-hover: #4f46e5; --accent-soft: #1e1b4b;
+      --success: #22c55e; --success-soft: #14532d;
+      --error: #f87171; --error-soft: #450a0a;
+      --warn: #fb923c; --warn-soft: #431407;
+      --debug: #3f37c9; --debug-soft: #1e1b4b;
+      --input-bg: transparent; --badge-bg: #22252e; --badge-border: #333845; --badge-text: #9ca3af;
+      --shadow: 0 1px 3px 1px rgba(0,0,0,0.4), 0 1px 2px 0 rgba(0,0,0,0.6);
+      --overlay: rgba(0,0,0,0.6);
+      --primary-container: #312e81; --on-primary-container: #eef2ff;
+      --secondary: #524ee0; --secondary-container: #312e81;
+      --surface-variant: #22252e; --on-surface-variant: #9ca3af;
+      --outline: #6b7280; --outline-variant: #22252e;
+      --tertiary: #7c3aed; --tertiary-container: #581c87; --on-tertiary-container: #ede9fe;
+      --inverse-surface: #e5e7eb; --inverse-foreground: #111318;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; padding-top: 36px; }
+    html { border-radius: 12px; overflow: hidden; }
+    body { font-family: 'Google Sans', 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; padding-top: 36px; border: 1px solid var(--border); border-radius: 12px; min-height: 100vh; box-shadow: 0 4px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.05); }
 
     /* ── Custom Title Bar ── */
     #titlebar {
       position: fixed; top: 0; left: 0; right: 0; height: 36px;
       display: flex; align-items: center;
       background: var(--bg); border-bottom: 1px solid var(--border);
+      border-radius: 12px 12px 0 0;
       z-index: 9999; user-select: none;
     }
     #titlebar .titlebar-drag {
@@ -72,18 +121,25 @@
     #viewConnect.active { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 36px); }
     #viewConnect .header { width: 100%; max-width: 420px; }
     #viewConnect .card { width: 100%; max-width: 420px; }
-    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    #viewDashboard.active { display: flex; flex-direction: column; height: calc(100vh - 36px); padding: 16px 20px; overflow: hidden; }
+    #viewDashboard .card { flex: 1; display: flex; flex-direction: column; min-height: 0; margin-bottom: 0; }
+    #viewDashboard .card-body-scroll { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-shrink: 0; }
     .header-left { display: flex; align-items: center; gap: 10px; }
     .header-left svg { color: var(--accent); flex-shrink: 0; }
     .header-left h1 { font-size: 17px; font-weight: 600; }
     .header-actions { display: flex; gap: 6px; align-items: center; }
-    .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text2); cursor: pointer; transition: all 0.15s, transform 0.1s; }
+    .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--outline-variant); border-radius: 50%; background: var(--card); color: var(--text2); cursor: pointer; transition: all 0.15s, transform 0.1s; }
     .icon-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
     .icon-btn:active { transform: scale(0.88); }
     .icon-btn.danger:hover { background: var(--error-soft); border-color: var(--error); color: var(--error); }
     .icon-btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
-    .card-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+    .icon-btn.pulse-success { animation: iconPulseSuccess 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+    @keyframes iconPulseSuccess { 0% { transform: scale(1); background: var(--card); border-color: var(--outline-variant); color: var(--text2); } 50% { transform: scale(1.25); background: var(--success-soft); border-color: var(--success); color: var(--success); } 100% { transform: scale(1); background: var(--card); border-color: var(--outline-variant); color: var(--text2); } }
+    .icon-btn.shake-danger { animation: iconShakeDanger 0.45s cubic-bezier(0.36,0.07,0.19,0.97); }
+    @keyframes iconShakeDanger { 0% { transform: translateX(0); background: var(--card); border-color: var(--outline-variant); color: var(--text2); } 15% { transform: translateX(-3px); background: var(--error-soft); border-color: var(--error); color: var(--error); } 30% { transform: translateX(3px); background: var(--error-soft); border-color: var(--error); color: var(--error); } 45% { transform: translateX(-2px); background: var(--error-soft); border-color: var(--error); color: var(--error); } 60% { transform: translateX(2px); background: var(--error-soft); border-color: var(--error); color: var(--error); } 75% { transform: translateX(-1px); background: var(--error-soft); border-color: var(--error); color: var(--error); } 100% { transform: translateX(0); background: var(--card); border-color: var(--outline-variant); color: var(--text2); } }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
     .card-header-left { display: flex; align-items: center; gap: 8px; }
     .card-header-left svg { color: var(--text2); flex-shrink: 0; }
     .card-header h2 { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -92,12 +148,12 @@
     .field:last-child { margin-bottom: 0; }
     .field label { flex-shrink: 0; width: 72px; font-size: 13px; font-weight: 500; color: var(--text2); text-align: right; }
     .field .fv { flex: 1; font-size: 13px; color: var(--text); }
-    .field input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; color: var(--text); background: var(--input-bg); }
-    .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+    .field input { flex: 1; padding: 8px 12px; border: 1px solid var(--outline-variant); border-radius: 12px; font-size: 13px; color: var(--text); background: var(--input-bg); transition: border-color 0.2s, box-shadow 0.2s; }
+    .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
     .field input::placeholder { color: var(--text3); }
     .uuid-row { display: flex; align-items: center; gap: 8px; flex: 1; }
-    .uuid-badge { display: inline-flex; align-items: center; font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 11.5px; color: var(--badge-text); background: var(--badge-bg); border: 1px solid var(--badge-border); border-radius: 6px; padding: 4px 10px; word-break: break-all; flex: 1; }
-    .copy-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text2); cursor: pointer; flex-shrink: 0; transition: all 0.15s, transform 0.1s; }
+    .uuid-badge { display: inline-flex; align-items: center; font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 11.5px; color: var(--badge-text); background: var(--surface-variant); border: 1px solid var(--outline-variant); border-radius: 8px; padding: 4px 12px; word-break: break-all; flex: 1; }
+    .copy-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid var(--outline-variant); border-radius: 50%; background: transparent; color: var(--text2); cursor: pointer; flex-shrink: 0; transition: all 0.15s, transform 0.1s; }
     .copy-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
     .copy-btn:active { transform: scale(0.88); }
     .copy-btn.copied { background: var(--success-soft); border-color: var(--success); color: var(--success); animation: checkMark 0.35s ease; }
@@ -129,59 +185,92 @@
     .curl-block .str { color: var(--success); }
     .curl-block .flag { color: var(--warn); }
     .curl-block .val { color: var(--error); }
-    .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--accent); color: #fff; border: none; padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s, transform 0.1s; width: 100%; }
-    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--accent); color: #fff; border: none; padding: 10px 24px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s, transform 0.1s, box-shadow 0.15s; width: 100%; box-shadow: var(--shadow); }
+    .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 4px 8px 3px rgba(91,33,182,0.15); }
     .btn-primary:active { transform: scale(0.97); }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
     /* ── Search & Filter Bar ── */
     .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
-    .search-box { flex: 1; min-width: 180px; display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); }
+    .search-box { flex: 1; min-width: 180px; display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--outline-variant); border-radius: 28px; background: var(--input-bg); }
     .search-box input { flex: 1; border: none; outline: none; background: transparent; font-size: 13px; color: var(--text); }
     .search-box input::placeholder { color: var(--text3); }
     .search-box svg { color: var(--text3); flex-shrink: 0; }
     .filter-chips { display: flex; gap: 4px; }
-    .chip { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid var(--border); background: var(--card); color: var(--text2); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-    .chip:hover { border-color: var(--accent); color: var(--accent); }
+    .chip { padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 500; border: 1px solid var(--outline); background: transparent; color: var(--text2); cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+    .chip:hover { background: var(--accent-soft); color: var(--accent); }
     .chip:active { transform: scale(0.93); }
-    .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); animation: badgePop 0.25s ease; }
+    .chip.active { background: var(--secondary-container); color: var(--on-primary-container); border-color: transparent; animation: badgePop 0.25s ease; }
 
     /* ── Unread Badge ── */
-    .unread-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--error); color: #fff; font-size: 10px; font-weight: 700; margin-left: 6px; }
+    .unread-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 6px; border-radius: 10px; background: var(--error); color: #fff; font-size: 10px; font-weight: 700; margin-left: 6px; }
     .unread-badge.pop { animation: badgePop 0.3s ease; }
 
     /* ── Message List (Virtual Scroll) ── */
-    .msg-scroll { max-height: calc(7 * 80px); overflow-y: auto; position: relative; }
+    .msg-scroll { flex: 1; overflow-y: auto; position: relative; min-height: 0; }
     .msg-empty { padding: 48px 32px; text-align: center; color: var(--text3); font-size: 14px; }
-    .msg-empty-icon { font-size: 40px; margin-bottom: 12px; }
+    .msg-empty-icon { margin-bottom: 12px; color: var(--text3); opacity: 0.5; }
+    .msg-empty-icon svg { width: 48px; height: 48px; }
     .msg-viewport { position: relative; width: 100%; }
-    .msg-card { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s, transform 0.15s, box-shadow 0.15s; position: absolute; left: 0; right: 0; }
-    .msg-card:hover { background: var(--accent-soft); transform: translateX(2px); }
+    .msg-card { display: flex; align-items: center; gap: 10px; padding: 4px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; min-height: 100%; box-sizing: border-box; }
+    .msg-card:hover { background: var(--accent-soft); }
     .msg-card.unread { background: var(--accent-soft); }
     .msg-card.selected { background: var(--accent-soft); border-left: 3px solid var(--accent); }
     .msg-card.msg-new { animation: msgFadeIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards; }
-    .msg-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+    .msg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .msg-dot.info { background: var(--accent); }
     .msg-dot.warning { background: var(--warn); }
     .msg-dot.error { background: var(--error); }
     .msg-dot.critical { background: var(--error); }
     .msg-dot.debug { background: var(--debug); }
+    .msg-avatar { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 2px solid; overflow: hidden; font-size: 13px; font-weight: 600; }
+    .msg-avatar.info { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+    .msg-avatar.warning { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
+    .msg-avatar.error { border-color: var(--error); color: var(--error); background: var(--error-soft); }
+    .msg-avatar.critical { border-color: var(--error); color: var(--error); background: var(--error-soft); }
+    .msg-avatar.debug { border-color: var(--debug); color: var(--debug); background: var(--debug-soft); }
+    .msg-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .msg-avatar .avatar-bell { opacity: 0.7; }
+    .msg-avatar .avatar-text { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: -0.02em; }
+
+    /* ── Topic View ── */
+    .topic-card { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
+    .topic-card:hover { background: var(--accent-soft); }
+    .topic-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); color: var(--accent); overflow: hidden; }
+    .topic-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .topic-avatar .topic-initials { font-size: 14px; font-weight: 700; }
+    .topic-avatar .topic-bell-icon { opacity: 0.6; }
+    .topic-body { flex: 1; min-width: 0; }
+    .topic-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+    .topic-name { font-size: 14px; font-weight: 600; color: var(--text); }
+    .topic-count-badge { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 10px; background: var(--surface-variant); color: var(--on-surface-variant); }
+    .topic-unread-badge { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; background: var(--error); color: #fff; }
+    .topic-preview { font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .topic-time { font-size: 11px; color: var(--text3); white-space: nowrap; flex-shrink: 0; }
+
+    /* ── Topic Detail Bar (inline) ── */
+    .topic-detail-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); color: var(--accent); overflow: hidden; flex-shrink: 0; }
+    .topic-detail-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .topic-detail-avatar .topic-initials { font-size: 11px; font-weight: 700; }
     .msg-content { flex: 1; min-width: 0; }
     .msg-title-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
-    .msg-title-text { font-size: 13px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 400px; }
+    .msg-title-text { font-size: 13px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .msg-card.unread .msg-title-text { font-weight: 800; color: var(--text); }
-    .msg-body-preview { font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 500px; }
+    .msg-body-preview { font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .msg-card.unread .msg-body-preview { font-weight: 700; color: var(--text); }
-    .msg-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
-    .msg-time { font-size: 11px; color: var(--text3); }
+    .msg-meta { display: flex; align-items: center; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+    .msg-time { font-size: 11px; color: var(--text3); white-space: nowrap; }
     .msg-card.unread .msg-time { color: var(--accent); font-weight: 700; }
-    .msg-level-badge { font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; }
+    .msg-level-badge { font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+    .msg-info-col { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; min-width: 56px; }
+    .msg-info-col .msg-att-icon { font-size: 13px; }
+    .msg-tags-col { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: flex-end; flex-shrink: 0; max-width: 140px; }
     .msg-level-badge.info { background: var(--accent-soft); color: var(--accent); }
     .msg-level-badge.warning { background: var(--warn-soft); color: var(--warn); }
     .msg-level-badge.error { background: var(--error-soft); color: var(--error); }
     .msg-level-badge.critical { background: var(--error-soft); color: var(--error); }
     .msg-level-badge.debug { background: var(--debug-soft); color: var(--debug); }
-    .msg-tag { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--badge-bg); border: 1px solid var(--badge-border); color: var(--badge-text); }
+    .msg-tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--surface-variant); border: 1px solid var(--outline-variant); color: var(--on-surface-variant); }
     .msg-flags { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
     .msg-flag-icon { font-size: 15px; cursor: pointer; opacity: 0.5; transition: opacity 0.15s, transform 0.15s; padding: 2px; }
     .msg-flag-icon:hover { opacity: 1; transform: scale(1.15); }
@@ -196,26 +285,47 @@
 
     /* ── Multi-select ── */
     .msg-checkbox { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; margin-top: 4px; flex-shrink: 0; }
-    .select-bar { display: none; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--accent-soft); border-bottom: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; }
+    .select-bar { display: none; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--accent-soft); border-bottom: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; flex-shrink: 0; }
     .select-bar.visible { display: flex; animation: slideDown 0.2s cubic-bezier(0.16,1,0.3,1) forwards; }
     .select-bar-left { font-size: 13px; font-weight: 600; color: var(--accent); }
     .select-bar-actions { display: flex; gap: 6px; }
 
     /* ── Message Detail Overlay ── */
-    .detail-overlay { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 90; overflow-y: auto; }
+    .detail-overlay { display: none; position: fixed; top: 36px; left: 0; right: 0; bottom: 0; background: var(--bg); z-index: 90; overflow-y: auto; }
     .detail-overlay.open { display: block; animation: fadeIn 0.2s ease; }
     .detail-overlay.open .detail-body { animation: detailSlideIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
     .detail-header { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--card); position: sticky; top: 0; z-index: 2; }
     .detail-header h2 { font-size: 14px; font-weight: 600; flex: 1; }
+    .detail-header-actions { display: flex; gap: 4px; align-items: center; }
+    .detail-flag-btn { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.15s; display: flex; align-items: center; }
+    .detail-flag-btn:hover { color: var(--accent); background: var(--accent-soft); }
+    .detail-flag-btn.flagged { color: var(--accent); }
+    .detail-flag-btn.pop { animation: flagPop 0.35s cubic-bezier(0.34,1.56,0.64,1); }
+    @keyframes flagPop { 0% { transform: scale(1); } 40% { transform: scale(1.5) rotate(-12deg); } 70% { transform: scale(0.9); } 100% { transform: scale(1); } }
+    .detail-del-btn { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.15s; display: flex; align-items: center; }
+    .detail-del-btn:hover { color: var(--error); background: var(--error-soft); }
+    .detail-del-btn.shake { animation: delShake 0.4s cubic-bezier(0.36,0.07,0.19,0.97); }
+    @keyframes delShake { 0% { transform: translateX(0); } 15% { transform: translateX(-4px) rotate(-4deg); } 30% { transform: translateX(4px) rotate(4deg); } 45% { transform: translateX(-3px) rotate(-3deg); } 60% { transform: translateX(3px) rotate(2deg); } 75% { transform: translateX(-1px) rotate(-1deg); } 100% { transform: translateX(0) rotate(0); } }
+    .raw-toggle { font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 10px; border: 1px solid var(--outline-variant); background: transparent; color: var(--text3); cursor: pointer; transition: all 0.15s; }
+    .raw-toggle:hover { border-color: var(--accent); color: var(--accent); }
+    .raw-toggle.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
     .detail-body { max-width: 720px; margin: 0 auto; padding: 20px; }
-    .detail-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .detail-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
     .detail-title { font-size: 18px; font-weight: 700; color: var(--text); }
+    .detail-avatar { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 2px solid; overflow: hidden; }
+    .detail-avatar.info { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+    .detail-avatar.warning { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
+    .detail-avatar.error { border-color: var(--error); color: var(--error); background: var(--error-soft); }
+    .detail-avatar.critical { border-color: var(--error); color: var(--error); background: var(--error-soft); }
+    .detail-avatar.debug { border-color: var(--debug); color: var(--debug); background: var(--debug-soft); }
+    .detail-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .detail-avatar .avatar-text { font-size: 12px; font-weight: 700; text-transform: uppercase; }
     .detail-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
     .detail-time { font-size: 13px; color: var(--text2); }
-    .detail-url-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: var(--accent); cursor: pointer; background: var(--card); text-decoration: none; margin-bottom: 16px; transition: all 0.15s, transform 0.1s; }
+    .detail-url-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: 1px solid var(--outline-variant); border-radius: 12px; font-size: 12px; color: var(--accent); cursor: pointer; background: transparent; text-decoration: none; margin-bottom: 16px; transition: all 0.15s, transform 0.1s; }
     .detail-url-btn:hover { background: var(--accent-soft); border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
     .detail-url-btn:active { transform: translateY(0) scale(0.97); }
-    .detail-content-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; }
+    .detail-content-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; margin-bottom: 16px; overflow: hidden; }
     .detail-content-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; border-bottom: 1px solid var(--border); }
     .detail-content-header span { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; }
     .detail-content-body { padding: 14px; font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; word-break: break-word; }
@@ -224,8 +334,8 @@
     .detail-content-body.html-content { font-family: inherit; padding: 16px 20px; }
     .detail-section-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.05em; }
     .detail-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
-    .detail-tag { font-size: 12px; padding: 3px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-weight: 500; }
-    .detail-att-card { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; margin-bottom: 16px; transition: all 0.15s, transform 0.1s; }
+    .detail-tag { font-size: 12px; padding: 4px 14px; border-radius: 16px; background: var(--primary-container); color: var(--on-primary-container); font-weight: 500; }
+    .detail-att-card { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; cursor: pointer; margin-bottom: 16px; transition: all 0.15s, transform 0.1s; }
     .detail-att-card:hover { background: var(--accent-soft); border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
     .detail-att-card:active { transform: translateY(0) scale(0.98); }
     .detail-att-info { flex: 1; }
@@ -255,13 +365,13 @@
     .md-checkbox { margin-right: 6px; }
 
     /* ── Undo Snackbar ── */
-    .snackbar { display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 20px; border-radius: 8px; font-size: 13px; z-index: 200; box-shadow: 0 4px 16px rgba(0,0,0,0.2); align-items: center; gap: 12px; }
+    .snackbar { display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--inverse-surface); color: var(--inverse-foreground); padding: 12px 24px; border-radius: 4px; font-size: 13px; z-index: 200; box-shadow: 0 4px 16px rgba(0,0,0,0.2); align-items: center; gap: 12px; }
     .snackbar.visible { display: flex; animation: snackbarIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
     .snackbar-undo { background: none; border: none; color: var(--accent); font-weight: 700; cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 4px; }
     .snackbar-undo:hover { background: rgba(255,255,255,0.1); }
 
     /* ── Toast ── */
-    .toast { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); padding: 12px 20px; border-radius: 8px; font-size: 13px; z-index: 300; box-shadow: 0 4px 16px rgba(0,0,0,0.15); align-items: center; gap: 10px; max-width: 400px; }
+    .toast { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); padding: 12px 20px; border-radius: 12px; font-size: 13px; z-index: 300; box-shadow: 0 4px 16px rgba(0,0,0,0.15); align-items: center; gap: 10px; max-width: 400px; }
     .toast.visible { display: flex; animation: toastIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
     .toast-icon { font-size: 18px; flex-shrink: 0; }
     .toast-text { flex: 1; color: var(--text); }
@@ -274,17 +384,17 @@
     /* ── Modal ── */
     .modal-overlay { display: none; position: fixed; inset: 0; background: var(--overlay); z-index: 100; align-items: center; justify-content: center; opacity: 0; }
     .modal-overlay.open { display: flex; animation: fadeIn 0.2s ease forwards; }
-    .modal { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.2); width: 800px; max-width: 90vw; animation: slideUp 0.25s cubic-bezier(0.16,1,0.3,1) forwards; }
+    .modal { background: var(--card); border: 1px solid var(--border); border-radius: 28px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); width: 800px; max-width: 90vw; animation: slideUp 0.25s cubic-bezier(0.16,1,0.3,1) forwards; }
     .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }
     .modal-header h3 { font-size: 14px; font-weight: 600; }
     .modal-close { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; }
     .modal-close:hover { color: var(--text); }
     .modal-body { padding: 18px; }
     .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border); }
-    .btn-cancel { background: var(--card); color: var(--text2); border: 1px solid var(--border); padding: 7px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.15s, transform 0.1s; }
-    .btn-cancel:hover { background: var(--bg); }
+    .btn-cancel { background: transparent; color: var(--accent); border: none; padding: 10px 24px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s, transform 0.1s; }
+    .btn-cancel:hover { background: var(--accent-soft); }
     .btn-cancel:active { transform: scale(0.95); }
-    .btn-save { background: var(--accent); color: #fff; border: none; padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s, transform 0.1s; }
+    .btn-save { background: var(--accent); color: #fff; border: none; padding: 10px 24px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s, transform 0.1s; box-shadow: var(--shadow); }
     .btn-save:hover { background: var(--accent-hover); }
     .btn-save:active { transform: scale(0.95); }
     .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -306,31 +416,31 @@
     .info-value.mono { font-family: 'SF Mono','Fira Code',monospace; font-size: 11px; color: var(--text2); }
     .autostart-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; }
     .toggle-label { font-size: 13px; color: var(--text2); }
-    .toggle { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle { position: relative; display: inline-block; width: 52px; height: 26px; flex-shrink: 0; }
     .toggle input { opacity: 0; width: 0; height: 0; }
-    .toggle-slider { position: absolute; inset: 0; background: var(--border); border-radius: 22px; cursor: pointer; transition: background 0.2s; }
-    .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: transform 0.2s; }
-    .toggle input:checked + .toggle-slider { background: var(--accent); }
-    .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+    .toggle-slider { position: absolute; inset: 0; background: var(--surface-variant); border: 2px solid var(--outline); border-radius: 26px; cursor: pointer; transition: background 0.2s, border-color 0.2s; }
+    .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; bottom: 3px; background: var(--outline); border-radius: 50%; transition: transform 0.2s, background 0.2s; }
+    .toggle input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(26px); background: #fff; }
 
     /* ── Compose Modal ── */
     .compose-overlay { display: none; position: fixed; inset: 0; background: var(--overlay); z-index: 110; align-items: center; justify-content: center; opacity: 0; }
     .compose-overlay.open { display: flex; animation: fadeIn 0.2s ease forwards; }
-    .compose-modal { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.25); width: 560px; max-width: 92vw; max-height: 90vh; display: flex; flex-direction: column; animation: slideUp 0.25s cubic-bezier(0.16,1,0.3,1) forwards; }
+    .compose-modal { background: var(--card); border: 1px solid var(--border); border-radius: 28px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); width: 560px; max-width: 92vw; max-height: 90vh; display: flex; flex-direction: column; animation: slideUp 0.25s cubic-bezier(0.16,1,0.3,1) forwards; }
     .compose-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
     .compose-header h3 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
     .compose-header h3 svg { color: var(--accent); }
     .compose-body { padding: 16px 18px; overflow-y: auto; flex: 1; }
     .compose-field { margin-bottom: 14px; }
     .compose-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
-    .compose-field input, .compose-field textarea, .compose-field select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; color: var(--text); background: var(--input-bg); font-family: inherit; }
-    .compose-field input:focus, .compose-field textarea:focus, .compose-field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+    .compose-field input, .compose-field textarea, .compose-field select { width: 100%; padding: 10px 14px; border: 1px solid var(--outline-variant); border-radius: 12px; font-size: 13px; color: var(--text); background: var(--input-bg); font-family: inherit; transition: border-color 0.2s, box-shadow 0.2s; }
+    .compose-field input:focus, .compose-field textarea:focus, .compose-field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
     .compose-field textarea { resize: vertical; min-height: 100px; line-height: 1.5; }
     .compose-field select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
     .compose-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .att-url-row { display: flex; gap: 6px; align-items: center; }
     .att-url-row input { flex: 1; min-width: 0; }
-    .btn-icon-sm { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text2); cursor: pointer; flex-shrink: 0; transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s; }
+    .btn-icon-sm { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--outline-variant); border-radius: 50%; background: transparent; color: var(--text2); cursor: pointer; flex-shrink: 0; transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s; }
     .btn-icon-sm:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
     .btn-icon-sm:active { transform: scale(0.9); }
     .btn-icon-sm.uploading { opacity: 0.6; pointer-events: none; color: var(--accent); border-color: var(--accent); }
@@ -341,9 +451,9 @@
     .compose-advanced-toggle svg { transition: transform 0.2s; }
     .compose-advanced-toggle.open svg { transform: rotate(180deg); }
     .compose-advanced-body { padding-top: 2px; }
-    .compose-tags-input { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); min-height: 36px; cursor: text; }
-    .compose-tags-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-    .compose-tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 500; }
+    .compose-tags-input { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 12px; border: 1px solid var(--outline-variant); border-radius: 12px; background: var(--input-bg); min-height: 40px; cursor: text; transition: border-color 0.2s, box-shadow 0.2s; }
+    .compose-tags-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .compose-tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 16px; background: var(--primary-container); color: var(--on-primary-container); font-size: 12px; font-weight: 500; }
     .compose-tag-chip button { background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; font-size: 14px; line-height: 1; opacity: 0.7; }
     .compose-tag-chip button:hover { opacity: 1; }
     .compose-tags-input input { flex: 1; min-width: 80px; border: none; outline: none; background: transparent; font-size: 13px; color: var(--text); padding: 2px 0; }
@@ -354,16 +464,29 @@
     .compose-status.error { color: var(--error); }
     .compose-spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .create-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; transition: all 0.15s; white-space: nowrap; font-size: 13px; font-weight: 500; }
-    .create-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .create-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 20px; border: none; border-radius: 20px; background: var(--accent); color: #fff; cursor: pointer; transition: all 0.15s; white-space: nowrap; font-size: 13px; font-weight: 500; box-shadow: var(--shadow); }
+    .create-btn:hover { background: var(--accent-hover); box-shadow: 0 4px 8px 3px rgba(91,33,182,0.15); }
 
     /* ── Channel Badges ── */
     .compose-top-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 14px; }
     .compose-top-row .compose-field { margin-bottom: 0; }
     .channel-badges { display: flex; gap: 6px; padding: 3px 0; }
-    .channel-badge { padding: 5px 14px; border-radius: 14px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); background: var(--card); color: var(--text2); cursor: pointer; transition: all 0.15s; white-space: nowrap; user-select: none; }
-    .channel-badge:hover { border-color: var(--accent); color: var(--accent); }
-    .channel-badge.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .channel-badge { padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 500; border: 1px solid var(--outline); background: transparent; color: var(--text2); cursor: pointer; transition: all 0.2s; white-space: nowrap; user-select: none; }
+    .channel-badge:hover { background: var(--accent-soft); color: var(--accent); }
+    .channel-badge.active { background: var(--secondary-container); color: var(--on-primary-container); border-color: transparent; }
+
+    /* ── Appearance Selectors ── */
+    .appearance-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; }
+    .appearance-label { font-size: 13px; color: var(--text2); }
+    .appearance-select { padding: 6px 12px; border: 1px solid var(--outline-variant); border-radius: 12px; background: transparent; color: var(--text); font-size: 13px; font-family: inherit; cursor: pointer; outline: none; transition: border-color 0.2s; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2379747e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; min-width: 120px; }
+    .appearance-select:focus { border-color: var(--accent); }
+    .appearance-select option { background: var(--card); color: var(--text); }
+    .section-divider { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+    .color-swatches { display: flex; gap: 8px; align-items: center; }
+    .color-swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s; position: relative; }
+    .color-swatch:hover { transform: scale(1.15); }
+    .color-swatch.active { border-color: var(--text); box-shadow: 0 0 0 2px var(--bg); }
+    .color-swatch.active::after { content: '✓'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 14px; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
   </style>
 </head>
 <body>
@@ -426,6 +549,9 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span id="t-compose-btn">New Message</span>
         </button>
+        <button class="icon-btn" id="viewToggleBtn" title="Topic View">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>
+        </button>
         <button class="icon-btn" id="editConfigBtn" title="Settings">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
@@ -457,24 +583,35 @@
           <button class="icon-btn" id="cancelSelectBtn" title="Cancel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
       </div>
-      <!-- Toolbar: search + filter -->
-      <div style="padding:10px 14px;border-bottom:1px solid var(--border);">
-        <div class="toolbar">
-          <div class="search-box">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" id="searchInput" placeholder="Search messages...">
-          </div>
-          <div class="filter-chips">
-            <span class="chip active" data-filter="all" id="t-filter-all">All</span>
-            <span class="chip" data-filter="unread" id="t-filter-unread">Unread</span>
-            <span class="chip" data-filter="read" id="t-filter-read">Read</span>
-            <span class="chip" data-filter="flagged" id="t-filter-flagged">Flagged</span>
+      <!-- Toolbar + Message List (scrollable area) -->
+      <div class="card-body-scroll">
+        <!-- Toolbar: search + filter -->
+        <div id="toolbarArea" style="padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;">
+          <div class="toolbar">
+            <div class="search-box">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="searchInput" placeholder="Search messages...">
+            </div>
+            <div class="filter-chips">
+              <span class="chip active" data-filter="all" id="t-filter-all">All</span>
+              <span class="chip" data-filter="unread" id="t-filter-unread">Unread</span>
+              <span class="chip" data-filter="read" id="t-filter-read">Read</span>
+              <span class="chip" data-filter="flagged" id="t-filter-flagged">Flagged</span>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="msg-scroll" id="msgListBody">
-        <div class="msg-viewport" id="msgViewport">
-          <div class="msg-empty" id="t-no-messages"><div class="msg-empty-icon">📭</div>No messages received yet.</div>
+        <!-- Topic detail header (replaces toolbar when viewing a topic) -->
+        <div id="topicDetailBar" style="display:none;padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0;align-items:center;gap:10px;">
+          <button class="icon-btn" id="topicDetailBackBtn" title="Back" style="flex-shrink:0">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div id="topicDetailAvatar" class="topic-detail-avatar"></div>
+          <span id="topicDetailTitle" style="font-size:14px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        </div>
+        <div class="msg-scroll" id="msgListBody">
+          <div class="msg-viewport" id="msgViewport">
+            <div class="msg-empty" id="t-no-messages"><div class="msg-empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8h20"/><path d="M10 12h4"/></svg></div>No messages received yet.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -487,12 +624,18 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
       </button>
       <h2 id="t-detail-title">Message Detail</h2>
-      <button class="copy-btn" id="detailCopyTitleBtn" title="Copy Title">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-      </button>
+      <div class="detail-header-actions">
+        <button class="detail-flag-btn" id="detailFlagBtn" title="Flag">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+        </button>
+        <button class="detail-del-btn" id="detailDelBtn" title="Delete">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
     </div>
     <div class="detail-body" id="detailContent"></div>
   </div>
+
 
   <!-- ═══════ SETTINGS MODAL ═══════ -->
   <div class="modal-overlay" id="configModal">
@@ -540,6 +683,35 @@
           <div class="autostart-row">
             <label class="toggle-label" id="t-auto-download-images">Auto-download images under 5MB</label>
             <label class="toggle"><input type="checkbox" id="autoDownloadImagesToggle"><span class="toggle-slider"></span></label>
+          </div>
+          <hr class="section-divider">
+          <div class="appearance-row">
+            <label class="appearance-label" id="t-language-label">Language</label>
+            <select class="appearance-select" id="languageSelect">
+              <option value="en">English</option>
+              <option value="zh">中文</option>
+              <option value="ja">日本語</option>
+              <option value="ko">한국어</option>
+            </select>
+          </div>
+          <div class="appearance-row">
+            <label class="appearance-label" id="t-theme-label">Theme</label>
+            <select class="appearance-select" id="themeSelect">
+              <option value="system" id="t-theme-system">System</option>
+              <option value="light" id="t-theme-light">Light</option>
+              <option value="dark" id="t-theme-dark">Dark</option>
+            </select>
+          </div>
+          <div class="appearance-row">
+            <label class="appearance-label" id="t-color-scheme-label">Color</label>
+            <div class="color-swatches" id="colorSwatches">
+              <button class="color-swatch active" data-scheme="purple" style="background:#5b21b6" title="Purple"></button>
+              <button class="color-swatch" data-scheme="blue" style="background:#1565c0" title="Blue"></button>
+              <button class="color-swatch" data-scheme="teal" style="background:#00796b" title="Teal"></button>
+              <button class="color-swatch" data-scheme="green" style="background:#2e7d32" title="Green"></button>
+              <button class="color-swatch" data-scheme="orange" style="background:#e65100" title="Orange"></button>
+              <button class="color-swatch" data-scheme="rose" style="background:#ad1457" title="Rose"></button>
+            </div>
           </div>
         </div>
       </div>
@@ -775,13 +947,34 @@ const invoke = window.__TAURI_INTERNALS__.invoke;
 
 /* ── i18n ── */
 const I18N = {
-  en: { serverConfig:'Server Configuration',clientInfo:'Client Info',system:'System',os:'OS',arch:'Arch',de:'DE',name:'Name',username:'Username',connectBtn:'Connect',logout:'Logout',connecting:'Connecting...',connected:'Connected',disconnected:'Disconnected',lastPoll:'Last Poll',messages:'Messages',noMessages:'No messages yet.',noMessagesUnread:'No unread messages.',noMessagesRead:'No read messages.',noMessagesFlagged:'No flagged messages.',noMessagesSearch:'No messages match your search.',editConfig:'Settings',saveBtn:'Save & Reconnect',saveDeviceBtn:'Save',saving:'Saving...',saved:'Saved!',reconnected:'Reconnected!',cancel:'Cancel',status:'Status',copyUuid:'Copy UUID',copied:'Copied!',error:'Error',clearAll:'Clear All',clearConfirm:'Delete all messages?',deleteConfirmTitle:'Confirm Delete',markAllRead:'Mark All Read',backupRestore:'Backup & Restore',backup:'Backup',restore:'Restore',export:'Export Messages',backupSuccess:'Backup saved successfully',restoreConfirm:'Restore from backup? This will replace all current messages.',restoreSuccess:'Restored {count} messages',restoreFailed:'Restore failed',exportSuccess:'Exported to {format}',server:'Server',quickSend:'Quick Send',copyCurl:'Copy',tabServer:'Server',tabSystem:'System',tabData:'Data',tabTools:'Tools',appVersion:'App Version',configFile:'Config File',messagesFile:'Messages File',autostart:'Launch on startup',autoDownloadImages:'Auto-download images under 5MB',settings:'Settings',close:'Close',priority:'Pri',tags:'Tags',format:'Fmt',search:'Search',filterAll:'All',filterUnread:'Unread',filterRead:'Read',filterFlagged:'Flagged',untitled:'Untitled',msgDetail:'Message Detail',msgDeleted:'Message deleted',undo:'Undo',selected:'selected',flag:'Flag',unflag:'Unflag',delete:'Delete',copy:'Copy',copyTitle:'Copy title',download:'Download',justNow:'just now',minAgo:'min ago',hrAgo:'hr ago',daysAgo:'days ago',noUrl:'No download URL',composeTitle:'New Message',composeChannel:'Channel',composeFormat:'Format',composeTo:'To',composeToHint:'Push: client UUID or __broadcast__. Email: recipient address.',composeSubject:'Subject',composeBody:'Body',composePriority:'Priority',composeUrl:'URL',composeTags:'Tags',composeAttachment:'Attachment',composeSend:'Send',composeSending:'Sending...',composeSent:'Message sent!',composeTagHint:'Type tag and press Enter',composeAttHint:'URL to attachment file',composePriHint:'0 = normal, higher = more urgent',quickSendMsg:'Quick send a message',quickSendTitle:'Quick Send',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'Run & Send',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'Run & Send',composeAdvanced:'Advanced',composeUploadFile:'Upload file',qsNoApiKey:'No API key configured. Create one in web dashboard: Settings → API Keys.',apiKey:'API Key',offlineTitle:'Connection Lost',offlineMessage:'Unable to connect to the server. You can switch account or continue in offline mode.',offlineSwitch:'Switch Account',offlineMode:'Offline Mode',offlineStatus:'Offline' },
-  zh: { serverConfig:'服务器配置',clientInfo:'客户端信息',system:'系统',os:'系统',arch:'架构',de:'桌面环境',name:'名称',username:'用户名',connectBtn:'连接',logout:'退出登录',connecting:'连接中...',connected:'已连接',disconnected:'已断开',lastPoll:'上次轮询',messages:'消息记录',noMessages:'暂无消息。',noMessagesUnread:'没有未读消息。',noMessagesRead:'没有已读消息。',noMessagesFlagged:'没有已标记消息。',noMessagesSearch:'没有匹配的消息。',editConfig:'设置',saveBtn:'保存并重连',saveDeviceBtn:'保存',saving:'保存中...',saved:'已保存！',reconnected:'已重连！',cancel:'取消',status:'状态',copyUuid:'复制 UUID',copied:'已复制！',error:'错误',clearAll:'清空',clearConfirm:'确定删除所有消息？',deleteConfirmTitle:'确认删除',markAllRead:'全部已读',backupRestore:'备份与恢复',backup:'备份',restore:'恢复',export:'导出消息',backupSuccess:'备份保存成功',restoreConfirm:'从备份恢复？这将替换所有当前消息。',restoreSuccess:'已恢复 {count} 条消息',restoreFailed:'恢复失败',exportSuccess:'已导出为 {format}',server:'服务器',quickSend:'快速发送',copyCurl:'复制',tabServer:'服务器',tabSystem:'系统',tabData:'数据',tabTools:'工具',appVersion:'应用版本',configFile:'配置文件',messagesFile:'消息文件',autostart:'开机自启动',autoDownloadImages:'自动下载5MB以内的图片',settings:'设置',close:'关闭',priority:'优先级',tags:'标签',format:'格式',search:'搜索',filterAll:'全部',filterUnread:'未读',filterRead:'已读',filterFlagged:'已标记',untitled:'无标题',msgDetail:'消息详情',msgDeleted:'消息已删除',undo:'撤销',selected:'已选择',flag:'标记',unflag:'取消标记',delete:'删除',copy:'复制',copyTitle:'复制标题',download:'下载',justNow:'刚刚',minAgo:'分钟前',hrAgo:'小时前',daysAgo:'天前',noUrl:'无下载链接',composeTitle:'新建消息',composeChannel:'通道',composeFormat:'格式',composeTo:'接收方',composeToHint:'Push: 客户端UUID或__broadcast__。Email: 收件人邮箱。',composeSubject:'标题',composeBody:'正文',composePriority:'优先级',composeUrl:'链接',composeTags:'标签',composeAttachment:'附件',composeSend:'发送',composeSending:'发送中...',composeSent:'消息已发送！',composeTagHint:'输入标签后按回车',composeAttHint:'附件文件URL',composePriHint:'0 = 普通，值越大越紧急',quickSendMsg:'快速发送消息',quickSendTitle:'快速发送',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'执行并发送',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'执行并发送',composeAdvanced:'高级选项',composeUploadFile:'上传文件',qsNoApiKey:'未配置 API Key。请在 Web 管理后台创建：设置 → API Keys。',apiKey:'API Key',offlineTitle:'连接断开',offlineMessage:'无法连接到服务器。您可以切换账号或进入离线模式。',offlineSwitch:'切换账号',offlineMode:'离线模式',offlineStatus:'离线' },
-  ja: { serverConfig:'サーバー設定',clientInfo:'クライアント情報',system:'システム',os:'OS',arch:'アーキテクチャ',de:'デスクトップ',name:'名前',username:'ユーザー名',connectBtn:'接続',logout:'ログアウト',connecting:'接続中...',connected:'接続済み',disconnected:'切断',lastPoll:'最終ポーリング',messages:'メッセージ',noMessages:'メッセージはまだありません。',noMessagesUnread:'未読メッセージはありません。',noMessagesRead:'既読メッセージはありません。',noMessagesFlagged:'フラグ付きメッセージはありません。',noMessagesSearch:'一致するメッセージがありません。',editConfig:'設定',saveBtn:'保存して再接続',saveDeviceBtn:'保存',saving:'保存中...',saved:'保存済み！',reconnected:'再接続済み！',cancel:'キャンセル',status:'ステータス',copyUuid:'UUID をコピー',copied:'コピーしました！',error:'エラー',clearAll:'すべて削除',clearConfirm:'すべてのメッセージを削除しますか？',deleteConfirmTitle:'削除の確認',markAllRead:'すべて既読にする',backupRestore:'バックアップと復元',backup:'バックアップ',restore:'復元',export:'メッセージをエクスポート',backupSuccess:'バックアップを保存しました',restoreConfirm:'バックアップから復元しますか？現在のすべてのメッセージが置き換えられます。',restoreSuccess:'{count} 件のメッセージを復元しました',restoreFailed:'復元に失敗しました',exportSuccess:'{format} にエクスポートしました',server:'サーバー',quickSend:'クイック送信',copyCurl:'コピー',tabServer:'サーバー',tabSystem:'システム',tabData:'データ',tabTools:'ツール',appVersion:'アプリバージョン',configFile:'設定ファイル',messagesFile:'メッセージファイル',autostart:'起動時に自動開始',autoDownloadImages:'5MB未満の画像を自動ダウンロード',settings:'設定',close:'閉じる',priority:'優先度',tags:'タグ',format:'フォーマット',search:'検索',filterAll:'すべて',filterUnread:'未読',filterRead:'既読',filterFlagged:'フラグ',untitled:'無題',msgDetail:'メッセージ詳細',msgDeleted:'メッセージを削除しました',undo:'元に戻す',selected:'選択中',flag:'フラグ',unflag:'フラグ解除',delete:'削除',copy:'コピー',copyTitle:'タイトルをコピー',download:'ダウンロード',justNow:'たった今',minAgo:'分前',hrAgo:'時間前',daysAgo:'日前',noUrl:'ダウンロードURLなし',composeTitle:'新規メッセージ',composeChannel:'チャンネル',composeFormat:'フォーマット',composeTo:'宛先',composeToHint:'Push: クライアントUUIDまたは__broadcast__。Email: 宛先メールアドレス。',composeSubject:'件名',composeBody:'本文',composePriority:'優先度',composeUrl:'URL',composeTags:'タグ',composeAttachment:'添付ファイル',composeSend:'送信',composeSending:'送信中...',composeSent:'メッセージを送信しました！',composeTagHint:'タグを入力してEnter',composeAttHint:'添付ファイルのURL',composePriHint:'0 = 通常、高いほど緊急',quickSendMsg:'メッセージを送信',quickSendTitle:'クイック送信',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'実行して送信',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'実行して送信',composeAdvanced:'詳細設定',composeUploadFile:'ファイルをアップロード',offlineTitle:'接続切断',offlineMessage:'サーバーに接続できません。アカウントを切り替えるか、オフラインモードで続行できます。',offlineSwitch:'アカウント切替',offlineMode:'オフラインモード',offlineStatus:'オフライン' },
-  ko: { serverConfig:'서버 설정',clientInfo:'클라이언트 정보',system:'시스템',os:'OS',arch:'아키텍처',de:'데스크톱',name:'이름',username:'사용자 이름',connectBtn:'연결',logout:'로그아웃',connecting:'연결 중...',connected:'연결됨',disconnected:'연결 끊김',lastPoll:'마지막 폴링',messages:'메시지',noMessages:'수신된 메시지가 없습니다.',noMessagesUnread:'읽지 않은 메시지가 없습니다.',noMessagesRead:'읽은 메시지가 없습니다.',noMessagesFlagged:'플래그된 메시지가 없습니다.',noMessagesSearch:'일치하는 메시지가 없습니다.',editConfig:'설정',saveBtn:'저장 후 재연결',saveDeviceBtn:'저장',saving:'저장 중...',saved:'저장 완료！',reconnected:'재연결 완료！',cancel:'취소',status:'상태',copyUuid:'UUID 복사',copied:'복사됨！',error:'오류',clearAll:'모두 삭제',clearConfirm:'모든 메시지를 삭제하시겠습니까?',deleteConfirmTitle:'삭제 확인',markAllRead:'모두 읽음으로 표시',backupRestore:'백업 및 복원',backup:'백업',restore:'복원',export:'메시지 내보내기',backupSuccess:'백업이 저장되었습니다',restoreConfirm:'백업에서 복원하시겠습니까? 현재 모든 메시지가 대체됩니다.',restoreSuccess:'{count}개의 메시지를 복원했습니다',restoreFailed:'복원에 실패했습니다',exportSuccess:'{format}(으)로 내보냈습니다',server:'서버',quickSend:'빠른 전송',copyCurl:'복사',tabServer:'서버',tabSystem:'시스템',tabData:'데이터',tabTools:'도구',appVersion:'앱 버전',configFile:'설정 파일',messagesFile:'메시지 파일',autostart:'시작 시 자동 실행',autoDownloadImages:'5MB 미만 이미지 자동 다운로드',settings:'설정',close:'닫기',priority:'우선순위',tags:'태그',format:'형식',search:'검색',filterAll:'전체',filterUnread:'안 읽음',filterRead:'읽음',filterFlagged:'플래그',untitled:'제목 없음',msgDetail:'메시지 상세',msgDeleted:'메시지 삭제됨',undo:'실행 취소',selected:'선택됨',flag:'플래그',unflag:'플래그 해제',delete:'삭제',copy:'복사',copyTitle:'제목 복사',download:'다운로드',justNow:'방금',minAgo:'분 전',hrAgo:'시간 전',daysAgo:'일 전',noUrl:'다운로드 URL 없음',composeTitle:'새 메시지',composeChannel:'채널',composeFormat:'형식',composeTo:'수신자',composeToHint:'Push: 클라이언트 UUID 또는 __broadcast__. Email: 수신자 이메일.',composeSubject:'제목',composeBody:'본문',composePriority:'우선순위',composeUrl:'URL',composeTags:'태그',composeAttachment:'첨부파일',composeSend:'보내기',composeSending:'전송 중...',composeSent:'메시지를 보냈습니다!',composeTagHint:'태그 입력 후 Enter',composeAttHint:'첨부파일 URL',composePriHint:'0 = 보통, 높을수록 긴급',quickSendMsg:'빠른 메시지 보내기',quickSendTitle:'빠른 전송',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'실행 후 전송',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'실행 후 전송',composeAdvanced:'고급 옵션',composeUploadFile:'파일 업로드',offlineTitle:'연결 끊김',offlineMessage:'서버에 연결할 수 없습니다. 계정을 전환하거나 오프라인 모드로 계속할 수 있습니다.',offlineSwitch:'계정 전환',offlineMode:'오프라인 모드',offlineStatus:'오프라인' },
+  en: { serverConfig:'Server Configuration',clientInfo:'Client Info',system:'System',os:'OS',arch:'Arch',de:'DE',name:'Name',username:'Username',connectBtn:'Connect',logout:'Logout',connecting:'Connecting...',connected:'Connected',disconnected:'Disconnected',lastPoll:'Last Poll',messages:'Messages',noMessages:'No messages yet.',noMessagesUnread:'No unread messages.',noMessagesRead:'No read messages.',noMessagesFlagged:'No flagged messages.',noMessagesSearch:'No messages match your search.',noTopic:'No Topic',topicView:'Topic View',messageView:'Message View',editConfig:'Settings',saveBtn:'Save & Reconnect',saveDeviceBtn:'Save',saving:'Saving...',saved:'Saved!',reconnected:'Reconnected!',cancel:'Cancel',status:'Status',copyUuid:'Copy UUID',copied:'Copied!',error:'Error',clearAll:'Clear All',clearConfirm:'Delete all messages?',deleteConfirmTitle:'Confirm Delete',markAllRead:'Mark All Read',backupRestore:'Backup & Restore',backup:'Backup',restore:'Restore',export:'Export Messages',backupSuccess:'Backup saved successfully',restoreConfirm:'Restore from backup? This will replace all current messages.',restoreSuccess:'Restored {count} messages',restoreFailed:'Restore failed',exportSuccess:'Exported to {format}',server:'Server',quickSend:'Quick Send',copyCurl:'Copy',tabServer:'Server',tabSystem:'System',tabData:'Data',tabTools:'Tools',appVersion:'App Version',configFile:'Config File',messagesFile:'Messages File',autostart:'Launch on startup',autoDownloadImages:'Auto-download images under 5MB',settings:'Settings',close:'Close',priority:'Pri',tags:'Tags',format:'Fmt',search:'Search',filterAll:'All',filterUnread:'Unread',filterRead:'Read',filterFlagged:'Flagged',untitled:'Untitled',msgDetail:'Message Detail',msgDeleted:'Message deleted',undo:'Undo',selected:'selected',flag:'Flag',unflag:'Unflag',delete:'Delete',copy:'Copy',copyTitle:'Copy title',download:'Download',justNow:'just now',minAgo:'min ago',hrAgo:'hr ago',daysAgo:'days ago',noUrl:'No download URL',composeTitle:'New Message',composeChannel:'Channel',composeFormat:'Format',composeTo:'To',composeToHint:'Push: client UUID or __broadcast__. Email: recipient address.',composeSubject:'Subject',composeBody:'Body',composePriority:'Priority',composeUrl:'URL',composeTags:'Tags',composeAttachment:'Attachment',composeSend:'Send',composeSending:'Sending...',composeSent:'Message sent!',composeTagHint:'Type tag and press Enter',composeAttHint:'URL to attachment file',composePriHint:'0 = normal, higher = more urgent',quickSendMsg:'Quick send a message',quickSendTitle:'Quick Send',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'Run & Send',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'Run & Send',composeAdvanced:'Advanced',composeUploadFile:'Upload file',qsNoApiKey:'No API key configured. Create one in web dashboard: Settings → API Keys.',apiKey:'API Key',offlineTitle:'Connection Lost',offlineMessage:'Unable to connect to the server. You can switch account or continue in offline mode.',offlineSwitch:'Switch Account',offlineMode:'Offline Mode',offlineStatus:'Offline',language:'Language',theme:'Theme',themeSystem:'System',themeLight:'Light',themeDark:'Dark',colorScheme:'Color',schemePurple:'Purple',schemeBlue:'Blue',schemeTeal:'Teal',schemeGreen:'Green',schemeOrange:'Orange',schemeRose:'Rose',attachment:'Attachment' },
+  zh: { serverConfig:'服务器配置',clientInfo:'客户端信息',system:'系统',os:'系统',arch:'架构',de:'桌面环境',name:'名称',username:'用户名',connectBtn:'连接',logout:'退出登录',connecting:'连接中...',connected:'已连接',disconnected:'已断开',lastPoll:'上次轮询',messages:'消息记录',noMessages:'暂无消息。',noMessagesUnread:'没有未读消息。',noMessagesRead:'没有已读消息。',noMessagesFlagged:'没有已标记消息。',noMessagesSearch:'没有匹配的消息。',noTopic:'未分类',topicView:'主题视图',messageView:'消息视图',editConfig:'设置',saveBtn:'保存并重连',saveDeviceBtn:'保存',saving:'保存中...',saved:'已保存！',reconnected:'已重连！',cancel:'取消',status:'状态',copyUuid:'复制 UUID',copied:'已复制！',error:'错误',clearAll:'清空',clearConfirm:'确定删除所有消息？',deleteConfirmTitle:'确认删除',markAllRead:'全部已读',backupRestore:'备份与恢复',backup:'备份',restore:'恢复',export:'导出消息',backupSuccess:'备份保存成功',restoreConfirm:'从备份恢复？这将替换所有当前消息。',restoreSuccess:'已恢复 {count} 条消息',restoreFailed:'恢复失败',exportSuccess:'已导出为 {format}',server:'服务器',quickSend:'快速发送',copyCurl:'复制',tabServer:'服务器',tabSystem:'系统',tabData:'数据',tabTools:'工具',appVersion:'应用版本',configFile:'配置文件',messagesFile:'消息文件',autostart:'开机自启动',autoDownloadImages:'自动下载5MB以内的图片',settings:'设置',close:'关闭',priority:'优先级',tags:'标签',format:'格式',search:'搜索',filterAll:'全部',filterUnread:'未读',filterRead:'已读',filterFlagged:'已标记',untitled:'无标题',msgDetail:'消息详情',msgDeleted:'消息已删除',undo:'撤销',selected:'已选择',flag:'标记',unflag:'取消标记',delete:'删除',copy:'复制',copyTitle:'复制标题',download:'下载',justNow:'刚刚',minAgo:'分钟前',hrAgo:'小时前',daysAgo:'天前',noUrl:'无下载链接',composeTitle:'新建消息',composeChannel:'通道',composeFormat:'格式',composeTo:'接收方',composeToHint:'Push: 客户端UUID或__broadcast__。Email: 收件人邮箱。',composeSubject:'标题',composeBody:'正文',composePriority:'优先级',composeUrl:'链接',composeTags:'标签',composeAttachment:'附件',composeSend:'发送',composeSending:'发送中...',composeSent:'消息已发送！',composeTagHint:'输入标签后按回车',composeAttHint:'附件文件URL',composePriHint:'0 = 普通，值越大越紧急',quickSendMsg:'快速发送消息',quickSendTitle:'快速发送',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'执行并发送',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'执行并发送',composeAdvanced:'高级选项',composeUploadFile:'上传文件',qsNoApiKey:'未配置 API Key。请在 Web 管理后台创建：设置 → API Keys。',apiKey:'API Key',offlineTitle:'连接断开',offlineMessage:'无法连接到服务器。您可以切换账号或进入离线模式。',offlineSwitch:'切换账号',offlineMode:'离线模式',offlineStatus:'离线',language:'语言',theme:'主题',themeSystem:'跟随系统',themeLight:'浅色',themeDark:'深色',colorScheme:'配色',schemePurple:'紫罗兰',schemeBlue:'海蓝',schemeTeal:'青碧',schemeGreen:'翠绿',schemeOrange:'暖橙',schemeRose:'玫瑰',attachment:'附件' },
+  ja: { serverConfig:'サーバー設定',clientInfo:'クライアント情報',system:'システム',os:'OS',arch:'アーキテクチャ',de:'デスクトップ',name:'名前',username:'ユーザー名',connectBtn:'接続',logout:'ログアウト',connecting:'接続中...',connected:'接続済み',disconnected:'切断',lastPoll:'最終ポーリング',messages:'メッセージ',noMessages:'メッセージはまだありません。',noMessagesUnread:'未読メッセージはありません。',noMessagesRead:'既読メッセージはありません。',noMessagesFlagged:'フラグ付きメッセージはありません。',noMessagesSearch:'一致するメッセージがありません。',noTopic:'トピックなし',topicView:'トピック表示',messageView:'メッセージ表示',editConfig:'設定',saveBtn:'保存して再接続',saveDeviceBtn:'保存',saving:'保存中...',saved:'保存済み！',reconnected:'再接続済み！',cancel:'キャンセル',status:'ステータス',copyUuid:'UUID をコピー',copied:'コピーしました！',error:'エラー',clearAll:'すべて削除',clearConfirm:'すべてのメッセージを削除しますか？',deleteConfirmTitle:'削除の確認',markAllRead:'すべて既読にする',backupRestore:'バックアップと復元',backup:'バックアップ',restore:'復元',export:'メッセージをエクスポート',backupSuccess:'バックアップを保存しました',restoreConfirm:'バックアップから復元しますか？現在のすべてのメッセージが置き換えられます。',restoreSuccess:'{count} 件のメッセージを復元しました',restoreFailed:'復元に失敗しました',exportSuccess:'{format} にエクスポートしました',server:'サーバー',quickSend:'クイック送信',copyCurl:'コピー',tabServer:'サーバー',tabSystem:'システム',tabData:'データ',tabTools:'ツール',appVersion:'アプリバージョン',configFile:'設定ファイル',messagesFile:'メッセージファイル',autostart:'起動時に自動開始',autoDownloadImages:'5MB未満の画像を自動ダウンロード',settings:'設定',close:'閉じる',priority:'優先度',tags:'タグ',format:'フォーマット',search:'検索',filterAll:'すべて',filterUnread:'未読',filterRead:'既読',filterFlagged:'フラグ',untitled:'無題',msgDetail:'メッセージ詳細',msgDeleted:'メッセージを削除しました',undo:'元に戻す',selected:'選択中',flag:'フラグ',unflag:'フラグ解除',delete:'削除',copy:'コピー',copyTitle:'タイトルをコピー',download:'ダウンロード',justNow:'たった今',minAgo:'分前',hrAgo:'時間前',daysAgo:'日前',noUrl:'ダウンロードURLなし',composeTitle:'新規メッセージ',composeChannel:'チャンネル',composeFormat:'フォーマット',composeTo:'宛先',composeToHint:'Push: クライアントUUIDまたは__broadcast__。Email: 宛先メールアドレス。',composeSubject:'件名',composeBody:'本文',composePriority:'優先度',composeUrl:'URL',composeTags:'タグ',composeAttachment:'添付ファイル',composeSend:'送信',composeSending:'送信中...',composeSent:'メッセージを送信しました！',composeTagHint:'タグを入力してEnter',composeAttHint:'添付ファイルのURL',composePriHint:'0 = 通常、高いほど緊急',quickSendMsg:'メッセージを送信',quickSendTitle:'クイック送信',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'実行して送信',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'実行して送信',composeAdvanced:'詳細設定',composeUploadFile:'ファイルをアップロード',offlineTitle:'接続切断',offlineMessage:'サーバーに接続できません。アカウントを切り替えるか、オフラインモードで続行できます。',offlineSwitch:'アカウント切替',offlineMode:'オフラインモード',offlineStatus:'オフライン',language:'言語',theme:'テーマ',themeSystem:'システム',themeLight:'ライト',themeDark:'ダーク',colorScheme:'配色',schemePurple:'パープル',schemeBlue:'ブルー',schemeTeal:'ティール',schemeGreen:'グリーン',schemeOrange:'オレンジ',schemeRose:'ローズ',attachment:'添付ファイル' },
+  ko: { serverConfig:'서버 설정',clientInfo:'클라이언트 정보',system:'시스템',os:'OS',arch:'아키텍처',de:'데스크톱',name:'이름',username:'사용자 이름',connectBtn:'연결',logout:'로그아웃',connecting:'연결 중...',connected:'연결됨',disconnected:'연결 끊김',lastPoll:'마지막 폴링',messages:'메시지',noMessages:'수신된 메시지가 없습니다.',noMessagesUnread:'읽지 않은 메시지가 없습니다.',noMessagesRead:'읽은 메시지가 없습니다.',noMessagesFlagged:'플래그된 메시지가 없습니다.',noMessagesSearch:'일치하는 메시지가 없습니다.',noTopic:'토픽 없음',topicView:'토픽 보기',messageView:'메시지 보기',editConfig:'설정',saveBtn:'저장 후 재연결',saveDeviceBtn:'저장',saving:'저장 중...',saved:'저장 완료！',reconnected:'재연결 완료！',cancel:'취소',status:'상태',copyUuid:'UUID 복사',copied:'복사됨！',error:'오류',clearAll:'모두 삭제',clearConfirm:'모든 메시지를 삭제하시겠습니까?',deleteConfirmTitle:'삭제 확인',markAllRead:'모두 읽음으로 표시',backupRestore:'백업 및 복원',backup:'백업',restore:'복원',export:'메시지 내보내기',backupSuccess:'백업이 저장되었습니다',restoreConfirm:'백업에서 복원하시겠습니까? 현재 모든 메시지가 대체됩니다.',restoreSuccess:'{count}개의 메시지를 복원했습니다',restoreFailed:'복원에 실패했습니다',exportSuccess:'{format}(으)로 내보냈습니다',server:'서버',quickSend:'빠른 전송',copyCurl:'복사',tabServer:'서버',tabSystem:'시스템',tabData:'데이터',tabTools:'도구',appVersion:'앱 버전',configFile:'설정 파일',messagesFile:'메시지 파일',autostart:'시작 시 자동 실행',autoDownloadImages:'5MB 미만 이미지 자동 다운로드',settings:'설정',close:'닫기',priority:'우선순위',tags:'태그',format:'형식',search:'검색',filterAll:'전체',filterUnread:'안 읽음',filterRead:'읽음',filterFlagged:'플래그',untitled:'제목 없음',msgDetail:'메시지 상세',msgDeleted:'메시지 삭제됨',undo:'실행 취소',selected:'선택됨',flag:'플래그',unflag:'플래그 해제',delete:'삭제',copy:'복사',copyTitle:'제목 복사',download:'다운로드',justNow:'방금',minAgo:'분 전',hrAgo:'시간 전',daysAgo:'일 전',noUrl:'다운로드 URL 없음',composeTitle:'새 메시지',composeChannel:'채널',composeFormat:'형식',composeTo:'수신자',composeToHint:'Push: 클라이언트 UUID 또는 __broadcast__. Email: 수신자 이메일.',composeSubject:'제목',composeBody:'본문',composePriority:'우선순위',composeUrl:'URL',composeTags:'태그',composeAttachment:'첨부파일',composeSend:'보내기',composeSending:'전송 중...',composeSent:'메시지를 보냈습니다!',composeTagHint:'태그 입력 후 Enter',composeAttHint:'첨부파일 URL',composePriHint:'0 = 보통, 높을수록 긴급',quickSendMsg:'빠른 메시지 보내기',quickSendTitle:'빠른 전송',quickSendCurl:'Curl',quickSendPython:'Python',quickSendRun:'실행 후 전송',toolsCurl:'Curl',toolsPython:'Python',toolsRun:'실행 후 전송',composeAdvanced:'고급 옵션',composeUploadFile:'파일 업로드',offlineTitle:'연결 끊김',offlineMessage:'서버에 연결할 수 없습니다. 계정을 전환하거나 오프라인 모드로 계속할 수 있습니다.',offlineSwitch:'계정 전환',offlineMode:'오프라인 모드',offlineStatus:'오프라인',language:'언어',theme:'테마',themeSystem:'시스템',themeLight:'라이트',themeDark:'다크',colorScheme:'색상',schemePurple:'퍼플',schemeBlue:'블루',schemeTeal:'틸',schemeGreen:'그린',schemeOrange:'오렌지',schemeRose:'로즈',attachment:'첨부파일' },
 };
-function detectLang() { const c=(navigator.language||'en').split('-')[0].toLowerCase(); return I18N[c]?c:'en'; }
-const LANG=detectLang(); const T=I18N[LANG];
+function detectLang() { const saved=localStorage.getItem('nh_lang'); if(saved&&I18N[saved]) return saved; const c=(navigator.language||'en').split('-')[0].toLowerCase(); return I18N[c]?c:'en'; }
+let LANG=detectLang(); let T=I18N[LANG];
+
+/* ── Theme ── */
+const COLOR_SCHEMES = ['purple','blue','teal','green','orange','rose'];
+function applyTheme(theme) {
+  const root = document.documentElement;
+  root.classList.remove('light','dark');
+  if (theme === 'dark') root.classList.add('dark');
+  else if (theme === 'light') root.classList.add('light');
+  // 'system': no class, let media query decide
+  localStorage.setItem('nh_theme', theme);
+}
+function applyColorScheme(scheme) {
+  const root = document.documentElement;
+  COLOR_SCHEMES.forEach(s => root.classList.remove(s));
+  if (scheme && scheme !== 'purple') root.classList.add(scheme);
+  localStorage.setItem('nh_color_scheme', scheme || 'purple');
+}
+function getSavedTheme() { return localStorage.getItem('nh_theme') || 'system'; }
+function getSavedColorScheme() { return localStorage.getItem('nh_color_scheme') || 'purple'; }
+applyTheme(getSavedTheme());
+applyColorScheme(getSavedColorScheme());
 
 function applyI18n() {
   const m = {
@@ -808,6 +1001,7 @@ function applyI18n() {
   const _ccb2=document.getElementById('t-compose-btn'); if(_ccb2) _ccb2.textContent=T.composeTitle;
   const _mar=document.getElementById('markAllReadBtn'); if(_mar) _mar.title=T.markAllRead;
   const _clr=document.getElementById('clearMsgsBtn'); if(_clr) _clr.title=T.clearAll;
+  const _vtb=document.getElementById('viewToggleBtn'); if(_vtb) _vtb.title=T.topicView;
   const _mcb=document.getElementById('modalCancelBtn'); if(_mcb) _mcb.textContent=T.cancel;
   const _ccb=document.getElementById('copyCurlBtn'); if(_ccb) _ccb.title=T.copyCurl;
   const _si=document.getElementById('searchInput'); if(_si) _si.placeholder=T.search;
@@ -837,6 +1031,15 @@ function applyI18n() {
   const _om=document.getElementById('t-offline-message'); if(_om) _om.textContent=T.offlineMessage;
   const _os=document.getElementById('t-offline-switch'); if(_os) _os.textContent=T.offlineSwitch;
   const _oo=document.getElementById('t-offline-offline'); if(_oo) _oo.textContent=T.offlineMode;
+  // Appearance settings
+  const _lang=document.getElementById('t-language-label'); if(_lang) _lang.textContent=T.language;
+  const _theme=document.getElementById('t-theme-label'); if(_theme) _theme.textContent=T.theme;
+  const _ts=document.getElementById('t-theme-system'); if(_ts) _ts.textContent=T.themeSystem;
+  const _tl=document.getElementById('t-theme-light'); if(_tl) _tl.textContent=T.themeLight;
+  const _td=document.getElementById('t-theme-dark'); if(_td) _td.textContent=T.themeDark;
+  const _cs=document.getElementById('t-color-scheme-label'); if(_cs) _cs.textContent=T.colorScheme;
+  const _swTitleMap={purple:T.schemePurple,blue:T.schemeBlue,teal:T.schemeTeal,green:T.schemeGreen,orange:T.schemeOrange,rose:T.schemeRose};
+  document.querySelectorAll('.color-swatch').forEach(s=>{ const n=_swTitleMap[s.dataset.scheme]; if(n) s.title=n; });
 }
 applyI18n();
 
@@ -852,6 +1055,11 @@ let lastDeletedIdx = -1;
 let undoTimer = null;
 let detailMsg = null;
 let toastTimer = null;
+
+/* ── Topic View State ── */
+let viewMode = localStorage.getItem('viewMode') || 'messages'; // 'messages' | 'topics'
+let topicDetailKey = null; // null = topic list, string = viewing specific topic
+const TOPIC_CARD_HEIGHT = 64;
 
 /* ── Toast Notification ── */
 function showToast(text, type = 'info') {
@@ -898,6 +1106,206 @@ function getFilteredMessages() {
     const matchesFilter = currentFilter === 'all' || (currentFilter === 'unread' && !m.read) || (currentFilter === 'read' && m.read) || (currentFilter === 'flagged' && m.flagged);
     return matchesSearch && matchesFilter;
   });
+}
+
+/* ── Topic Grouping ── */
+function groupMessagesByTopic(messages) {
+  const groups = new Map(); // key: topicId || '__no_topic__'
+  for (const m of messages) {
+    const key = m.topic_id || '__no_topic__';
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        topicId: m.topic_id || null,
+        topicName: m.topic_name || null,
+        topicDisplayName: m.topic_display_name || null,
+        topicIcon: m.topic_icon || null,
+        messages: [],
+      });
+    }
+    groups.get(key).messages.push(m);
+  }
+  // Sort groups: topics first (by latest message time), then no-topic
+  const arr = Array.from(groups.values());
+  arr.sort((a, b) => {
+    if (!a.topicId && b.topicId) return 1;
+    if (a.topicId && !b.topicId) return -1;
+    const aTime = a.messages[0]?.received_at || '';
+    const bTime = b.messages[0]?.received_at || '';
+    return bTime.localeCompare(aTime);
+  });
+  // Sort messages within each group by time descending
+  for (const g of arr) {
+    g.messages.sort((a, b) => (b.received_at || '').localeCompare(a.received_at || ''));
+  }
+  return arr;
+}
+
+function buildTopicCard(group) {
+  const latest = group.messages[0];
+  const totalCount = group.messages.length;
+  const unreadCount = group.messages.filter(m => !m.read).length;
+  const displayName = group.topicDisplayName || group.topicName || T.noTopic;
+  const relTime = latest ? formatRelativeTime(latest.received_at) : '';
+  const preview = latest ? (latest.title || latest.body || '').substring(0, 80) : '';
+
+  let html = '<div class="topic-card" data-topic-key="' + escHtml(group.key) + '">';
+  // Avatar
+  html += '<div class="topic-avatar">';
+  if (group.topicIcon) {
+    html += '<img src="' + escHtml(group.topicIcon) + '" alt="">';
+  } else if (group.topicName || group.topicDisplayName) {
+    const label = group.topicDisplayName || group.topicName;
+    const initials = label.length <= 2 ? label : label.substring(0, 2);
+    html += '<span class="topic-initials">' + escHtml(initials) + '</span>';
+  } else {
+    html += '<svg class="topic-bell-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+  }
+  html += '</div>';
+  // Body
+  html += '<div class="topic-body">';
+  html += '<div class="topic-title-row">';
+  html += '<span class="topic-name">' + escHtml(displayName) + '</span>';
+  html += '<span class="topic-count-badge">' + totalCount + '</span>';
+  if (unreadCount > 0) html += '<span class="topic-unread-badge">' + unreadCount + '</span>';
+  html += '</div>';
+  html += '<div class="topic-preview">' + escHtml(preview) + '</div>';
+  html += '</div>';
+  // Time
+  html += '<span class="topic-time">' + escHtml(relTime) + '</span>';
+  html += '</div>';
+  return html;
+}
+
+function renderTopicList() {
+  const filtered = getFilteredMessages();
+  const groups = groupMessagesByTopic(filtered);
+  const container = document.getElementById('msgListBody');
+  const viewport = document.getElementById('msgViewport');
+  const hasMessages = allMessages.length > 0;
+  document.getElementById('markAllReadBtn').style.display = 'none';
+  document.getElementById('clearMsgsBtn').style.display = hasMessages ? '' : 'none';
+
+  if (groups.length === 0) {
+    let emptyMsg = T.noMessages;
+    if (searchQuery) emptyMsg = T.noMessagesSearch;
+    const emptyIcon = searchQuery
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="8" x2="14" y2="14"/><line x1="14" y1="8" x2="8" y2="14"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8h20"/><path d="M10 12h4"/></svg>';
+    viewport.innerHTML = '<div class="msg-empty"><div class="msg-empty-icon">' + emptyIcon + '</div>' + emptyMsg + '</div>';
+    viewport.style.height = 'auto';
+    return;
+  }
+
+  const totalHeight = groups.length * TOPIC_CARD_HEIGHT;
+  viewport.style.height = totalHeight + 'px';
+
+  let html = '';
+  for (let i = 0; i < groups.length; i++) {
+    html += '<div style="position:absolute;top:' + (i * TOPIC_CARD_HEIGHT) + 'px;left:0;right:0;height:' + TOPIC_CARD_HEIGHT + 'px">';
+    html += buildTopicCard(groups[i]);
+    html += '</div>';
+  }
+  viewport.innerHTML = html;
+
+  // Click handler
+  viewport.onclick = (e) => {
+    const card = e.target.closest('.topic-card');
+    if (!card) return;
+    const key = card.dataset.topicKey;
+    openTopicDetail(key);
+  };
+}
+
+function openTopicDetail(key) {
+  topicDetailKey = key;
+  const filtered = getFilteredMessages();
+  const groups = groupMessagesByTopic(filtered);
+  const group = groups.find(g => g.key === key);
+  if (!group) return;
+
+  // Switch toolbar to topic detail bar
+  document.getElementById('toolbarArea').style.display = 'none';
+  const bar = document.getElementById('topicDetailBar');
+  bar.style.display = 'flex';
+
+  // Set header
+  const displayName = group.topicDisplayName || group.topicName || T.noTopic;
+  document.getElementById('topicDetailTitle').textContent = displayName;
+  const avatarEl = document.getElementById('topicDetailAvatar');
+  if (group.topicIcon) {
+    avatarEl.innerHTML = '<img src="' + escHtml(group.topicIcon) + '" alt="">';
+  } else if (group.topicName || group.topicDisplayName) {
+    const label = group.topicDisplayName || group.topicName;
+    const initials = label.length <= 2 ? label : label.substring(0, 2);
+    avatarEl.innerHTML = '<span class="topic-initials">' + escHtml(initials) + '</span>';
+  } else {
+    avatarEl.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+  }
+
+  // Render messages in this topic using existing viewport
+  const messages = group.messages;
+  const viewport = document.getElementById('msgViewport');
+  const totalHeight = messages.length * MSG_HEIGHT;
+  viewport.style.height = totalHeight + 'px';
+
+  let html = '';
+  for (let i = 0; i < messages.length; i++) {
+    html += '<div style="position:absolute;top:' + (i * MSG_HEIGHT) + 'px;left:0;right:0;height:' + MSG_HEIGHT + 'px">';
+    html += buildMessageCard(messages[i]);
+    html += '</div>';
+  }
+  viewport.innerHTML = html;
+
+  // Click handler
+  viewport.onclick = async (e) => {
+    const card = e.target.closest('.msg-card');
+    if (!card) return;
+    const flagEl = e.target.closest('[data-action="flag"]');
+    if (flagEl) {
+      e.stopPropagation();
+      await invoke('toggle_flag', { id: flagEl.dataset.id });
+      await refreshMessages();
+      return;
+    }
+    const delEl = e.target.closest('[data-action="delete"]');
+    if (delEl) {
+      e.stopPropagation();
+      await deleteWithUndo(delEl.dataset.id);
+      return;
+    }
+    openDetail(card.dataset.id);
+  };
+
+  document.getElementById('markAllReadBtn').style.display = 'none';
+  document.getElementById('clearMsgsBtn').style.display = 'none';
+}
+
+function closeTopicDetail() {
+  topicDetailKey = null;
+  document.getElementById('topicDetailBar').style.display = 'none';
+  document.getElementById('toolbarArea').style.display = '';
+  if (viewMode === 'topics') renderTopicList();
+}
+
+function toggleViewMode() {
+  const btn = document.getElementById('viewToggleBtn');
+  if (viewMode === 'messages') {
+    viewMode = 'topics';
+    btn.classList.add('active');
+    btn.title = T.messageView;
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16M4 9h16M4 14h16M4 19h16"/></svg>';
+    closeTopicDetail();
+    renderTopicList();
+  } else {
+    viewMode = 'messages';
+    btn.classList.remove('active');
+    btn.title = T.topicView;
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>';
+    closeTopicDetail();
+    renderMessages();
+  }
+  localStorage.setItem('viewMode', viewMode);
 }
 
 /* ── JSON Syntax Highlighting ── */
@@ -977,7 +1385,7 @@ function showView(name) {
 }
 
 /* ── Virtual Scroll State ── */
-const MSG_HEIGHT = 80; // height per message card
+const MSG_HEIGHT = 72; // height per message card
 const BUFFER_COUNT = 5; // extra items above/below viewport
 let virtualFiltered = []; // current filtered messages
 let scrollRafId = null;
@@ -1000,22 +1408,36 @@ function buildMessageCard(m) {
   if (selectMode) {
     html += '<input type="checkbox" class="msg-checkbox" data-id="' + m.id + '"' + (isSelected ? ' checked' : '') + '>';
   } else {
-    html += '<div class="msg-dot ' + lvl + '"></div>';
+    // Avatar: topic icon, topic initials, or bell
+    html += '<div class="msg-avatar ' + lvl + '">';
+    if (m.topic_icon) {
+      html += '<img src="' + escHtml(m.topic_icon) + '" alt="">';
+    } else if (m.topic_name || m.topic_display_name) {
+      const label = m.topic_display_name || m.topic_name;
+      const initials = label.length <= 2 ? label : label.substring(0, 2);
+      html += '<span class="avatar-text">' + escHtml(initials) + '</span>';
+    } else {
+      html += '<svg class="avatar-bell" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+    }
+    html += '</div>';
   }
   html += '<div class="msg-content" data-id="' + m.id + '">';
   html += '<div class="msg-title-row"><span class="msg-title-text">' + escHtml(title) + '</span></div>';
   html += '<div class="msg-body-preview">' + escHtml(m.body).substring(0, 120) + '</div>';
-  html += '<div class="msg-meta">';
-  html += '<span class="msg-time">' + escHtml(relTime) + '</span>';
-  html += '<span class="msg-level-badge ' + lvl + '">' + lvl + '</span>';
-  if (tags.length > 0) {
+  html += '</div>';
+  const hasTags = tags.length > 0 || (m.format || 'text') !== 'text';
+  if (hasTags) {
+    html += '<div class="msg-tags-col">';
     for (const t of tags.slice(0, 3)) html += '<span class="msg-tag">' + escHtml(t) + '</span>';
+    const fmt = m.format || 'text';
+    if (fmt !== 'text') html += '<span class="msg-tag">' + escHtml(fmt) + '</span>';
+    html += '</div>';
   }
+  html += '<div class="msg-info-col">';
   if (att) html += '<span class="msg-att-icon">📎</span>';
   if (m.url) html += '<span class="msg-att-icon">🔗</span>';
-  const fmt = m.format || 'text';
-  if (fmt !== 'text') html += '<span class="msg-tag">' + escHtml(fmt) + '</span>';
-  html += '</div></div>';
+  html += '<span class="msg-time">' + escHtml(relTime) + '</span>';
+  html += '</div>';
   html += '<div class="msg-right">';
   html += '<div class="msg-flags">';
   html += '<span class="msg-flag-icon' + (m.flagged ? ' flagged' : '') + '" data-action="flag" data-id="' + m.id + '" title="' + (m.flagged ? T.unflag : T.flag) + '">⚑</span>';
@@ -1026,6 +1448,10 @@ function buildMessageCard(m) {
 
 /* ── Render Message List (Virtual Scroll) ── */
 function renderMessages() {
+  if (viewMode === 'topics') {
+    renderTopicList();
+    return;
+  }
   virtualFiltered = getFilteredMessages();
   const container = document.getElementById('msgListBody');
   const viewport = document.getElementById('msgViewport');
@@ -1040,7 +1466,10 @@ function renderMessages() {
     else if (currentFilter === 'read') emptyMsg = T.noMessagesRead;
     else if (currentFilter === 'flagged') emptyMsg = T.noMessagesFlagged;
     const showQuickBtn = !searchQuery && currentFilter === 'all';
-    viewport.innerHTML = '<div class="msg-empty"><div class="msg-empty-icon">📭</div>' + emptyMsg
+    const emptyIcon = searchQuery
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="8" x2="14" y2="14"/><line x1="14" y1="8" x2="8" y2="14"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8h20"/><path d="M10 12h4"/></svg>';
+    viewport.innerHTML = '<div class="msg-empty"><div class="msg-empty-icon">' + emptyIcon + '</div>' + emptyMsg
       + (showQuickBtn ? '<br><button class="btn-primary" style="margin-top:14px;display:inline-flex;width:auto;padding:8px 18px" id="quickSendEmptyBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> ' + T.quickSendMsg + '</button>' : '')
       + '</div>';
     viewport.style.height = 'auto';
@@ -1215,28 +1644,45 @@ function openDetail(id) {
   // Mark as read
   if (!m.read) { invoke('mark_as_read', { id }); m.read = true; updateUnreadBadge(); }
   const title = m.title || T.untitled;
-  const lvl = (m.level || 'info').toLowerCase();
   const tags = parseTags(m);
   const att = parseAttachment(m);
   const fmt = m.format || 'text';
 
   let html = '';
-  // Title
-  html += '<div class="detail-title-row"><span class="detail-title">' + escHtml(title) + '</span></div>';
+  // Title with avatar
+  const lvl = (m.level || 'info').toLowerCase();
+  html += '<div class="detail-title-row">';
+  html += '<div class="detail-avatar ' + lvl + '">';
+  if (m.topic_icon) {
+    html += '<img src="' + escHtml(m.topic_icon) + '" alt="">';
+  } else if (m.topic_name || m.topic_display_name) {
+    const label = m.topic_display_name || m.topic_name;
+    const initials = label.length <= 2 ? label : label.substring(0, 2);
+    html += '<span class="avatar-text">' + escHtml(initials) + '</span>';
+  } else {
+    html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+  }
+  html += '</div>';
+  html += '<span class="detail-title">' + escHtml(title) + '</span>';
+  html += '<button class="copy-btn" id="detailCopyTitleBtn" title="' + T.copyTitle + '" style="flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
+  html += '</div>';
   // Meta
   html += '<div class="detail-meta">';
   html += '<span class="detail-time">' + escHtml(m.received_at) + '</span>';
-  html += '<span class="msg-level-badge ' + lvl + '">' + lvl + '</span>';
   html += '</div>';
   // URL
   if (m.url) {
     html += '<a class="detail-url-btn" href="#" onclick="event.preventDefault();invoke(\'open_url\',{url:\'' + escHtml(m.url) + '\'})">🔗 ' + escHtml(m.url) + '</a>';
   }
   // Body card
+  const canToggleRaw = (fmt === 'markdown' || fmt === 'html');
   html += '<div class="detail-content-card">';
   html += '<div class="detail-content-header"><span>' + (fmt === 'text' ? 'Content' : fmt.toUpperCase()) + '</span>';
-  html += '<button class="copy-btn" id="detailCopyBodyBtn" title="' + T.copy + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>';
-  html += '<div class="detail-content-body' + (fmt === 'json' ? ' json' : '') + (fmt === 'html' ? ' html-content' : '') + (fmt === 'markdown' ? ' markdown' : '') + '">';
+  html += '<div style="display:flex;gap:6px;align-items:center">';
+  if (canToggleRaw) html += '<button class="raw-toggle" id="detailRawToggle">Raw</button>';
+  html += '<button class="copy-btn" id="detailCopyBodyBtn" title="' + T.copy + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
+  html += '</div></div>';
+  html += '<div id="detailContentBody" class="detail-content-body' + (fmt === 'json' ? ' json' : '') + (fmt === 'html' ? ' html-content' : '') + (fmt === 'markdown' ? ' markdown' : '') + '">';
   if (fmt === 'json') html += highlightJson(m.body);
   else if (fmt === 'markdown') html += renderMarkdown(m.body);
   else if (fmt === 'html') html += renderHtmlContent(m.body);
@@ -1250,7 +1696,7 @@ function openDetail(id) {
   // Attachment
   if (att) {
     const sizeStr = att.size ? (att.size > 1048576 ? (att.size/1048576).toFixed(1)+'MB' : att.size > 1024 ? (att.size/1024).toFixed(1)+'KB' : att.size+'B') : '';
-    html += '<div class="detail-section-title">Attachment</div>';
+    html += '<div class="detail-section-title">' + T.attachment + '</div>';
     // Show local image preview if available
     const localPath = m.local_image_path;
     const isImage = localPath && /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(localPath);
@@ -1275,10 +1721,41 @@ function openDetail(id) {
   document.getElementById('detailContent').innerHTML = html;
   document.getElementById('detailOverlay').classList.add('open');
 
+  // Copy title button
+  const copyTitleBtn = document.getElementById('detailCopyTitleBtn');
+  if (copyTitleBtn) copyTitleBtn.addEventListener('click', () => copyToClipboard(m.title || T.untitled, copyTitleBtn));
+
+  // Update flag button state
+  const flagBtn = document.getElementById('detailFlagBtn');
+  if (flagBtn) {
+    if (m.flagged) flagBtn.classList.add('flagged');
+    flagBtn.title = m.flagged ? T.unflag : T.flag;
+  }
+
   // Copy body button
   const copyBodyBtn = document.getElementById('detailCopyBodyBtn');
   if (copyBodyBtn) copyBodyBtn.addEventListener('click', () => copyToClipboard(m.body, copyBodyBtn));
-  // Long-press for multi-select
+
+  // Raw toggle
+  const rawToggle = document.getElementById('detailRawToggle');
+  if (rawToggle) {
+    let showingRaw = false;
+    rawToggle.addEventListener('click', () => {
+      const bodyEl = document.getElementById('detailContentBody');
+      if (!bodyEl) return;
+      showingRaw = !showingRaw;
+      rawToggle.classList.toggle('active', showingRaw);
+      if (showingRaw) {
+        bodyEl.className = 'detail-content-body';
+        bodyEl.innerHTML = escHtml(m.body);
+      } else {
+        bodyEl.className = 'detail-content-body' + (fmt === 'html' ? ' html-content' : '') + (fmt === 'markdown' ? ' markdown' : '');
+        if (fmt === 'markdown') bodyEl.innerHTML = renderMarkdown(m.body);
+        else if (fmt === 'html') bodyEl.innerHTML = renderHtmlContent(m.body);
+      }
+    });
+  }
+
   renderMessages();
 }
 
@@ -1288,8 +1765,28 @@ function closeDetail() {
   refreshMessages();
 }
 document.getElementById('detailBackBtn').addEventListener('click', closeDetail);
-document.getElementById('detailCopyTitleBtn').addEventListener('click', () => {
-  if (detailMsg) copyToClipboard(detailMsg.title || T.untitled, document.getElementById('detailCopyTitleBtn'));
+document.getElementById('detailFlagBtn').addEventListener('click', async () => {
+  if (!detailMsg) return;
+  await invoke('toggle_flag', { id: detailMsg.id });
+  detailMsg.flagged = !detailMsg.flagged;
+  const btn = document.getElementById('detailFlagBtn');
+  btn.classList.toggle('flagged', detailMsg.flagged);
+  btn.title = detailMsg.flagged ? T.unflag : T.flag;
+  // Pop animation
+  btn.classList.remove('pop');
+  void btn.offsetWidth; // reflow to restart animation
+  btn.classList.add('pop');
+  btn.addEventListener('animationend', () => btn.classList.remove('pop'), { once: true });
+});
+document.getElementById('detailDelBtn').addEventListener('click', async () => {
+  if (!detailMsg) return;
+  const btn = document.getElementById('detailDelBtn');
+  btn.classList.remove('shake');
+  void btn.offsetWidth;
+  btn.classList.add('shake');
+  await new Promise(r => btn.addEventListener('animationend', r, { once: true }));
+  await deleteWithUndo(detailMsg.id);
+  closeDetail();
 });
 
 function copyToClipboard(text, btn) {
@@ -1364,7 +1861,11 @@ async function refreshMessages() {
     const oldIds = new Set(allMessages.map(m => m.id));
     allMessages = await invoke('get_messages');
     _newMsgIds = new Set(allMessages.filter(m => !oldIds.has(m.id)).map(m => m.id));
-    renderMessages();
+    if (viewMode === 'topics' && topicDetailKey) {
+      openTopicDetail(topicDetailKey); // re-render topic detail if viewing one
+    } else {
+      renderMessages();
+    }
     // Clear new IDs after animation completes
     if (_newMsgIds.size > 0) setTimeout(() => { _newMsgIds.clear(); }, 500);
   } catch {}
@@ -1401,10 +1902,10 @@ async function refreshStatus() {
       }
     } else if (state.last_poll) {
       wasConnected = true;
-      offlineDialogShown = false;
-      if (offlineMode) {
-        // Connection restored - exit offline mode
+      // Connection restored - close offline dialog if shown
+      if (offlineMode || offlineDialogShown) {
         offlineMode = false;
+        offlineDialogShown = false;
         document.getElementById('offlineModal').classList.remove('open');
       }
       dot.className = 'status-dot on'; text.textContent = T.connected + ' ' + state.last_poll;
@@ -1672,6 +2173,11 @@ function closeDeleteModal() {
   deleteModalCallback = null;
 }
 document.getElementById('clearMsgsBtn').addEventListener('click', () => {
+  const btn = document.getElementById('clearMsgsBtn');
+  btn.classList.remove('shake-danger');
+  void btn.offsetWidth;
+  btn.classList.add('shake-danger');
+  btn.addEventListener('animationend', () => btn.classList.remove('shake-danger'), { once: true });
   showDeleteModal(T.clearConfirm, async () => {
     await invoke('clear_messages');
     await refreshMessages();
@@ -1679,6 +2185,11 @@ document.getElementById('clearMsgsBtn').addEventListener('click', () => {
 });
 /* ── Mark All Read ── */
 document.getElementById('markAllReadBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('markAllReadBtn');
+  btn.classList.remove('pulse-success');
+  void btn.offsetWidth;
+  btn.classList.add('pulse-success');
+  btn.addEventListener('animationend', () => btn.classList.remove('pulse-success'), { once: true });
   const unreadMsgs = allMessages.filter(m => !m.read);
   for (const m of unreadMsgs) {
     await invoke('mark_as_read', { id: m.id });
@@ -1725,8 +2236,44 @@ async function loadSystemTab() {
   );
   try { document.getElementById('autostartToggle').checked = !!(await invoke('get_autostart')); } catch { document.getElementById('autostartToggle').checked = false; }
   try { const cfg = await invoke('get_config'); document.getElementById('autoDownloadImagesToggle').checked = !!(cfg?.auto_download_images); } catch {}
+  // Refresh appearance selectors
+  document.getElementById('languageSelect').value = LANG;
+  document.getElementById('themeSelect').value = getSavedTheme();
+  updateSwatchActive(getSavedColorScheme());
 }
 document.getElementById('editConfigBtn').addEventListener('click', async()=>{ try{const c=await invoke('get_config');if(c){document.getElementById('info-server-url').textContent=c.server.url||'—';document.getElementById('info-server-username').textContent=c.server.username||'—';document.getElementById('m-name').value=c.client.name;}}catch{} switchTab('tab-server'); document.getElementById('configModal').classList.add('open'); });
+
+/* ── Language & Theme Selectors ── */
+function updateSwatchActive(scheme) {
+  document.querySelectorAll('.color-swatch').forEach(s => {
+    s.classList.toggle('active', s.dataset.scheme === scheme);
+  });
+}
+(function initAppearance() {
+  const langSelect = document.getElementById('languageSelect');
+  const themeSelect = document.getElementById('themeSelect');
+  // Set initial values
+  langSelect.value = LANG;
+  themeSelect.value = getSavedTheme();
+  updateSwatchActive(getSavedColorScheme());
+  langSelect.addEventListener('change', () => {
+    const newLang = langSelect.value;
+    localStorage.setItem('nh_lang', newLang);
+    LANG = newLang;
+    T = I18N[LANG];
+    applyI18n();
+  });
+  themeSelect.addEventListener('change', () => {
+    applyTheme(themeSelect.value);
+  });
+  document.getElementById('colorSwatches').addEventListener('click', (e) => {
+    const swatch = e.target.closest('.color-swatch');
+    if (!swatch) return;
+    const scheme = swatch.dataset.scheme;
+    applyColorScheme(scheme);
+    updateSwatchActive(scheme);
+  });
+})();
 document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
 document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
 document.getElementById('configModal').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeModal(); });
@@ -2033,6 +2580,10 @@ document.getElementById('composeBtn').addEventListener('click', openCompose);
 document.getElementById('composeCloseBtn').addEventListener('click', closeCompose);
 document.getElementById('composeCancelBtn').addEventListener('click', closeCompose);
 document.getElementById('composeOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeCompose(); });
+
+// Topic view toggle
+document.getElementById('viewToggleBtn').addEventListener('click', toggleViewMode);
+document.getElementById('topicDetailBackBtn').addEventListener('click', closeTopicDetail);
 
 // Advanced toggle
 document.getElementById('composeAdvToggle').addEventListener('click', () => {

@@ -13,6 +13,7 @@ import Templates from '@/pages/Templates'
 import Tokens from '@/pages/Tokens'
 import Settings from '@/pages/Settings'
 import Attachments from '@/pages/Attachments'
+import Topics from '@/pages/Topics'
 import Admin from '@/pages/Admin'
 
 const queryClient = new QueryClient()
@@ -47,6 +48,7 @@ export default function App() {
                 <Route path="templates" element={<Templates />} />
                 <Route path="tokens" element={<Tokens />} />
                 <Route path="attachments" element={<Attachments />} />
+                <Route path="topics" element={<Topics />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="admin" element={<Admin />} />
               </Route>

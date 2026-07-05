@@ -2292,6 +2292,7 @@ dependencies = [
 name = "notifyhub-client"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "csv",
  "dirs 5.0.1",

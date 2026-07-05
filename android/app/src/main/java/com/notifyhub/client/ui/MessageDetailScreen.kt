@@ -7,8 +7,13 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,9 +25,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.notifyhub.client.data.I18n
@@ -32,8 +40,18 @@ import coil.request.ImageRequest
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
+import android.content.ContentValues
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.os.Environment
+import android.provider.MediaStore
+import android.util.Base64
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.material.icons.filled.Notifications
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun MessageDetailScreen(
     msg: LocalMessage,
@@ -41,6 +59,64 @@ fun MessageDetailScreen(
     onDownload: (String, String) -> Unit // (url, filename) -> Unit
 ) {
     val context = LocalContext.current
+    var showSaveImageSheet by remember { mutableStateOf(false) }
+    var pendingSavePath by remember { mutableStateOf<String?>(null) }
+
+    // Save image bottom sheet
+    if (showSaveImageSheet) {
+        ModalBottomSheet(onDismissRequest = { showSaveImageSheet = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp)
+            ) {
+                Text(
+                    text = I18n["save_to_local"],
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            showSaveImageSheet = false
+                            val path = pendingSavePath ?: return@clickable
+                            try {
+                                val bitmap = BitmapFactory.decodeFile(path)
+                                if (bitmap != null) {
+                                    val fileName = "notifyhub_${System.currentTimeMillis()}.png"
+                                    val contentValues = ContentValues().apply {
+                                        put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                                        put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/NotifyHub")
+                                    }
+                                    val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                                    if (uri != null) {
+                                        context.contentResolver.openOutputStream(uri)?.use { out ->
+                                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                                        }
+                                        Toast.makeText(context, I18n["image_saved"], Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    Toast.makeText(context, I18n["save_failed"], Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (_: Exception) {
+                                Toast.makeText(context, I18n["save_failed"], Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        .padding(vertical = 16.dp),
+                    textAlign = TextAlign.Center,
+                    fontSize = 16.sp
+                )
+                HorizontalDivider()
+                Text(
+                    text = I18n["cancel"],
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showSaveImageSheet = false }
+                        .padding(vertical = 16.dp),
+                    textAlign = TextAlign.Center,
+                    fontSize = 16.sp
+                )
+            }
+        }
+    }
 
     // Handle back gesture/button
     BackHandler(onBack = onBack)
@@ -67,14 +143,59 @@ fun MessageDetailScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            // Title with copy button
+            // Title with avatar and copy button
             val hasTitle = msg.title.isNotBlank()
             val displayTitle = if (hasTitle) msg.title else I18n["untitled"]
+            val levelColor = when (msg.level.uppercase()) {
+                "ERROR" -> MaterialTheme.colorScheme.error
+                "WARN", "WARNING" -> Color(0xFFF59E0B)
+                "DEBUG" -> MaterialTheme.colorScheme.tertiary
+                else -> MaterialTheme.colorScheme.primary
+            }
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
+                // Avatar
+                val label = msg.topicDisplayName ?: msg.topicName
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(levelColor.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    when {
+                        !msg.topicIcon.isNullOrEmpty() -> {
+                            if (msg.topicIcon.startsWith("data:")) {
+                                val bitmap = remember(msg.topicIcon) {
+                                    try {
+                                        val base64 = msg.topicIcon.substringAfter(",")
+                                        val bytes = Base64.decode(base64, Base64.DEFAULT)
+                                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                                    } catch (_: Exception) { null }
+                                }
+                                if (bitmap != null) {
+                                    Image(bitmap = bitmap, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                }
+                            } else {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current).data(msg.topicIcon).crossfade(true).build(),
+                                    contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
+                                )
+                            }
+                        }
+                        !label.isNullOrEmpty() -> {
+                            val initials = if (label.length <= 2) label else label.substring(0, 2)
+                            Text(initials, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = levelColor)
+                        }
+                        else -> {
+                            Icon(Icons.Default.Notifications, contentDescription = null, modifier = Modifier.size(18.dp), tint = levelColor.copy(alpha = 0.6f))
+                        }
+                    }
+                }
+                Spacer(Modifier.width(10.dp))
                 Text(
                     text = displayTitle,
                     fontSize = 20.sp,
@@ -297,7 +418,14 @@ fun MessageDetailScreen(
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(bottom = 8.dp),
+                                    .padding(bottom = 8.dp)
+                                    .combinedClickable(
+                                        onClick = {},
+                                        onLongClick = {
+                                            pendingSavePath = localPath
+                                            showSaveImageSheet = true
+                                        }
+                                    ),
                                 shape = RoundedCornerShape(8.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)

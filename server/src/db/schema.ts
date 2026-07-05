@@ -76,6 +76,29 @@ export const templates = sqliteTable('templates', {
     .$defaultFn(() => new Date()),
 })
 
+// ── Topics ──
+
+export const topics = sqliteTable(
+  'topics',
+  {
+    id: text('id').primaryKey().$defaultFn(() => randomUUID()),
+    userId: integer('user_id').notNull(),
+    name: text('name').notNull(),
+    displayName: text('display_name'),
+    icon: text('icon'), // base64 encoded image
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => ({
+    userIdIdx: index('idx_topics_user_id').on(table.userId),
+    userIdNameIdx: index('idx_topics_user_id_name').on(table.userId, table.name),
+  })
+)
+
 // ── Messages ──
 
 export const messages = sqliteTable(
@@ -99,6 +122,7 @@ export const messages = sqliteTable(
     ipAddress: text('ip_address'),
     ipLocation: text('ip_location'),
     app: text('app'),
+    topicId: text('topic_id'),
     scheduledAt: integer('scheduled_at', { mode: 'timestamp' }),
     sentAt: integer('sent_at', { mode: 'timestamp' }),
     createdAt: integer('created_at', { mode: 'timestamp' })
@@ -119,6 +143,8 @@ export const messages = sqliteTable(
     userIdStatusIdx: index('idx_messages_user_id_status').on(table.userId, table.status),
     userIdCreatedIdx: index('idx_messages_user_id_created').on(table.userId, table.createdAt),
     channelTypeStatusIdx: index('idx_messages_channel_type_status').on(table.channelType, table.status),
+    topicIdIdx: index('idx_messages_topic_id').on(table.topicId),
+    userIdTopicIdx: index('idx_messages_user_id_topic').on(table.userId, table.topicId),
     channelFk: foreignKey({
       columns: [table.channelId],
       foreignColumns: [channels.id],
@@ -209,10 +235,26 @@ export const cleanupLogs = sqliteTable('cleanup_logs', {
   error: text('error'),
 })
 
+// ── App Logs ──
+
+export const appLogs = sqliteTable('app_logs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  level: text('level').notNull(), // 'debug' | 'info' | 'warn' | 'error'
+  message: text('message').notNull(),
+  source: text('source'), // e.g. 'http', 'queue', 'cleanup', 'auth'
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+}, (table) => ({
+  levelIdx: index('idx_app_logs_level').on(table.level),
+  createdIdx: index('idx_app_logs_created').on(table.createdAt),
+}))
+
 // ── Push Messages (separate from main queue, no retry) ──
 
 export const pushMessages = sqliteTable('push_messages', {
   id: text('id').primaryKey().$defaultFn(() => randomUUID()),
+  userId: integer('user_id'),
   clientUuid: text('client_uuid'),    // null = broadcast to all
   title: text('title').notNull(),
   body: text('body').notNull(),
@@ -227,7 +269,9 @@ export const pushMessages = sqliteTable('push_messages', {
   url: text('url'),
   attachment: text('attachment'), // JSON
   format: text('format').notNull().default('text'),
+  topicId: text('topic_id'),
 }, (table) => ({
   clientUuidDeliveredIdx: index('idx_push_messages_uuid_delivered').on(table.clientUuid, table.delivered),
   deliveredIdx: index('idx_push_messages_delivered').on(table.delivered),
+  topicIdIdx: index('idx_push_messages_topic_id').on(table.topicId),
 }))

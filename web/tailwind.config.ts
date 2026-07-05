@@ -35,11 +35,54 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        popover: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+        /* ── Material You extended tokens ── */
+        'surface-variant': 'hsl(var(--surface-variant))',
+        'on-surface-variant': 'hsl(var(--on-surface-variant))',
+        outline: {
+          DEFAULT: 'hsl(var(--outline))',
+          variant: 'hsl(var(--outline-variant))',
+        },
+        'primary-container': {
+          DEFAULT: 'hsl(var(--primary-container))',
+          foreground: 'hsl(var(--on-primary-container))',
+        },
+        'secondary-container': {
+          DEFAULT: 'hsl(var(--secondary-container))',
+          foreground: 'hsl(var(--on-secondary-container))',
+        },
+        tertiary: {
+          DEFAULT: 'hsl(var(--tertiary))',
+          foreground: 'hsl(var(--tertiary-foreground))',
+          container: 'hsl(var(--tertiary-container))',
+          'container-foreground': 'hsl(var(--on-tertiary-container))',
+        },
+        'error-container': {
+          DEFAULT: 'hsl(var(--error-container))',
+          foreground: 'hsl(var(--on-error-container))',
+        },
+        surface: {
+          DEFAULT: 'hsl(var(--surface))',
+          variant: 'hsl(var(--surface-variant))',
+        },
+        'inverse-surface': {
+          DEFAULT: 'hsl(var(--inverse-surface))',
+          foreground: 'hsl(var(--inverse-foreground))',
+          primary: 'hsl(var(--inverse-primary))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+      },
+      boxShadow: {
+        'md3': '0 1px 3px 1px hsl(var(--shadow) / 0.15), 0 1px 2px 0 hsl(var(--shadow) / 0.3)',
+        'md3-lg': '0 4px 8px 3px hsl(var(--shadow) / 0.15), 0 1px 3px 0 hsl(var(--shadow) / 0.3)',
+        'md3-xl': '0 8px 12px 6px hsl(var(--shadow) / 0.15), 0 4px 4px 0 hsl(var(--shadow) / 0.3)',
       },
     },
   },

@@ -95,7 +95,7 @@ fun SettingsScreen(
             // ── Device Name (editable) ──
             SettingsSectionHeader(i18n("config_device_name"))
             ListItem(
-                headlineContent = { Text(deviceName.ifBlank { android.os.Build.MODEL }, fontWeight = FontWeight.Medium) },
+                headlineContent = { Text(deviceName.ifBlank { android.os.Build.MODEL }, fontSize = 15.sp, fontWeight = FontWeight.Medium) },
                 trailingContent = {
                     Icon(Icons.Default.ChevronRight, contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -129,7 +129,7 @@ fun SettingsScreen(
             } else i18n("mute_off")
             Box {
                 ListItem(
-                    headlineContent = { Text(currentMuteLabel, fontWeight = FontWeight.Medium) },
+                    headlineContent = { Text(currentMuteLabel, fontSize = 15.sp, fontWeight = FontWeight.Medium) },
                     leadingContent = {
                         Icon(
                             if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
@@ -169,8 +169,8 @@ fun SettingsScreen(
             // ── Auto Download Images ──
             var autoDownloadImages by remember { mutableStateOf(ConfigStore.getAutoDownloadImages(context)) }
             ListItem(
-                headlineContent = { Text(i18n("auto_download_images"), fontWeight = FontWeight.Medium) },
-                supportingContent = { Text(i18n("auto_download_images_hint"), fontSize = 12.sp) },
+                headlineContent = { Text(i18n("auto_download_images"), fontSize = 15.sp, fontWeight = FontWeight.Medium) },
+                supportingContent = { Text(i18n("auto_download_images_hint"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 leadingContent = {
                     Icon(
                         Icons.Default.Image,
@@ -207,7 +207,7 @@ fun SettingsScreen(
             val currentCleanLabel = cleanOptions.find { it.first == cleanDays.value }?.second ?: i18n("clean_never")
             Box {
                 ListItem(
-                    headlineContent = { Text(currentCleanLabel, fontWeight = FontWeight.Medium) },
+                    headlineContent = { Text(currentCleanLabel, fontSize = 15.sp, fontWeight = FontWeight.Medium) },
                     leadingContent = {
                         Icon(
                             Icons.Default.CleaningServices,
@@ -246,7 +246,7 @@ fun SettingsScreen(
             val currentLangName = I18n.languages.find { it.first == I18n.lang }?.second ?: "English"
             Box {
                 ListItem(
-                    headlineContent = { Text(currentLangName, fontWeight = FontWeight.Medium) },
+                    headlineContent = { Text(currentLangName, fontSize = 15.sp, fontWeight = FontWeight.Medium) },
                     trailingContent = {
                         Icon(Icons.Default.ChevronRight, contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -279,8 +279,8 @@ fun SettingsScreen(
             val currentThemeLabel = themeModes.find { it.first == currentThemeMode }?.second ?: i18n("theme_system")
             Box {
                 ListItem(
-                    headlineContent = { Text(currentThemeLabel, fontWeight = FontWeight.Medium) },
-                    supportingContent = { Text(i18n("settings_theme_mode"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    headlineContent = { Text(currentThemeLabel, fontSize = 15.sp, fontWeight = FontWeight.Medium) },
+                    supportingContent = { Text(i18n("settings_theme_mode"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     leadingContent = {
                         Icon(Icons.Default.DarkMode, contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
@@ -314,8 +314,8 @@ fun SettingsScreen(
             )
             Box {
                 ListItem(
-                    headlineContent = { Text(colorNames.getOrElse(currentColorIdx) { colorNames[0] }, fontWeight = FontWeight.Medium) },
-                    supportingContent = { Text(i18n("settings_color_scheme"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    headlineContent = { Text(colorNames.getOrElse(currentColorIdx) { colorNames[0] }, fontSize = 15.sp, fontWeight = FontWeight.Medium) },
+                    supportingContent = { Text(i18n("settings_color_scheme"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     leadingContent = {
                         Icon(Icons.Default.ColorLens, contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
@@ -368,7 +368,7 @@ fun SettingsScreen(
                 3 to "ERROR",
             )
             ListItem(
-                headlineContent = { Text(i18n("settings_log_enabled"), fontWeight = FontWeight.Medium) },
+                headlineContent = { Text(i18n("settings_log_enabled"), fontSize = 15.sp, fontWeight = FontWeight.Medium) },
                 leadingContent = {
                     Icon(Icons.Default.Description, contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
@@ -388,9 +388,9 @@ fun SettingsScreen(
                 Box {
                     ListItem(
                         headlineContent = {
-                            Text(logLevels.find { it.first == currentLogLevel }?.second ?: "INFO", fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
+                            Text(logLevels.find { it.first == currentLogLevel }?.second ?: "INFO", fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
                         },
-                        supportingContent = { Text(i18n("settings_log_level"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        supportingContent = { Text(i18n("settings_log_level"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                         modifier = Modifier.clickable { logLevelMenuExpanded = true }
                     )
                     DropdownMenu(expanded = logLevelMenuExpanded, onDismissRequest = { logLevelMenuExpanded = false }) {
@@ -433,7 +433,7 @@ fun SettingsScreen(
             }
 
             ListItem(
-                headlineContent = { Text(i18n("settings_backup_export"), fontWeight = FontWeight.Medium) },
+                headlineContent = { Text(i18n("settings_backup_export"), fontSize = 15.sp, fontWeight = FontWeight.Medium) },
                 leadingContent = {
                     Icon(Icons.Default.Backup, contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
@@ -457,7 +457,7 @@ fun SettingsScreen(
             }
 
             ListItem(
-                headlineContent = { Text(i18n("settings_backup_restore"), fontWeight = FontWeight.Medium) },
+                headlineContent = { Text(i18n("settings_backup_restore"), fontSize = 15.sp, fontWeight = FontWeight.Medium) },
                 leadingContent = {
                     Icon(Icons.Default.Restore, contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
@@ -512,7 +512,7 @@ fun SettingsScreen(
             var showLogoutConfirm by remember { mutableStateOf(false) }
             ListItem(
                 headlineContent = {
-                    Text(i18n("logout"), fontWeight = FontWeight.Medium,
+                    Text(i18n("logout"), fontSize = 15.sp, fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.error)
                 },
                 leadingContent = {
@@ -552,7 +552,7 @@ fun SettingsScreen(
 
             ListItem(
                 headlineContent = {
-                    Text(i18n("settings_clear_messages"), fontWeight = FontWeight.Medium,
+                    Text(i18n("settings_clear_messages"), fontSize = 15.sp, fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.error)
                 },
                 leadingContent = {
@@ -667,10 +667,10 @@ fun SettingsScreen(
 private fun SettingsSectionHeader(title: String) {
     Text(
         text = title,
-        style = MaterialTheme.typography.labelMedium,
+        fontSize = 13.sp,
         color = MaterialTheme.colorScheme.primary,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 2.dp)
+        modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 4.dp)
     )
 }
 
@@ -679,16 +679,21 @@ private fun SettingsSectionHeader(title: String) {
 private fun CopyableRow(context: Context, label: String, value: String, monospace: Boolean = false) {
     ListItem(
         headlineContent = {
-            Text(value, style = MaterialTheme.typography.bodySmall,
+            Text(value, fontSize = 14.sp,
                 fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
         },
         supportingContent = {
-            Text(label, style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.9f)
+            Text(label, fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         },
         modifier = Modifier.combinedClickable(
             onClick = {},
+            onDoubleClick = {
+                val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cb.setPrimaryClip(ClipData.newPlainText(label, value))
+                Toast.makeText(context, i18n("dash_copied"), Toast.LENGTH_SHORT).show()
+            },
             onLongClick = {
                 val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 cb.setPrimaryClip(ClipData.newPlainText(label, value))
