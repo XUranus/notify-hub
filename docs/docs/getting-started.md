@@ -34,7 +34,7 @@ cd notifyhub
 ### 2. Build the Rust server and CLI
 
 ```bash
-cd rust-server
+cd crates
 cargo build --release
 ```
 
@@ -54,10 +54,10 @@ The built frontend files go to `web/dist/`. In production, the Rust server serve
 
 ### 4. Configure environment variables
 
-Create a `.env` file in the `rust-server/` directory:
+Create a `.env` file in the `crates/` directory:
 
 ```bash
-cd rust-server
+cd crates
 cat > .env << 'EOF'
 PORT=9527
 HOST=0.0.0.0
@@ -76,7 +76,7 @@ In production, always set an explicit `JWT_SECRET`. If left empty, NotifyHub gen
 ### Start the API server
 
 ```bash
-cd rust-server
+cd crates
 ./target/release/notifyhub-server
 ```
 
@@ -254,7 +254,7 @@ For development with hot-reload:
 
 ```bash
 # Terminal 1: Rust server with hot-reload
-cd rust-server
+cd crates
 cargo install cargo-watch
 cargo watch -x run
 

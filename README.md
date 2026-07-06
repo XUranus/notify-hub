@@ -74,7 +74,7 @@ See [deploy/README.md](deploy/README.md) for detailed documentation.
 
 ```bash
 # Build the Rust server + CLI
-cd rust-server
+cd crates
 cargo build --release
 
 # Start the server
@@ -90,7 +90,7 @@ pnpm install && pnpm build
 
 ```bash
 # Start the Rust server with hot-reload
-cd rust-server
+cd crates
 cargo watch -x run
 
 # Start the web frontend dev server (proxies API to :9527)
@@ -194,7 +194,7 @@ notify-hub status 1
 
 ```
 notifyhub/
-├── rust-server/               # Rust workspace
+├── crates/               # Rust workspace
 │   ├── common/                # Shared types, constants, error types
 │   ├── server/                # API server (Axum + SQLite + sqlx)
 │   │   └── src/
@@ -232,7 +232,7 @@ notifyhub/
 │
 ├── docs/                      # Documentation site (Docusaurus)
 ├── deploy/                    # Docker deployment configs
-└── .env.example               # Environment variable template
+
 ```
 
 ## API Documentation

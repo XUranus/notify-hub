@@ -16,7 +16,6 @@ package-lock.json
 *.swp
 *.tsbuildinfo
 data/
-deploy/.env
 deprecated/
 
 # Rust
@@ -34,6 +33,3 @@ android/.cxx/
 android/app/google-services.json
 *.apk
 *.aab
-
-# Desktop
-desktop/target/

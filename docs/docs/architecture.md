@@ -330,7 +330,7 @@ erDiagram
 
 ```
 notifyhub/
-├── rust-server/               # Rust workspace
+├── crates/               # Rust workspace
 │   ├── common/                # Shared types, constants, error types
 │   │   └── src/
 │   │       ├── constants.rs   # Channel types, retry delays, JWT expiry
@@ -382,7 +382,7 @@ notifyhub/
 │
 ├── docs/                      # Documentation site (Docusaurus)
 ├── deploy/                    # Docker deployment configs
-└── .env.example               # Environment variable template
+
 ```
 
 ## Key Design Decisions

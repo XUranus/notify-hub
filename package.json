@@ -5,7 +5,10 @@
   "description": "Self-hosted notification push service",
   "scripts": {
     "dev:web": "pnpm --filter @notify-hub/web dev",
-    "build:web": "pnpm --filter @notify-hub/web build"
+    "build:web": "pnpm --filter @notify-hub/web build",
+    "dev:docs": "pnpm --filter docs start",
+    "build:docs": "pnpm --filter docs build",
+    "serve:docs": "pnpm --filter docs serve"
   },
   "engines": {
     "node": ">=18"

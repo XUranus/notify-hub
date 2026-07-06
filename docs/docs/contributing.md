@@ -17,7 +17,7 @@ Thank you for your interest in contributing to NotifyHub. This document explains
    ```
 3. **Set up the development environment** (see [Development](./development.md)):
    ```bash
-   cd rust-server
+   cd crates
    cargo build
    cd ../web && pnpm install
    ```
@@ -62,7 +62,7 @@ When requesting a feature, describe:
 
 1. **Make sure your code compiles**:
    ```bash
-   cd rust-server
+   cd crates
    cargo check
    cargo test
    cd ../web && pnpm tsc --noEmit
@@ -70,7 +70,7 @@ When requesting a feature, describe:
 
 2. **Run the linter**:
    ```bash
-   cd rust-server
+   cd crates
    cargo clippy -- -D warnings
    ```
 

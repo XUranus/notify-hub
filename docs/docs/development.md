@@ -23,8 +23,8 @@ git clone https://github.com/notifyhub/notifyhub.git
 cd notifyhub
 
 # Copy environment config
-cd rust-server
-cp ../.env.example .env
+cd crates
+# Create .env with your settings
 
 # Start the API server with hot reload
 cargo watch -x run
@@ -50,9 +50,9 @@ NotifyHub is organized as a multi-component monorepo:
 
 | Component | Path | Language | Description |
 |-----------|------|----------|-------------|
-| Server | `rust-server/server/` | Rust | Axum API server, SQLite database, message queue, channel workers |
-| Common | `rust-server/common/` | Rust | Shared types, constants, error types |
-| CLI | `rust-server/cli/` | Rust | Command-line tool for sending messages |
+| Server | `crates/server/` | Rust | Axum API server, SQLite database, message queue, channel workers |
+| Common | `crates/common/` | Rust | Shared types, constants, error types |
+| CLI | `crates/cli/` | Rust | Command-line tool for sending messages |
 | Web | `web/` | TypeScript/React | Admin dashboard (Vite + Tailwind + shadcn/ui) |
 | Desktop | `desktop/` | Rust + TypeScript | Tauri desktop client with system tray |
 | Android | `android/` | Kotlin | Native Android client with Jetpack Compose |
@@ -60,7 +60,7 @@ NotifyHub is organized as a multi-component monorepo:
 
 ### Rust workspace
 
-The `rust-server/` directory is a Cargo workspace with three crates:
+The `crates/` directory is a Cargo workspace with three crates:
 
 ```toml
 [workspace]
@@ -77,7 +77,7 @@ default-members = ["server"]
 ### Rust server
 
 ```bash
-cd rust-server
+cd crates
 
 # Run the server
 cargo run
@@ -130,14 +130,14 @@ cargo tauri build
 
 ## Adding a New Channel Adapter
 
-Channel adapters implement the `send` function in `rust-server/server/src/worker/channels.rs`. Each adapter handles one delivery method.
+Channel adapters implement the `send` function in `crates/server/src/worker/channels.rs`. Each adapter handles one delivery method.
 
 ### Step 1: Add the provider module
 
 Create a new function in `channels.rs` (or a new file in `worker/`) for your provider:
 
 ```rust
-// rust-server/server/src/worker/channels.rs
+// crates/server/src/worker/channels.rs
 
 async fn send_myprovider(
     config: &serde_json::Value,
@@ -184,10 +184,10 @@ Add your provider to the channel configuration form in `web/src/pages/Channels.t
 
 ### Step 1: Create the route handler
 
-Create a new file in `rust-server/server/src/routes/`:
+Create a new file in `crates/server/src/routes/`:
 
 ```rust
-// rust-server/server/src/routes/myresource.rs
+// crates/server/src/routes/myresource.rs
 
 use axum::{Json, Router, routing::get};
 use crate::AppState;
@@ -210,7 +210,7 @@ async fn list_myresource(
 
 ### Step 2: Register the router
 
-Add the module and register its router in `rust-server/server/src/routes/mod.rs`:
+Add the module and register its router in `crates/server/src/routes/mod.rs`:
 
 ```rust
 mod myresource;
