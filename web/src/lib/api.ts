@@ -129,9 +129,9 @@ export const channelsApi = {
   create: (data: any) => request<any>('POST', '/admin/channels', data),
   update: (id: string, data: any) => request<any>('PUT', `/admin/channels/${id}`, data),
   delete: (id: string) => request<any>('DELETE', `/admin/channels/${id}`),
-  test: (id: string) => request<any>('POST', `/admin/channels/${id}/test`),
+  test: (id: string) => request<{ success: boolean; message: string }>('POST', `/admin/channels/${id}/test`),
   testConfig: (type: string, config: Record<string, unknown>) =>
-    request<{ connected: boolean }>('POST', '/admin/channels/test-config', { type, config }),
+    request<{ success: boolean; message: string }>('POST', '/admin/channels/test-config', { type, config }),
 }
 
 // ── Tokens ──
@@ -143,7 +143,7 @@ export const tokensApi = {
   update: (id: number, data: any) => request<any>('PUT', `/admin/tokens/${id}`, data),
   delete: (id: number) => request<any>('DELETE', `/admin/tokens/${id}`),
   rotate: (id: number) => request<{ token: string }>('POST', `/admin/tokens/${id}/rotate`),
-  generateClientToken: () => request<{ token: string }>('POST', '/admin/tokens/generate-client-token'),
+  generateClientToken: () => request<{ token: string }>('POST', '/admin/tokens/generate-client-token', {}),
 }
 
 // ── Templates ──
@@ -187,6 +187,7 @@ export const messagesApi = {
   get: (id: string) => request<any>('GET', `/admin/messages/${id}`),
   retry: (id: string) => request<any>('POST', `/admin/messages/${id}/retry`),
   delete: (id: string) => request<any>('DELETE', `/admin/messages/${id}`),
+  deleteAll: () => request<{ deleted_messages: number; deleted_push_messages: number }>('DELETE', '/admin/messages'),
 }
 
 // ── Users (admin only) ──
@@ -239,8 +240,8 @@ export const attachmentsApi = {
 
 export const userSettingsApi = {
   get: () =>
-    request<{ attachmentExpiration: number; messageExpiration: number }>('GET', '/admin/settings'),
-  update: (data: { attachmentExpiration?: number; messageExpiration?: number }) =>
+    request<{ attachmentExpiryDays: number; messageExpiryDays: number }>('GET', '/admin/settings'),
+  update: (data: { attachmentExpiryDays?: number; messageExpiryDays?: number }) =>
     request<void>('PUT', '/admin/settings', data),
   getAttachment: () =>
     request<{ attachmentExpiration: number }>('GET', '/admin/settings/attachment'),

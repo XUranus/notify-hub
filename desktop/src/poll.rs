@@ -1,4 +1,4 @@
-use crate::api::ApiClient;
+use crate::api::{ApiClient, PushMessage};
 use crate::config::AppConfig;
 use crate::messages::{LocalMessage, MessageStore};
 use crate::notify::{show_notification, show_notification_with_icon, decode_topic_icon};
@@ -53,16 +53,71 @@ pub async fn try_download_image(attachment_json: &str, server_url: &str) -> Opti
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("notifyhub-client")
         .join("images");
-    std::fs::create_dir_all(&cache_dir).ok();
+    if let Err(e) = std::fs::create_dir_all(&cache_dir) {
+        log::warn!("[poll] Failed to create image cache dir: {}", e);
+    }
 
     // Use message id or hash of url as filename
     let ext = name.rsplit('.').next().unwrap_or("jpg");
     let safe_name = url.replace(|c: char| !c.is_alphanumeric() && c != '-' && c != '_', "_");
     let filename = format!("{}.{}", &safe_name[..safe_name.len().min(64)], ext);
     let path = cache_dir.join(&filename);
-    std::fs::write(&path, &bytes).ok()?;
+    std::fs::write(&path, &bytes).map_err(|e| {
+        log::warn!("[poll] Failed to write cached image {}: {}", path.display(), e);
+        e
+    }).ok()?;
 
     Some(path.to_string_lossy().to_string())
+}
+
+/// Process an incoming push message: convert to local, store, and show notification.
+/// Shared across poll, SSE, and WebSocket connection modes.
+pub async fn process_message(
+    msg: &PushMessage,
+    msg_store: &Arc<MessageStore>,
+    auto_download: bool,
+    server_url: &str,
+    source: &str,
+) {
+    let local_image_path = if auto_download {
+        if let Some(ref att) = msg.attachment {
+            try_download_image(att, server_url).await
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let local = LocalMessage {
+        id: msg.id.clone(),
+        title: msg.title.clone(),
+        body: msg.body.clone(),
+        level: msg.level.clone(),
+        received_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        read: false,
+        flagged: false,
+        tags: msg.tags.clone(),
+        priority: msg.priority,
+        url: msg.url.clone(),
+        attachment: msg.attachment.clone(),
+        format: msg.format.clone(),
+        local_image_path,
+        topic_id: msg.topic_id.clone(),
+        topic_name: msg.topic_name.clone(),
+        topic_display_name: msg.topic_display_name.clone(),
+        topic_icon: msg.topic_icon.clone(),
+    };
+    if msg_store.add(local) {
+        let icon_path = msg.topic_icon.as_deref().and_then(decode_topic_icon);
+        if let Some(ref path) = icon_path {
+            show_notification_with_icon(&msg.title, &msg.body, Some(&path.to_string_lossy()));
+        } else {
+            show_notification(&msg.title, &msg.body);
+        }
+    } else {
+        log::warn!("[{}] Duplicate message ignored: id={}", source, msg.id);
+    }
 }
 
 pub struct PollState {
@@ -102,14 +157,16 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
                     Ok((code, messages)) => {
                         // Re-login on 401 (JWT expired)
                         if code == 401 {
-                            eprintln!("[poll] JWT expired (401), re-logging in...");
+                            log::warn!("[poll] JWT expired (401), re-logging in...");
                             match ApiClient::login(&server_url, &username, &password).await {
                                 Ok(new_jwt) => {
                                     current_jwt = new_jwt.clone();
                                     // Save new JWT to config
                                     if let Some(mut cfg) = AppConfig::load() {
                                         cfg.server.jwt = new_jwt;
-                                        let _ = cfg.save();
+                                        if let Err(e) = cfg.save() {
+                                            log::warn!("[poll] Failed to save new JWT: {}", e);
+                                        }
                                     }
                                     // Re-register
                                     let new_api = ApiClient::new(&server_url, &current_jwt);
@@ -117,9 +174,12 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
                                     let arch = std::env::consts::ARCH;
                                     let desktop = crate::detect_desktop_env();
                                     let version = env!("CARGO_PKG_VERSION");
-                                    let _ = new_api.register(&uuid, &name, os, arch, &desktop, version).await;
+                                    if let Err(e) = new_api.register(&uuid, &name, os, arch, &desktop, version).await {
+                                        log::warn!("[poll] Re-register after JWT refresh failed: {}", e);
+                                    }
                                 }
                                 Err(e) => {
+                                    log::error!("[poll] Re-login failed: {}", e);
                                     let mut s = state.lock().unwrap();
                                     s.error = Some(format!("Re-login failed: {}", e));
                                 }
@@ -137,51 +197,13 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
                             s.error = None;
                             s.was_connected = true;
                         }
-                        eprintln!("[poll] Received {} message(s) via Poll", messages.len());
+                        log::info!("[poll] Received {} message(s) via Poll", messages.len());
                         for msg in messages {
-                            // Auto-download image if enabled
-                            let local_image_path = if auto_download {
-                                if let Some(ref att) = msg.attachment {
-                                    try_download_image(att, &server_url).await
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            };
-
-                            // Store locally
-                            let local = LocalMessage {
-                                id: msg.id.clone(),
-                                title: msg.title.clone(),
-                                body: msg.body.clone(),
-                                level: msg.level.clone(),
-                                received_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-                                read: false,
-                                flagged: false,
-                                tags: msg.tags.clone(),
-                                priority: msg.priority,
-                                url: msg.url.clone(),
-                                attachment: msg.attachment.clone(),
-                                format: msg.format.clone(),
-                                local_image_path,
-                                topic_id: msg.topic_id.clone(),
-                                topic_name: msg.topic_name.clone(),
-                                topic_display_name: msg.topic_display_name.clone(),
-                                topic_icon: msg.topic_icon.clone(),
-                            };
-                            msg_store.add(local);
-                            // Show desktop notification with topic icon if available
-                            let icon_path = msg.topic_icon.as_deref()
-                                .and_then(decode_topic_icon);
-                            if let Some(ref path) = icon_path {
-                                show_notification_with_icon(&msg.title, &msg.body, Some(&path.to_string_lossy()));
-                            } else {
-                                show_notification(&msg.title, &msg.body);
-                            }
+                            process_message(&msg, &msg_store, auto_download, &server_url, "poll").await;
                         }
                     }
                     Err(e) => {
+                        log::error!("[poll] Poll error: {}", e);
                         let mut s = state.lock().unwrap();
                         // Connection lost - notify if was previously connected
                         if s.was_connected {

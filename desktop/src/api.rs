@@ -1,3 +1,4 @@
+use log::{debug, error, info, warn};
 use reqwest::Client;
 use reqwest::multipart;
 use serde::{Deserialize, Serialize};
@@ -51,6 +52,7 @@ pub struct ApiClient {
 
 impl ApiClient {
     pub fn new(base_url: &str, jwt: &str) -> Self {
+        debug!("[api] Client created for {}", base_url);
         Self {
             client: Client::new(),
             base_url: base_url.trim_end_matches('/').to_string(),
@@ -60,6 +62,7 @@ impl ApiClient {
 
     /// Login with username/email + password. Returns JWT token on success.
     pub async fn login(base_url: &str, username: &str, password: &str) -> Result<String, String> {
+        info!("[api] Login attempt: url={}, username={}", base_url, username);
         let client = Client::new();
         let url = format!("{}/api/auth/login", base_url.trim_end_matches('/'));
         let body = serde_json::json!({
@@ -73,18 +76,16 @@ impl ApiClient {
             .json(&body)
             .send()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| { error!("[api] Login request failed: {}", e); e.to_string() })?;
 
         let status = resp.status();
         let api_resp: ApiResponse<serde_json::Value> =
-            resp.json().await.map_err(|e| e.to_string())?;
+            resp.json().await.map_err(|e| { error!("[api] Login response parse failed: {}", e); e.to_string() })?;
 
         if !status.is_success() || !api_resp.success {
-            return Err(format!(
-                "HTTP {}: {}",
-                status,
-                api_resp.error.unwrap_or_else(|| "login failed".to_string())
-            ));
+            let msg = api_resp.error.unwrap_or_else(|| "login failed".to_string());
+            error!("[api] Login HTTP error: {} - {}", status, msg);
+            return Err(format!("HTTP {}: {}", status, msg));
         }
 
         let token = api_resp
@@ -92,6 +93,7 @@ impl ApiClient {
             .and_then(|d| d.get("token").and_then(|v| v.as_str()).map(|s| s.to_string()))
             .ok_or_else(|| "No token in response".to_string())?;
 
+        info!("[api] Login successful");
         Ok(token)
     }
 
@@ -104,6 +106,7 @@ impl ApiClient {
         desktop: &str,
         app_version: &str,
     ) -> Result<bool, String> {
+        info!("[api] Register: uuid={}", uuid);
         let url = format!("{}/api/v1/push/register", self.base_url);
         let body = serde_json::json!({
             "uuid": uuid,
@@ -122,13 +125,15 @@ impl ApiClient {
             .json(&body)
             .send()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| { error!("[api] Register request failed: {}", e); e.to_string() })?;
 
         let status = resp.status();
-        let api_resp: ApiResponse<serde_json::Value> = resp.json().await.map_err(|e| e.to_string())?;
+        let api_resp: ApiResponse<serde_json::Value> = resp.json().await.map_err(|e| { error!("[api] Register response parse failed: {}", e); e.to_string() })?;
         if !status.is_success() || !api_resp.success {
+            error!("[api] Register HTTP error: {}", status);
             return Err(format!("HTTP {}: register failed", status));
         }
+        info!("[api] Register successful");
         Ok(true)
     }
 
@@ -144,6 +149,7 @@ impl ApiClient {
         format: Option<&str>,
         attachment: Option<serde_json::Value>,
     ) -> Result<String, String> {
+        info!("[api] Send message: channel={}, to={}", channel, to);
         let url_str = format!("{}/api/v1/send", self.base_url);
         let mut payload = serde_json::json!({
             "channel": channel,
@@ -165,25 +171,25 @@ impl ApiClient {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| { error!("[api] Send request failed: {}", e); e.to_string() })?;
 
         let status = resp.status();
         let api_resp: ApiResponse<serde_json::Value> =
-            resp.json().await.map_err(|e| e.to_string())?;
+            resp.json().await.map_err(|e| { error!("[api] Send response parse failed: {}", e); e.to_string() })?;
 
         if !status.is_success() || !api_resp.success {
-            return Err(format!(
-                "HTTP {}: {}",
-                status,
-                api_resp.error.unwrap_or_else(|| "send failed".to_string())
-            ));
+            let msg = api_resp.error.unwrap_or_else(|| "send failed".to_string());
+            error!("[api] Send HTTP error: {} - {}", status, msg);
+            return Err(format!("HTTP {}: {}", status, msg));
         }
+        info!("[api] Message sent successfully");
         Ok(api_resp.data
             .and_then(|d| d.get("messageId").and_then(|v| v.as_str()).map(|s| s.to_string()))
             .unwrap_or_else(|| "ok".to_string()))
     }
 
     pub async fn update_client(&self, uuid: &str, name: &str) -> Result<bool, String> {
+        info!("[api] Update client name: uuid={}", uuid);
         let url = format!("{}/api/v1/push/client", self.base_url);
         let body = serde_json::json!({
             "uuid": uuid,
@@ -198,17 +204,20 @@ impl ApiClient {
             .json(&body)
             .send()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| { error!("[api] Update client request failed: {}", e); e.to_string() })?;
 
         let status = resp.status();
-        let api_resp: ApiResponse<serde_json::Value> = resp.json().await.map_err(|e| e.to_string())?;
+        let api_resp: ApiResponse<serde_json::Value> = resp.json().await.map_err(|e| { error!("[api] Update client response parse failed: {}", e); e.to_string() })?;
         if !status.is_success() || !api_resp.success {
+            error!("[api] Update client HTTP error: {}", status);
             return Err(format!("HTTP {}: update client failed", status));
         }
+        info!("[api] Client name updated");
         Ok(true)
     }
 
     pub async fn list_clients(&self) -> Result<Vec<serde_json::Value>, String> {
+        debug!("[api] Listing clients");
         let url = format!("{}/api/v2/clients", self.base_url);
         let resp = self
             .client
@@ -216,20 +225,20 @@ impl ApiClient {
             .header("Authorization", format!("Bearer {}", self.jwt))
             .send()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| { error!("[api] List clients request failed: {}", e); e.to_string() })?;
 
         let status = resp.status();
         let api_resp: ApiResponse<Vec<serde_json::Value>> =
-            resp.json().await.map_err(|e| e.to_string())?;
+            resp.json().await.map_err(|e| { error!("[api] List clients response parse failed: {}", e); e.to_string() })?;
 
         if !status.is_success() || !api_resp.success {
-            return Err(format!(
-                "HTTP {}: {}",
-                status,
-                api_resp.error.unwrap_or_else(|| "list clients failed".to_string())
-            ));
+            let msg = api_resp.error.unwrap_or_else(|| "list clients failed".to_string());
+            error!("[api] List clients HTTP error: {} - {}", status, msg);
+            return Err(format!("HTTP {}: {}", status, msg));
         }
-        Ok(api_resp.data.unwrap_or_default())
+        let clients = api_resp.data.unwrap_or_default();
+        debug!("[api] Listed {} clients", clients.len());
+        Ok(clients)
     }
 
     #[allow(dead_code)]
@@ -239,12 +248,13 @@ impl ApiClient {
         file_bytes: Vec<u8>,
         mime_type: &str,
     ) -> Result<serde_json::Value, String> {
+        info!("[api] Upload file: name={}, mime={}", file_name, mime_type);
         let url = format!("{}/api/v1/upload", self.base_url);
 
         let file_part = multipart::Part::bytes(file_bytes)
             .file_name(file_name.to_string())
             .mime_str(mime_type)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| { error!("[api] Upload file part creation failed: {}", e); e.to_string() })?;
 
         let form = multipart::Form::new().part("file", file_part);
 
@@ -255,25 +265,25 @@ impl ApiClient {
             .multipart(form)
             .send()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| { error!("[api] Upload request failed: {}", e); e.to_string() })?;
 
         let status = resp.status();
         let api_resp: ApiResponse<serde_json::Value> =
-            resp.json().await.map_err(|e| e.to_string())?;
+            resp.json().await.map_err(|e| { error!("[api] Upload response parse failed: {}", e); e.to_string() })?;
 
         if !status.is_success() || !api_resp.success {
-            return Err(format!(
-                "HTTP {}: {}",
-                status,
-                api_resp.error.unwrap_or_else(|| "upload failed".to_string())
-            ));
+            let msg = api_resp.error.unwrap_or_else(|| "upload failed".to_string());
+            error!("[api] Upload HTTP error: {} - {}", status, msg);
+            return Err(format!("HTTP {}: {}", status, msg));
         }
+        info!("[api] Upload successful");
         Ok(api_resp.data.unwrap_or(serde_json::json!(null)))
     }
 
     /// Poll for push messages. Returns (status_code, messages).
     /// If status_code is 401, the JWT has expired.
     pub async fn poll_with_status(&self, uuid: &str) -> Result<(u16, Vec<PushMessage>), String> {
+        debug!("[api] Polling: uuid={}", uuid);
         let url = format!("{}/api/v1/push/poll?uuid={}", self.base_url, uuid);
 
         let resp = self
@@ -282,22 +292,26 @@ impl ApiClient {
             .header("Authorization", format!("Bearer {}", self.jwt))
             .send()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| { error!("[api] Poll request failed: {}", e); e.to_string() })?;
 
         let status = resp.status();
         let code = status.as_u16();
 
         if code == 401 {
+            warn!("[api] Poll 401: JWT expired");
             return Ok((401, vec![]));
         }
 
         let api_resp: ApiResponse<Vec<PushMessage>> =
-            resp.json().await.map_err(|e| e.to_string())?;
+            resp.json().await.map_err(|e| { error!("[api] Poll response parse failed: {}", e); e.to_string() })?;
 
         if !status.is_success() || !api_resp.success {
+            error!("[api] Poll HTTP error: {} - {}", code, api_resp.error.as_deref().unwrap_or("unknown"));
             return Err(format!("HTTP {}: {}", code, api_resp.error.unwrap_or_default()));
         }
-        Ok((code, api_resp.data.unwrap_or_default()))
+        let messages = api_resp.data.unwrap_or_default();
+        debug!("[api] Poll response: status={}, messages={}", code, messages.len());
+        Ok((code, messages))
     }
 
     #[allow(dead_code)]
@@ -308,6 +322,7 @@ impl ApiClient {
 
     /// Acknowledge received push messages so they won't be re-delivered.
     pub async fn ack(&self, uuid: &str, message_ids: &[String]) -> Result<(), String> {
+        debug!("[api] ACK: uuid={}, count={}", uuid, message_ids.len());
         let url = format!("{}/api/v1/push/ack", self.base_url);
         let body = serde_json::json!({
             "uuid": uuid,
@@ -322,12 +337,14 @@ impl ApiClient {
             .json(&body)
             .send()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| { error!("[api] ACK request failed: {}", e); e.to_string() })?;
 
         let status = resp.status();
         if !status.is_success() {
+            error!("[api] ACK HTTP error: {}", status);
             return Err(format!("HTTP {}: ack failed", status));
         }
+        debug!("[api] ACK successful");
         Ok(())
     }
 }

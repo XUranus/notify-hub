@@ -12,6 +12,9 @@ export function SettingsModal({ app }: Props) {
   const [autostart, setAutostart] = useState(false)
   const [autoDownload, setAutoDownload] = useState(false)
   const [connectionMode, setConnectionMode] = useState('sse')
+  const [logLevel, setLogLevel] = useState('info')
+  const [logRetention, setLogRetention] = useState(30)
+  const [logFilePath, setLogFilePath] = useState('')
 
   const loadSystemTab = useCallback(async () => {
     try { const c = await invoke('get_config'); if (c) { setCfg(c); setClientName(c.client.name) } } catch {}
@@ -20,6 +23,7 @@ export function SettingsModal({ app }: Props) {
     try { setAutostart(await invoke('get_autostart')) } catch {}
     try { const c = await invoke('get_config'); if (c) setAutoDownload(!!c.auto_download_images) } catch {}
     try { const m = await invoke('get_connection_mode'); setConnectionMode(m || 'sse') } catch {}
+    try { const ls = await invoke('get_log_settings'); if (ls) { setLogLevel(ls.level || 'info'); setLogRetention(ls.retentionDays || 30); setLogFilePath(ls.logPath || '') } } catch {}
   }, [invoke])
 
   useEffect(() => { if (app.settingsOpen) loadSystemTab() }, [app.settingsOpen, loadSystemTab])
@@ -175,6 +179,38 @@ export function SettingsModal({ app }: Props) {
                   ))}
                 </div>
               </div>
+
+              <hr className="section-divider" />
+              <div className="detail-section-title" style={{ marginBottom: '10px' }}>Logging</div>
+              <div className="appearance-row">
+                <label className="appearance-label">{T.logLevel}</label>
+                <select className="appearance-select" value={logLevel} onChange={async e => {
+                  setLogLevel(e.target.value)
+                  try { await invoke('set_log_level', { level: e.target.value }) } catch { /* revert handled by reload */ }
+                }}>
+                  <option value="error">ERROR</option>
+                  <option value="info">INFO</option>
+                  <option value="debug">DEBUG</option>
+                </select>
+              </div>
+              <div className="appearance-row">
+                <label className="appearance-label">{T.logRetention}</label>
+                <select className="appearance-select" value={logRetention} onChange={async e => {
+                  const days = Number(e.target.value)
+                  setLogRetention(days)
+                  try { await invoke('set_log_retention', { days }) } catch {}
+                }}>
+                  <option value="7">{T.logRetentionWeek}</option>
+                  <option value="30">{T.logRetentionMonth}</option>
+                  <option value="365">{T.logRetentionYear}</option>
+                </select>
+              </div>
+              {logFilePath && (
+                <div className="appearance-row">
+                  <label className="appearance-label">{T.logFile}</label>
+                  <span className="info-value mono" style={{ fontSize: '12px', wordBreak: 'break-all' }}>{logFilePath}</span>
+                </div>
+              )}
             </div>
           </div>
         )}

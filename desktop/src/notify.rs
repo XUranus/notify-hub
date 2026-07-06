@@ -1,3 +1,4 @@
+use log::{debug, error, warn};
 use notify_rust::{Image as NotifImage, Notification};
 use std::path::PathBuf;
 
@@ -13,12 +14,14 @@ fn icon_cache_dir() -> PathBuf {
 
 /// Find the app icon in standard Linux locations or relative to the executable.
 fn find_app_icon() -> Option<PathBuf> {
+    debug!("[notify] Looking for app icon");
     let candidates = [
         "/usr/share/icons/hicolor/128x128/apps/com.notifyhub.client.png",
         "/usr/share/pixmaps/notifyhub-client.png",
     ];
     for path in &candidates {
         if std::path::Path::new(path).exists() {
+            debug!("[notify] Found app icon at {}", path);
             return Some(PathBuf::from(path));
         }
     }
@@ -31,17 +34,20 @@ fn find_app_icon() -> Option<PathBuf> {
             for rel in ["../icons/128x128.png", "../../icons/128x128.png"] {
                 let candidate = exe_dir.join(rel);
                 if candidate.exists() {
+                    debug!("[notify] Found app icon at {}", candidate.display());
                     return Some(candidate);
                 }
             }
         }
     }
+    debug!("[notify] App icon not found");
     None
 }
 
 /// Decode a base64 topic icon (with optional data URI prefix) and save to cache.
 /// Returns the file path if successful.
 pub fn decode_topic_icon(icon_b64: &str) -> Option<PathBuf> {
+    debug!("[notify] Decoding topic icon");
     use base64::Engine;
     let engine = base64::engine::general_purpose::STANDARD;
     // Strip data URI prefix if present (e.g. "data:image/png;base64,...")
@@ -51,7 +57,13 @@ pub fn decode_topic_icon(icon_b64: &str) -> Option<PathBuf> {
     } else {
         icon_b64
     };
-    let bytes = engine.decode(raw).ok()?;
+    let bytes = match engine.decode(raw) {
+        Ok(b) => b,
+        Err(e) => {
+            debug!("[notify] Base64 decode failed: {}", e);
+            return None;
+        }
+    };
     if bytes.is_empty() {
         return None;
     }
@@ -64,7 +76,10 @@ pub fn decode_topic_icon(icon_b64: &str) -> Option<PathBuf> {
     };
     let path = icon_cache_dir().join(format!("{:x}.png", hash));
     if !path.exists() {
-        std::fs::write(&path, &bytes).ok()?;
+        if let Err(e) = std::fs::write(&path, &bytes) {
+            warn!("[notify] Failed to cache icon: {}", e);
+            return None;
+        }
     }
     Some(path)
 }
@@ -85,10 +100,12 @@ fn strip_html(input: &str) -> String {
 }
 
 pub fn show_notification(title: &str, body: &str) {
+    debug!("[notify] Showing notification: {}", title);
     show_notification_with_icon(title, body, None);
 }
 
 pub fn show_notification_with_icon(title: &str, body: &str, content_icon_path: Option<&str>) {
+    debug!("[notify] Showing notification with icon: {}", title);
     let plain_body = strip_html(body);
     let mut notif = Notification::new();
     notif
@@ -111,10 +128,13 @@ pub fn show_notification_with_icon(title: &str, body: &str, content_icon_path: O
     if let Some(path) = content_icon_path {
         notif.image_path(&format!("file://{}", path));
     } else if let Some(app_icon_path) = find_app_icon() {
-        if let Ok(img) = NotifImage::open(&app_icon_path) {
-            notif.image_data(img);
+        match NotifImage::open(&app_icon_path) {
+            Ok(img) => { notif.image_data(img); }
+            Err(e) => debug!("[notify] Failed to open icon image: {}", e),
         }
     }
 
-    let _ = notif.show();
+    if let Err(e) = notif.show() {
+        error!("[notify] Failed to show notification: {}", e);
+    }
 }

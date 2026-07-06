@@ -45,6 +45,34 @@ impl PushState {
     }
 }
 
+// ── Shared helpers ──
+
+/// Update last_seen_at for a push client (no-op if uuid is empty)
+async fn update_last_seen(pool: &sqlx::SqlitePool, client_uuid: &str, user_id: i64) {
+    if client_uuid.is_empty() { return; }
+    let now = chrono::Utc::now().timestamp();
+    sqlx::query("UPDATE push_clients SET last_seen_at = ? WHERE uuid = ? AND user_id = ?")
+        .bind(now)
+        .bind(client_uuid)
+        .bind(user_id)
+        .execute(pool)
+        .await
+        .ok();
+}
+
+/// Check if user has "don't keep messages" policy (message_expiration == -1)
+pub async fn has_no_retention_policy(pool: &sqlx::SqlitePool, user_id: i64) -> bool {
+    let msg_expiry: Option<i64> = sqlx::query_scalar(
+        "SELECT message_expiration FROM user_settings WHERE user_id = ?"
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+    .unwrap_or(None)
+    .flatten();
+    msg_expiry == Some(-1)
+}
+
 // ── Router ──
 
 pub fn router() -> Router<AppState> {
@@ -261,6 +289,11 @@ async fn ack_messages(
     let user_id: i64 = auth.claims.sub.parse()
         .map_err(|_| AppError::BadRequest("invalid user id".into()))?;
 
+    // Update last_seen_at for the client
+    if let Some(ref client_uuid) = req.uuid {
+        update_last_seen(&state.pool, client_uuid, user_id).await;
+    }
+
     let mut source_ids_to_check: Vec<String> = Vec::new();
 
     for msg_id in &req.message_ids {
@@ -280,6 +313,9 @@ async fn ack_messages(
         }
     }
 
+    // Check if user has "don't keep messages" policy (-1)
+    let no_retention = has_no_retention_policy(&state.pool, user_id).await;
+
     // For each source message, check if all push_messages are delivered
     for source_id in &source_ids_to_check {
         let undelivered: (i64,) = sqlx::query_as(
@@ -291,14 +327,29 @@ async fn ack_messages(
         .unwrap_or((0,));
 
         if undelivered.0 == 0 {
-            // All push_messages for this source are delivered — update the original message
-            let now = chrono::Utc::now().timestamp();
-            sqlx::query("UPDATE messages SET status = 'delivered', sent_at = COALESCE(sent_at, ?) WHERE id = ? AND status = 'sent'")
-                .bind(now)
-                .bind(source_id)
-                .execute(&state.pool)
-                .await
-                .ok();
+            if no_retention {
+                // Delete push messages and source message (no retention policy)
+                sqlx::query("DELETE FROM push_messages WHERE source_message_id = ?")
+                    .bind(source_id)
+                    .execute(&state.pool)
+                    .await
+                    .ok();
+                sqlx::query("DELETE FROM messages WHERE id = ?")
+                    .bind(source_id)
+                    .execute(&state.pool)
+                    .await
+                    .ok();
+                tracing::info!("[push] Message {source_id} deleted after ACK (user policy: no retention)");
+            } else {
+                // All push_messages for this source are delivered — update the original message
+                let now = chrono::Utc::now().timestamp();
+                sqlx::query("UPDATE messages SET status = 'delivered', sent_at = COALESCE(sent_at, ?) WHERE id = ? AND status = 'sent'")
+                    .bind(now)
+                    .bind(source_id)
+                    .execute(&state.pool)
+                    .await
+                    .ok();
+            }
         }
     }
 
@@ -322,6 +373,9 @@ async fn poll_messages(
         .map_err(|_| AppError::BadRequest("invalid user id".into()))?;
     let limit = params.limit.unwrap_or(50).min(200);
     let client_uuid = params.uuid.clone().unwrap_or_default();
+
+    // Update last_seen_at for the client
+    update_last_seen(&state.pool, &client_uuid, user_id).await;
 
     let rows: Vec<PushMessageRow> = sqlx::query_as(
         r#"SELECT pm.id, pm.client_uuid, pm.source_message_id, pm.title, pm.body, pm.level,
@@ -411,7 +465,7 @@ async fn extract_auth(
 
 // ── SSE stream (real-time via broadcast) ──
 
-use axum::response::sse::{Event, Sse};
+use axum::response::sse::{Event, KeepAlive, Sse};
 use futures_util::stream::Stream;
 use std::convert::Infallible;
 use std::time::Duration;
@@ -433,6 +487,9 @@ async fn stream_messages(
     let client_uuid = params.uuid.clone().unwrap_or_default();
     let pool = state.pool.clone();
     let push_state = state.push_state.clone();
+
+    // Update last_seen_at for the client
+    update_last_seen(&pool, &client_uuid, user_id).await;
 
     let stream = async_stream::stream! {
         // Send connected event
@@ -474,7 +531,7 @@ async fn stream_messages(
         }
     };
 
-    Ok(Sse::new(stream))
+    Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(30))))
 }
 
 // ── WebSocket (real-time via broadcast) ──
@@ -494,6 +551,9 @@ async fn ws_handler(
 
 async fn handle_ws(mut socket: WebSocket, user_id: i64, client_uuid: String, state: AppState) {
     tracing::info!("[ws] Client connected: user_id={user_id} client_uuid={client_uuid}");
+
+    // Update last_seen_at for the client
+    update_last_seen(&state.pool, &client_uuid, user_id).await;
 
     // Send connected event
     let connected = serde_json::json!({"event": "connected", "data": {"connected": true}});

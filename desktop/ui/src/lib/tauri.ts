@@ -29,7 +29,6 @@ export interface PollStateSnapshot {
   mode: string
   last_poll: string | null
   error: string | null
-  was_connected: boolean
 }
 
 export interface SystemInfo {

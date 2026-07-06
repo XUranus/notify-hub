@@ -16,7 +16,18 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
 import androidx.core.content.ContextCompat
 import com.notifyhub.client.data.ClientConfig
@@ -60,7 +71,7 @@ class MainActivity : ComponentActivity() {
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { _ -> }
+    ) { granted -> AppLogger.d(TAG, "Notification permission: granted=$granted") }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -93,6 +104,7 @@ class MainActivity : ComponentActivity() {
                     !configured -> "config"
                     showCompose -> "compose"
                     showSettings -> "settings"
+                    !bound -> "loading" // wait for PollService to bind
                     else -> "main"
                 }
 
@@ -125,6 +137,21 @@ class MainActivity : ComponentActivity() {
                                 qrData = if (qrScanTarget == "config") pendingQrData else null,
                                 onQrDataConsumed = { pendingQrData = null }
                             )
+                        }
+                        "loading" -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator()
+                                    Spacer(Modifier.height(16.dp))
+                                    Text(
+                                        I18n["status_connecting"],
+                                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
                         "compose" -> {
                             BackHandler { showCompose = false }
@@ -190,17 +217,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        AppLogger.d(TAG, "onStart")
         if (ConfigStore.isConfigured(this)) startPollService()
     }
 
     override fun onStop() {
         super.onStop()
+        AppLogger.d(TAG, "onStop, bound=$bound")
         if (bound) { unbindService(connection); bound = false }
     }
 
     private fun handleNotificationIntent() {
         val messageId = intent?.getStringExtra("open_message_id")
         if (messageId != null) {
+            AppLogger.d(TAG, "Opening message from notification: $messageId")
             pendingOpenMessageId = messageId
             intent.removeExtra("open_message_id")
         }
@@ -208,6 +238,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        AppLogger.d(TAG, "onNewIntent action=${intent.action}")
         setIntent(intent)
         handleNotificationIntent()
     }
@@ -222,6 +253,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startPollService() {
+        AppLogger.i(TAG, "Starting PollService")
         val intent = Intent(this, PollService::class.java).apply { action = PollService.ACTION_START }
         try { startForegroundService(intent) } catch (e: Exception) { AppLogger.e(TAG, "startForegroundService failed", e) }
         bindPollService()

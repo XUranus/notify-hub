@@ -291,16 +291,16 @@ function SecuritySettings() {
 
 function AttachmentSettings() {
   const { t } = useTranslation()
-  const [attachmentExpiration, setAttachmentExpiration] = useState(0)
-  const [messageExpiration, setMessageExpiration] = useState(0)
+  const [attachmentExpiryDays, setAttachmentExpiryDays] = useState(0)
+  const [messageExpiryDays, setMessageExpiryDays] = useState(0)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     userSettingsApi.get().then((res) => {
       if (res.success && res.data) {
-        setAttachmentExpiration(res.data.attachmentExpiration)
-        setMessageExpiration(res.data.messageExpiration)
+        setAttachmentExpiryDays(res.data.attachmentExpiryDays)
+        setMessageExpiryDays(res.data.messageExpiryDays)
       }
     })
   }, [])
@@ -308,7 +308,7 @@ function AttachmentSettings() {
   const handleSave = async () => {
     setSaving(true)
     setSaved(false)
-    const res = await userSettingsApi.update({ attachmentExpiration, messageExpiration })
+    const res = await userSettingsApi.update({ attachmentExpiryDays, messageExpiryDays })
     setSaving(false)
     if (res.success) setSaved(true)
   }
@@ -323,6 +323,7 @@ function AttachmentSettings() {
 
   const messageOptions = [
     { value: 0, label: t('settings.attachments.never') },
+    { value: -1, label: t('settings.messages.noRetention') },
     { value: 1, label: t('settings.attachments.24h') },
     { value: 3, label: t('settings.attachments.3d') },
     { value: 7, label: t('settings.attachments.1w') },
@@ -342,7 +343,7 @@ function AttachmentSettings() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>{t('settings.messages.expiration')}</Label>
-            <Select value={String(messageExpiration)} onValueChange={(v) => { setMessageExpiration(Number(v)); setSaved(false) }}>
+            <Select value={String(messageExpiryDays)} onValueChange={(v) => { setMessageExpiryDays(Number(v)); setSaved(false) }}>
               <SelectTrigger className="w-[300px]">
                 <SelectValue />
               </SelectTrigger>
@@ -371,7 +372,7 @@ function AttachmentSettings() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>{t('settings.attachments.expiration')}</Label>
-            <Select value={String(attachmentExpiration)} onValueChange={(v) => { setAttachmentExpiration(Number(v)); setSaved(false) }}>
+            <Select value={String(attachmentExpiryDays)} onValueChange={(v) => { setAttachmentExpiryDays(Number(v)); setSaved(false) }}>
               <SelectTrigger className="w-[300px]">
                 <SelectValue />
               </SelectTrigger>

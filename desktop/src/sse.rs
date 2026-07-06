@@ -1,9 +1,8 @@
 use crate::api::{ApiClient, PushMessage};
 use crate::config::AppConfig;
-use crate::messages::{LocalMessage, MessageStore};
-use crate::notify::{decode_topic_icon, show_notification, show_notification_with_icon};
-use crate::poll::PollState;
-use crate::poll::try_download_image;
+use crate::messages::MessageStore;
+use crate::notify::show_notification;
+use crate::poll::{PollState, process_message};
 use std::sync::{Arc, Mutex};
 
 /// Start SSE connection for real-time message delivery.
@@ -51,7 +50,7 @@ pub fn start_sse(
                 {
                     Ok(r) => r,
                     Err(e) => {
-                        eprintln!("[sse] Connection failed: {}", e);
+                        log::error!("[sse] Connection failed: {}", e);
                         let mut s = state.lock().unwrap();
                         if s.was_connected {
                             show_notification("NotifyHub", "Connection lost");
@@ -63,22 +62,27 @@ pub fn start_sse(
                 };
 
                 if resp.status().as_u16() == 401 {
-                    eprintln!("[sse] JWT expired, re-logging in...");
+                    log::warn!("[sse] JWT expired, re-logging in...");
                     match ApiClient::login(&server_url, &username, &password).await {
                         Ok(new_jwt) => {
                             current_jwt = new_jwt.clone();
                             if let Some(mut cfg) = AppConfig::load() {
                                 cfg.server.jwt = new_jwt;
-                                let _ = cfg.save();
+                                if let Err(e) = cfg.save() {
+                                    log::warn!("[sse] Failed to save new JWT: {}", e);
+                                }
                             }
                             let new_api = ApiClient::new(&server_url, &current_jwt);
                             let os = std::env::consts::OS;
                             let arch = std::env::consts::ARCH;
                             let desktop = crate::detect_desktop_env();
                             let version = env!("CARGO_PKG_VERSION");
-                            let _ = new_api.register(&uuid, &name, os, arch, &desktop, version).await;
+                            if let Err(e) = new_api.register(&uuid, &name, os, arch, &desktop, version).await {
+                                log::warn!("[sse] Re-register after JWT refresh failed: {}", e);
+                            }
                         }
                         Err(e) => {
+                            log::error!("[sse] Re-login failed: {}", e);
                             let mut s = state.lock().unwrap();
                             s.error = Some(format!("Re-login failed: {}", e));
                         }
@@ -87,8 +91,10 @@ pub fn start_sse(
                 }
 
                 if !resp.status().is_success() {
+                    let status = resp.status().as_u16();
+                    log::error!("[sse] HTTP error: status={}", status);
                     let mut s = state.lock().unwrap();
-                    s.error = Some(format!("SSE HTTP {}", resp.status().as_u16()));
+                    s.error = Some(format!("SSE HTTP {}", status));
                     return;
                 }
 
@@ -120,7 +126,7 @@ pub fn start_sse(
                     let bytes = match chunk {
                         Ok(b) => b,
                         Err(e) => {
-                            eprintln!("[sse] Stream error: {}", e);
+                            log::error!("[sse] Stream error: {}", e);
                             break;
                         }
                     };
@@ -146,28 +152,18 @@ pub fn start_sse(
 
                             // Try to parse as a single message
                             if let Ok(msg) = serde_json::from_str::<PushMessage>(data) {
-                                eprintln!("[sse] Received message via SSE: {}", msg.title);
+                                log::debug!("[sse] Received message via SSE: {}", msg.title);
                                 ack_ids.push(msg.id.clone());
-                                process_message(
-                                    &msg,
-                                    &msg_store,
-                                    auto_download,
-                                    &server_url,
-                                ).await;
+                                process_message(&msg, &msg_store, auto_download, &server_url, "sse").await;
                             }
                             // Or as API response with messages array
                             else if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
                                 if let Some(messages) = parsed.get("data").and_then(|d| d.as_array()) {
-                                    eprintln!("[sse] Received {} message(s) via SSE", messages.len());
+                                    log::info!("[sse] Received {} message(s) via SSE", messages.len());
                                     for msg_val in messages {
                                         if let Ok(msg) = serde_json::from_value::<PushMessage>(msg_val.clone()) {
                                             ack_ids.push(msg.id.clone());
-                                            process_message(
-                                                &msg,
-                                                &msg_store,
-                                                auto_download,
-                                                &server_url,
-                                            ).await;
+                                            process_message(&msg, &msg_store, auto_download, &server_url, "sse").await;
                                         }
                                     }
                                 }
@@ -176,13 +172,15 @@ pub fn start_sse(
                             // Ack messages on server so they won't be re-delivered via poll
                             if !ack_ids.is_empty() {
                                 let api = ApiClient::new(&server_url, &current_jwt);
-                                let _ = api.ack(&uuid, &ack_ids).await;
+                                if let Err(e) = api.ack(&uuid, &ack_ids).await {
+                                    log::error!("[sse] ACK failed for {} messages: {}", ack_ids.len(), e);
+                                }
                             }
                         }
                     }
                 }
 
-                eprintln!("[sse] Stream ended, will reconnect...");
+                log::warn!("[sse] Stream ended, will reconnect...");
             });
 
             // Interruptible sleep: check running flag and mode every 500ms
@@ -197,49 +195,4 @@ pub fn start_sse(
             }
         }
     });
-}
-
-async fn process_message(
-    msg: &PushMessage,
-    msg_store: &Arc<MessageStore>,
-    auto_download: bool,
-    server_url: &str,
-) {
-    let local_image_path = if auto_download {
-        if let Some(ref att) = msg.attachment {
-            try_download_image(att, server_url).await
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    let local = LocalMessage {
-        id: msg.id.clone(),
-        title: msg.title.clone(),
-        body: msg.body.clone(),
-        level: msg.level.clone(),
-        received_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-        read: false,
-        flagged: false,
-        tags: msg.tags.clone(),
-        priority: msg.priority,
-        url: msg.url.clone(),
-        attachment: msg.attachment.clone(),
-        format: msg.format.clone(),
-        local_image_path,
-        topic_id: msg.topic_id.clone(),
-        topic_name: msg.topic_name.clone(),
-        topic_display_name: msg.topic_display_name.clone(),
-        topic_icon: msg.topic_icon.clone(),
-    };
-    msg_store.add(local);
-
-    let icon_path = msg.topic_icon.as_deref().and_then(decode_topic_icon);
-    if let Some(ref path) = icon_path {
-        show_notification_with_icon(&msg.title, &msg.body, Some(&path.to_string_lossy()));
-    } else {
-        show_notification(&msg.title, &msg.body);
-    }
 }

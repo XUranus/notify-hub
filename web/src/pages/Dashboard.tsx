@@ -51,7 +51,7 @@ interface DailyCount {
 }
 
 interface ChannelCount {
-  channel: string
+  channelType: string
   count: number
 }
 
@@ -218,7 +218,7 @@ export default function Dashboard() {
                     <Pie
                       data={channelData}
                       dataKey="count"
-                      nameKey="channel"
+                      nameKey="channelType"
                       cx="50%"
                       cy="50%"
                       innerRadius={45}
@@ -227,7 +227,7 @@ export default function Dashboard() {
                       stroke="hsl(var(--card))"
                     >
                       {channelData.map((entry) => (
-                        <Cell key={entry.channel} fill={CHANNEL_COLORS[entry.channel] || 'hsl(var(--muted))'} />
+                        <Cell key={entry.channelType} fill={CHANNEL_COLORS[entry.channelType] || 'hsl(var(--muted))'} />
                       ))}
                     </Pie>
                     <Tooltip content={<ChartTooltip />} />
@@ -235,9 +235,9 @@ export default function Dashboard() {
                 </ResponsiveContainer>
                 <div className="flex justify-center gap-5 mt-2">
                   {channelData.map((entry) => (
-                    <div key={entry.channel} className="flex items-center gap-1.5 text-xs">
-                      <span className="w-2 h-2 rounded-full" style={{ background: CHANNEL_COLORS[entry.channel] || 'hsl(var(--muted))' }} />
-                      <span className="text-muted-foreground capitalize">{entry.channel}</span>
+                    <div key={entry.channelType} className="flex items-center gap-1.5 text-xs">
+                      <span className="w-2 h-2 rounded-full" style={{ background: CHANNEL_COLORS[entry.channelType] || 'hsl(var(--muted))' }} />
+                      <span className="text-muted-foreground capitalize">{entry.channelType}</span>
                       <span className="font-medium tabular-nums">{entry.count}</span>
                     </div>
                   ))}

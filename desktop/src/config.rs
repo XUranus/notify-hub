@@ -1,3 +1,4 @@
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -6,6 +7,7 @@ use std::path::PathBuf;
 /// Uses hostname + machine-id (Linux/macOS) or hostname + username (fallback)
 /// so the UUID stays the same across reinstalls on the same device.
 fn device_stable_uuid() -> String {
+    debug!("[config] Generating device UUID");
     let mut parts: Vec<String> = Vec::new();
 
     // Hostname
@@ -20,21 +22,27 @@ fn device_stable_uuid() -> String {
     #[cfg(target_os = "linux")]
     {
         for path in &["/etc/machine-id", "/var/lib/dbus/machine-id"] {
-            if let Ok(id) = fs::read_to_string(path) {
-                let id = id.trim();
-                if !id.is_empty() {
-                    parts.push(id.to_string());
-                    break;
+            match fs::read_to_string(path) {
+                Ok(id) => {
+                    let id = id.trim();
+                    if !id.is_empty() {
+                        parts.push(id.to_string());
+                        break;
+                    }
+                }
+                Err(e) => {
+                    debug!("[config] Failed to read {}: {}", path, e);
                 }
             }
         }
     }
     #[cfg(target_os = "macos")]
     {
-        if let Ok(output) = std::process::Command::new("ioreg")
+        match std::process::Command::new("ioreg")
             .args(["-rd1", "-c", "IOPlatformExpertDevice"])
             .output()
         {
+        Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             for line in stdout.lines() {
                 if line.contains("IOPlatformUUID") {
@@ -44,11 +52,15 @@ fn device_stable_uuid() -> String {
                 }
             }
         }
+        Err(e) => {
+            debug!("[config] Failed to run ioreg: {}", e);
+        }
+        }
     }
     #[cfg(target_os = "windows")]
     {
         // Windows: read MachineGuid from registry
-        if let Ok(output) = std::process::Command::new("reg")
+        match std::process::Command::new("reg")
             .args([
                 "query",
                 r"HKLM\SOFTWARE\Microsoft\Cryptography",
@@ -57,6 +69,7 @@ fn device_stable_uuid() -> String {
             ])
             .output()
         {
+        Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             for line in stdout.lines() {
                 if line.contains("MachineGuid") {
@@ -65,6 +78,10 @@ fn device_stable_uuid() -> String {
                     }
                 }
             }
+        }
+        Err(e) => {
+            debug!("[config] Failed to run reg command: {}", e);
+        }
         }
     }
 
@@ -110,10 +127,24 @@ pub struct AppConfig {
     /// Connection mode: "sse", "ws", or "poll" (default: "sse")
     #[serde(default = "default_connection_mode")]
     pub connection_mode: String,
+    /// Log level: "error", "info", "debug"
+    #[serde(default = "default_log_level")]
+    pub log_level: String,
+    /// Log retention in days: 7, 30, 365
+    #[serde(default = "default_log_retention_days")]
+    pub log_retention_days: u32,
 }
 
 fn default_connection_mode() -> String {
     "sse".to_string()
+}
+
+fn default_log_level() -> String {
+    "info".to_string()
+}
+
+fn default_log_retention_days() -> u32 {
+    30
 }
 
 impl AppConfig {
@@ -121,15 +152,35 @@ impl AppConfig {
         let dir = dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("notifyhub-client");
-        fs::create_dir_all(&dir).ok();
-        dir.join("config.toml")
+        if let Err(e) = fs::create_dir_all(&dir) {
+            warn!("[config] Failed to create config dir: {}", e);
+        }
+        let path = dir.join("config.toml");
+        debug!("[config] Config path: {:?}", path);
+        path
     }
 
     pub fn load() -> Option<Self> {
         let path = Self::config_path();
+        info!("[config] Loading config from {:?}", path);
         if path.exists() {
-            let content = fs::read_to_string(&path).ok()?;
-            toml::from_str(&content).ok()
+            let content = match fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(e) => {
+                    warn!("[config] Failed to read config: {}", e);
+                    return None;
+                }
+            };
+            match toml::from_str(&content) {
+                Ok(config) => {
+                    info!("[config] Config loaded successfully");
+                    Some(config)
+                }
+                Err(e) => {
+                    error!("[config] Failed to parse config: {}", e);
+                    None
+                }
+            }
         } else {
             None
         }
@@ -137,11 +188,23 @@ impl AppConfig {
 
     pub fn save(&self) -> Result<(), String> {
         let path = Self::config_path();
+        info!("[config] Saving config to {:?}", path);
         let content = toml::to_string_pretty(self).map_err(|e| e.to_string())?;
-        fs::write(&path, content).map_err(|e| e.to_string())
+        match fs::write(&path, content) {
+            Ok(()) => {
+                info!("[config] Config saved");
+                Ok(())
+            }
+            Err(e) => {
+                error!("[config] Failed to save config: {}", e);
+                Err(e.to_string())
+            }
+        }
     }
 
     pub fn default_with_uuid() -> Self {
+        let uuid = device_stable_uuid();
+        info!("[config] Creating default config with uuid={}", uuid);
         Self {
             server: ServerConfig {
                 url: "http://localhost:4321".to_string(),
@@ -150,12 +213,14 @@ impl AppConfig {
                 jwt: String::new(),
             },
             client: ClientConfig {
-                uuid: device_stable_uuid(),
+                uuid: uuid,
                 name: whoami::fallible::hostname().unwrap_or_else(|_| "desktop".to_string()),
             },
             autostart: false,
             auto_download_images: false,
             connection_mode: "sse".to_string(),
+            log_level: default_log_level(),
+            log_retention_days: default_log_retention_days(),
         }
     }
 }

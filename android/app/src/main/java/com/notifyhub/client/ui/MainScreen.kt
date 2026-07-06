@@ -51,6 +51,8 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.AlertDialog
@@ -250,6 +252,7 @@ fun MainScreen(
     var selectionMode by remember { mutableStateOf(false) }
     val selectedIds = remember { mutableStateListOf<String>() }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showClearAllConfirm by remember { mutableStateOf(false) }
 
     // Range selection state (long-press + drag)
     var rangeSelectStartId by remember { mutableStateOf<String?>(null) }
@@ -525,6 +528,24 @@ fun MainScreen(
                                     leadingIcon = { if (currentFilter == MessageFilter.FLAGGED) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
                                 )
                                 HorizontalDivider()
+                                // Mark all as read
+                                DropdownMenuItem(
+                                    text = { Text(i18n("mark_all_read")) },
+                                    onClick = {
+                                        showFilterMenu = false
+                                        scope.launch { MessageStore.markAllAsRead(context) }
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.DoneAll, contentDescription = null) }
+                                )
+                                // Clear all messages
+                                DropdownMenuItem(
+                                    text = { Text(i18n("clear_all_messages")) },
+                                    onClick = {
+                                        showFilterMenu = false
+                                        showClearAllConfirm = true
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                                )
                                 // Settings
                                 DropdownMenuItem(
                                     text = { Text(i18n("settings")) },
@@ -893,6 +914,27 @@ fun MainScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text(i18n("cancel"))
+                }
+            }
+        )
+    }
+
+    if (showClearAllConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearAllConfirm = false },
+            title = { Text(i18n("clear_all_messages")) },
+            text = { Text(i18n("dash_clear_confirm")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showClearAllConfirm = false
+                    scope.launch { MessageStore.deleteAll(context) }
+                }) {
+                    Text(i18n("confirm"), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearAllConfirm = false }) {
                     Text(i18n("cancel"))
                 }
             }

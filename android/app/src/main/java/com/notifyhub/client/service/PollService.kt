@@ -98,12 +98,14 @@ class PollService : Service() {
     }
 
     override fun onDestroy() {
+        AppLogger.i(TAG, "PollService destroyed")
         stopPolling()
         scope.cancel()
         super.onDestroy()
     }
 
     fun restart() {
+        AppLogger.i(TAG, "PollService restart()")
         stopPolling()
         startPolling()
     }
@@ -139,13 +141,16 @@ class PollService : Service() {
 
             var api = ApiClient(config.serverUrl, jwt)
 
-            // Fetch FCM token (if Firebase is configured)
+            // Fetch FCM token (if Firebase is configured, with 5s timeout)
             var fcmToken: String? = null
             try {
-                fcmToken = com.google.firebase.messaging.FirebaseMessaging.getInstance()
-                    .token.await()
+                fcmToken = withTimeoutOrNull(5000L) {
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
+                }
                 if (fcmToken != null) {
                     AppLogger.d(TAG, "FCM token obtained: ${fcmToken.take(16)}...")
+                } else {
+                    AppLogger.w(TAG, "FCM token fetch timed out")
                 }
             } catch (e: Exception) {
                 AppLogger.w(TAG, "Could not get FCM token (Firebase may not be configured): ${e.message}")
@@ -231,31 +236,33 @@ class PollService : Service() {
 
         if (messages.isNotEmpty()) {
             AppLogger.d(TAG, "Received ${messages.size} message(s) via $source")
-            MessageStore.save(this@PollService, messages)
+            val newMessages = MessageStore.save(this@PollService, messages)
+            AppLogger.d(TAG, "${messages.size} received, ${newMessages.size} new, ${messages.size - newMessages.size} duplicates")
 
-            // Ack messages on server so they won't be re-delivered via poll
-            if (source != "Poll") {
-                val api = currentApi
-                val uuid = currentUuid
-                if (api != null && uuid != null) {
-                    val ids = messages.mapNotNull { it.id }
-                    if (ids.isNotEmpty()) {
-                        scope.launch(Dispatchers.IO) {
-                            try { api.ack(uuid, ids) } catch (_: Exception) {}
-                        }
+            // Ack all messages on server (including duplicates) so they won't be re-delivered
+            val api = currentApi
+            val uuid = currentUuid
+            if (api != null && uuid != null) {
+                val ids = messages.mapNotNull { it.id }
+                if (ids.isNotEmpty()) {
+                    scope.launch(Dispatchers.IO) {
+                        try { api.ack(uuid, ids) } catch (e: Exception) { AppLogger.e(TAG, "Ack failed for ${ids.size} messages", e) }
                     }
                 }
             }
 
-            if (ConfigStore.getAutoDownloadImages(this@PollService)) {
-                for (msg in messages) {
-                    tryAutoDownloadImage(msg)
+            // Only process new (non-duplicate) messages
+            if (newMessages.isNotEmpty()) {
+                if (ConfigStore.getAutoDownloadImages(this@PollService)) {
+                    for (msg in newMessages) {
+                        tryAutoDownloadImage(msg)
+                    }
                 }
-            }
 
-            if (!ConfigStore.isMuted(this@PollService)) {
-                for (msg in messages) {
-                    showPushNotification(msg)
+                if (!ConfigStore.isMuted(this@PollService)) {
+                    for (msg in newMessages) {
+                        showPushNotification(msg)
+                    }
                 }
             }
         }
@@ -263,6 +270,7 @@ class PollService : Service() {
 
     private fun handleConnectionRestored() {
         if (!isConnected.value) {
+            AppLogger.i(TAG, "Connection restored")
             if (wasConnected) {
                 showStatusNotification(
                     I18n["notif_connected"] ?: "Connected",
@@ -439,12 +447,14 @@ class PollService : Service() {
 
     /** Enter offline mode - keep polling silently without showing login prompts */
     fun enterOfflineMode() {
+        AppLogger.i(TAG, "Entered offline mode")
         isOfflineMode.value = true
         showOfflineDialog.value = false
     }
 
     /** Switch account - clear offline mode and go to config screen */
     fun switchAccount() {
+        AppLogger.i(TAG, "Switching account")
         isOfflineMode.value = false
         showOfflineDialog.value = false
         wasConnected = false
@@ -488,6 +498,7 @@ class PollService : Service() {
     }
 
     private fun showPushNotification(msg: PushMessage) {
+        AppLogger.i(TAG, "Showing notification: id=${msg.id} title=${msg.title}")
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         val isHighPriority = msg.level.lowercase() in listOf("error", "critical", "warning", "warn")
@@ -503,21 +514,19 @@ class PollService : Service() {
         )
 
         val largeIcon = decodeTopicIcon(msg.topicIcon)
+            ?: BitmapFactory.decodeResource(resources, R.drawable.logo)
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID_PUSH)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(msg.title)
             .setContentText(msg.body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(msg.body))
+            .setLargeIcon(largeIcon)
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setDefaults(Notification.DEFAULT_ALL) // sound + vibrate + lights
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-
-        if (largeIcon != null) {
-            builder.setLargeIcon(largeIcon)
-        }
 
         // Wake screen for error/critical
         if (msg.level.lowercase() in listOf("error", "critical")) {
@@ -543,7 +552,8 @@ class PollService : Service() {
                 Base64.decode(icon, Base64.DEFAULT)
             }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Failed to decode topic icon: ${e.message}")
             null
         }
     }
@@ -668,6 +678,7 @@ class PollService : Service() {
             val safeName = url.replace(Regex("[^a-zA-Z0-9_-]"), "_").take(64)
             val file = File(imagesDir, "$safeName.$ext")
             file.writeBytes(bytes)
+            AppLogger.d(TAG, "Auto-downloaded image: $name -> ${file.absolutePath}")
 
             // Update message entity with local path (tied to service lifecycle)
             scope.launch {

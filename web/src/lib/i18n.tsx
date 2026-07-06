@@ -190,6 +190,8 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'messages.colCreated': '创建时间',
     'messages.colActions': '操作',
     'messages.deleteConfirm': '确定要删除此消息吗？',
+    'messages.clearAll': '清空全部',
+    'messages.clearAllConfirm': '确定要清空你账户下的所有消息吗？此操作不可撤销。',
     'messages.detail': '消息详情',
     'messages.colBody': '正文',
     'messages.templateVars': '模板变量',
@@ -484,6 +486,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'settings.messages.desc': '设置云端消息的自动过期时间，过期的消息将被自动删除来释放存储额度。',
     'settings.messages.expiration': '消息过期时间',
     'settings.messages.expirationHint': '管理员的消息不受此限制。',
+    'settings.messages.noRetention': '不保留消息（送达即删）',
   },
 
   'en-US': {
@@ -665,6 +668,8 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'messages.colCreated': 'Created',
     'messages.colActions': 'Actions',
     'messages.deleteConfirm': 'Delete this message?',
+    'messages.clearAll': 'Clear All',
+    'messages.clearAllConfirm': 'Are you sure you want to delete all messages under your account? This action cannot be undone.',
     'messages.detail': 'Message Detail',
     'messages.colBody': 'Body',
     'messages.templateVars': 'Template Variables',
@@ -959,6 +964,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'settings.messages.desc': 'Set auto-expiration for cloud-stored messages. Expired messages are automatically deleted to free up storage quota.',
     'settings.messages.expiration': 'Message expiration',
     'settings.messages.expirationHint': 'Admin messages are not affected by this limit.',
+    'settings.messages.noRetention': 'No retention (delete after delivery)',
   },
 }
 

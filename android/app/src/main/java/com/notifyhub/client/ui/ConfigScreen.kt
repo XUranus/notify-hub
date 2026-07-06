@@ -65,7 +65,7 @@ fun ConfigScreen(
     var clientName by remember { mutableStateOf(config.clientName.ifBlank { android.os.Build.MODEL }) }
     var showPassword by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
-    var showAdvanced by remember { mutableStateOf(false) }
+    var showAdvanced by remember { mutableStateOf(config.serverUrl.isBlank()) }
 
     // Login animation - spinning logo
     val infiniteTransition = rememberInfiniteTransition(label = "login")
@@ -323,6 +323,10 @@ fun ConfigScreen(
                     onClick = {
                         if (isLoading) return@Button
                         if (serverUrl.isBlank()) {
+                            Toast.makeText(context, i18n("config_err_server"), Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
                             Toast.makeText(context, i18n("config_err_server"), Toast.LENGTH_SHORT).show()
                             return@Button
                         }

@@ -247,7 +247,7 @@ export default function Channels() {
     const result = await channelsApi.testConfig(formData.type, config)
     setTestingConfig(false)
     if (result.success && result.data) {
-      setTestResult({ connected: result.data.connected })
+      setTestResult({ connected: result.data.success })
     } else {
       setTestResult({ connected: false, error: result.error || t('channels.testFailed') })
     }
@@ -328,7 +328,7 @@ export default function Channels() {
     const result = await channelsApi.test(id)
     setTesting(null)
     if (result.success && result.data) {
-      alert(result.data.connected ? t('channels.testPassed') : t('channels.testFailed'))
+      alert(result.data.success ? t('channels.testPassed') : t('channels.testFailed'))
     } else {
       alert(result.error || t('channels.testFailed'))
     }

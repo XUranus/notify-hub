@@ -264,6 +264,7 @@
     .msg-level-badge.critical { background: var(--error-soft); color: var(--error); }
     .msg-level-badge.debug { background: var(--debug-soft); color: var(--debug); }
     .msg-tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--surface-variant); border: 1px solid var(--outline-variant); color: var(--on-surface-variant); }
+    .msg-format-tag { font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace; font-weight: 600; letter-spacing: -0.5px; background: var(--accent-soft); color: var(--accent); border-color: var(--accent); opacity: 0.8; }
     .msg-flags { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
     .msg-flag-icon { font-size: 15px; cursor: pointer; opacity: 0.5; transition: opacity 0.15s, transform 0.15s; padding: 2px; }
     .msg-flag-icon:hover { opacity: 1; transform: scale(1.15); }
@@ -321,6 +322,7 @@
     .detail-content-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; margin-bottom: 16px; overflow: hidden; }
     .detail-content-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; border-bottom: 1px solid var(--border); }
     .detail-content-header span { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; }
+    .detail-format-label { font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace; letter-spacing: 0.5px; }
     .detail-content-body { padding: 14px; font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; word-break: break-word; }
     .detail-content-body.markdown { font-family: inherit; }
     .detail-content-body.json { font-family: 'SF Mono','Fira Code',monospace; font-size: 12px; background: var(--badge-bg); border-radius: 6px; padding: 12px; }

@@ -2,6 +2,7 @@
 
 mod api;
 mod config;
+mod logging;
 mod messages;
 mod notify;
 mod poll;
@@ -9,6 +10,7 @@ mod sse;
 mod ws;
 
 use config::AppConfig;
+use log::{info, error, debug};
 use messages::{LocalMessage, MessageStore};
 use poll::PollState;
 use std::sync::{Arc, Mutex};
@@ -63,7 +65,7 @@ fn get_app_info() -> AppInfo {
             let dir = dirs::config_dir()
                 .unwrap_or_else(|| std::path::PathBuf::from("."))
                 .join("notifyhub-client");
-            dir.join("messages.json").to_string_lossy().to_string()
+            dir.join("messages.db").to_string_lossy().to_string()
         },
     }
 }
@@ -120,6 +122,11 @@ fn get_unread_count(store: tauri::State<'_, Arc<MessageStore>>) -> usize {
 }
 
 #[tauri::command]
+fn drain_has_new(store: tauri::State<'_, Arc<MessageStore>>) -> bool {
+    store.drain_has_new()
+}
+
+#[tauri::command]
 fn delete_message(id: String, store: tauri::State<'_, Arc<MessageStore>>) {
     store.delete(&id);
 }
@@ -131,12 +138,17 @@ fn clear_messages(store: tauri::State<'_, Arc<MessageStore>>) {
 
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
-    open::that(&url).map_err(|e| e.to_string())
+    log::info!("[cmd] Open URL: {}", url);
+    open::that(&url).map_err(|e| {
+        log::error!("[cmd] Failed to open URL: {}", e);
+        e.to_string()
+    })
 }
 
 #[tauri::command]
 async fn download_file(url: String, filename: String, app: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_dialog::DialogExt;
+    log::info!("[cmd] Download file: url={}, filename={}", url, filename);
 
     // Show save dialog
     let save_path = app.dialog()
@@ -146,19 +158,21 @@ async fn download_file(url: String, filename: String, app: tauri::AppHandle) -> 
 
     let save_path = match save_path {
         Some(p) => p,
-        None => return Ok(()), // User cancelled
+        None => { log::debug!("[cmd] Download cancelled by user"); return Ok(()); }
     };
 
     let dest = save_path.as_path()
-        .ok_or_else(|| "Invalid save path".to_string())?
+        .ok_or_else(|| { log::error!("[cmd] Invalid save path"); "Invalid save path".to_string() })?
         .to_path_buf();
 
     // Download file
-    let resp = reqwest::get(&url).await.map_err(|e| format!("Download failed: {}", e))?;
-    let bytes = resp.bytes().await.map_err(|e| format!("Download failed: {}", e))?;
+    let resp = reqwest::get(&url).await.map_err(|e| { log::error!("[cmd] Download HTTP failed: {}", e); format!("Download failed: {}", e) })?;
+    let bytes = resp.bytes().await.map_err(|e| { log::error!("[cmd] Download read body failed: {}", e); format!("Download failed: {}", e) })?;
+    log::debug!("[cmd] Downloaded {} bytes", bytes.len());
 
     // Write to chosen path
-    std::fs::write(&dest, &bytes).map_err(|e| format!("Write failed: {}", e))?;
+    std::fs::write(&dest, &bytes).map_err(|e| { log::error!("[cmd] Write to {:?} failed: {}", dest, e); format!("Write failed: {}", e) })?;
+    log::info!("[cmd] File saved to {:?}", dest);
 
     Ok(())
 }
@@ -271,6 +285,7 @@ fn set_connection_mode(
     state: tauri::State<'_, Arc<Mutex<PollState>>>,
     msg_store: tauri::State<'_, Arc<MessageStore>>,
 ) -> Result<(), String> {
+    log::info!("[cmd] Set connection mode: {}", mode);
     // Save to config
     if let Some(mut cfg) = AppConfig::load() {
         cfg.connection_mode = mode.clone();
@@ -293,6 +308,7 @@ fn set_connection_mode(
 
 #[tauri::command]
 fn logout(state: tauri::State<'_, Arc<Mutex<PollState>>>) -> Result<(), String> {
+    log::info!("[cmd] Logout");
     // Stop polling
     {
         let mut s = state.lock().unwrap();
@@ -382,9 +398,11 @@ async fn reconnect(
     state: tauri::State<'_, Arc<Mutex<PollState>>>,
     msg_store: tauri::State<'_, Arc<MessageStore>>,
 ) -> Result<(), String> {
+    log::info!("[cmd] Reconnect");
     let mut cfg = AppConfig::load().ok_or("No config found")?;
 
     if cfg.server.username.is_empty() || cfg.server.password.is_empty() {
+        log::error!("[cmd] Reconnect failed: no credentials");
         return Err("Username and password are required".to_string());
     }
 
@@ -392,6 +410,7 @@ async fn reconnect(
     let jwt = api::ApiClient::login(&cfg.server.url, &cfg.server.username, &cfg.server.password)
         .await
         .map_err(|e| {
+            log::error!("[cmd] Reconnect login failed: {}", e);
             let mut s = state.lock().unwrap();
             s.error = Some(e.clone());
             e
@@ -400,6 +419,7 @@ async fn reconnect(
     // Save JWT to config
     cfg.server.jwt = jwt.clone();
     cfg.save().map_err(|e| {
+        log::error!("[cmd] Reconnect: failed to save JWT: {}", e);
         let mut s = state.lock().unwrap();
         s.error = Some(e.clone());
         e
@@ -414,10 +434,12 @@ async fn reconnect(
     let desktop = detect_desktop_env();
     let version = env!("CARGO_PKG_VERSION");
     api.register(&uuid, &name, os, arch, &desktop, version).await.map_err(|e| {
+        log::error!("[cmd] Reconnect register failed: {}", e);
         let mut s = state.lock().unwrap();
         s.error = Some(e.clone());
         e
     })?;
+    log::info!("[cmd] Reconnect successful, starting {}", cfg.connection_mode);
 
     {
         let mut s = state.lock().unwrap();
@@ -486,10 +508,46 @@ fn update_tray_unread(tray_items: tauri::State<'_, TrayMenuItems>, count: usize)
     let _ = tray_items.unread.set_text(&text);
 }
 
+// ── Log Settings Commands ──
+
+#[tauri::command]
+fn get_log_settings(_store: tauri::State<'_, Arc<MessageStore>>) -> serde_json::Value {
+    let cfg = AppConfig::load().unwrap_or_else(|| AppConfig::default_with_uuid());
+    serde_json::json!({
+        "level": cfg.log_level,
+        "retentionDays": cfg.log_retention_days,
+        "logPath": logging::today_log_path().to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+fn set_log_level(level: String) -> Result<(), String> {
+    let mut cfg = AppConfig::load().ok_or("No config found")?;
+    cfg.log_level = level.clone();
+    cfg.save()?;
+    // Reinitialize the logger with new level
+    logging::init_log(&level, cfg.log_retention_days);
+    Ok(())
+}
+
+#[tauri::command]
+fn set_log_retention(days: u32) -> Result<(), String> {
+    let mut cfg = AppConfig::load().ok_or("No config found")?;
+    cfg.log_retention_days = days;
+    cfg.save()?;
+    // Run cleanup with new retention
+    logging::cleanup_old_logs(days);
+    Ok(())
+}
+
+#[tauri::command]
+fn get_log_file_path() -> String {
+    logging::today_log_path().to_string_lossy().to_string()
+}
+
 // ── Types ──
 
 #[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
 struct PollStateSnapshot {
     running: bool,
     mode: String,
@@ -498,7 +556,6 @@ struct PollStateSnapshot {
 }
 
 #[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
 struct SystemInfo {
     os: String,
     arch: String,
@@ -506,7 +563,6 @@ struct SystemInfo {
 }
 
 #[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
 struct AppInfo {
     version: String,
     config_path: String,
@@ -629,11 +685,15 @@ impl Drop for LockGuard {
 // ── Main ──
 
 fn main() {
+    // Initialize logging from config (before anything else)
+    let cfg_for_log = AppConfig::load().unwrap_or_else(|| AppConfig::default_with_uuid());
+    logging::init_log(&cfg_for_log.log_level, cfg_for_log.log_retention_days);
+
     // Single instance check
     let _lock = match acquire_lock() {
         Ok(lock) => lock,
         Err(pid) => {
-            eprintln!("Another instance is already running (PID {}). Exiting.", pid);
+            error!("Another instance is already running (PID {}). Exiting.", pid);
             std::process::exit(0);
         }
     };
@@ -655,18 +715,27 @@ fn main() {
         })
         .setup(|app| {
             let cfg = match AppConfig::load() {
-                Some(c) => c,
+                Some(c) => {
+                    info!("Config loaded from {:?}", AppConfig::config_path());
+                    c
+                }
                 None => {
                     let default = AppConfig::default_with_uuid();
                     default.save().ok();
+                    info!("No config found, created default config");
                     default
                 }
             };
 
+            info!("App starting: client={}, server={}, mode={}", cfg.client.name, cfg.server.url, cfg.connection_mode);
+            debug!("Config: autostart={}, auto_download_images={}", cfg.autostart, cfg.auto_download_images);
+
             // Apply autostart setting from config
             if cfg.autostart {
                 let auto_launch = app.state::<AutoLaunchManager>();
-                let _ = auto_launch.enable();
+                if let Err(e) = auto_launch.enable() {
+                    log::warn!("[startup] Failed to enable autostart: {}", e);
+                }
             }
 
             let msg_store = Arc::new(MessageStore::new());
@@ -693,6 +762,7 @@ fn main() {
 
             if !cfg.server.jwt.is_empty() {
                 // JWT exists — register and start connection
+                info!("JWT found, starting {} connection", initial_mode);
                 let api = api::ApiClient::new(&cfg.server.url, &cfg.server.jwt);
                 let uuid = cfg.client.uuid.clone();
                 let name = cfg.client.name.clone();
@@ -704,13 +774,16 @@ fn main() {
                         let arch = std::env::consts::ARCH;
                         let desktop = detect_desktop_env();
                         let version = env!("CARGO_PKG_VERSION");
-                        let _ = api.register(&uuid, &name, os, arch, &desktop, version).await;
+                        if let Err(e) = api.register(&uuid, &name, os, arch, &desktop, version).await {
+                            log::warn!("[startup] Register failed (JWT path): {}", e);
+                        }
                     });
                 });
 
                 start_connection_mode(&initial_mode, cfg.clone(), poll_state.clone(), msg_store.clone());
             } else if !cfg.server.username.is_empty() && !cfg.server.password.is_empty() {
                 // No JWT but credentials exist — login first, then register and poll
+                info!("No JWT, logging in with credentials");
                 let url = cfg.server.url.clone();
                 let username = cfg.server.username.clone();
                 let password = cfg.server.password.clone();
@@ -728,7 +801,9 @@ fn main() {
                                 // Save JWT
                                 if let Some(mut c) = AppConfig::load() {
                                     c.server.jwt = jwt.clone();
-                                    let _ = c.save();
+                                    if let Err(e) = c.save() {
+                                        log::error!("[startup] Failed to save JWT after login: {}", e);
+                                    }
                                 }
                                 // Register
                                 let api = api::ApiClient::new(&url, &jwt);
@@ -736,15 +811,19 @@ fn main() {
                                 let arch = std::env::consts::ARCH;
                                 let desktop = detect_desktop_env();
                                 let version = env!("CARGO_PKG_VERSION");
-                                let _ = api.register(&uuid, &name, os, arch, &desktop, version).await;
+                                if let Err(e) = api.register(&uuid, &name, os, arch, &desktop, version).await {
+                                    log::warn!("[startup] Register failed (credentials path): {}", e);
+                                }
                                 // Start connection with updated config
                                 if let Some(c) = AppConfig::load() {
                                     let mode = c.connection_mode.clone();
                                     start_connection_mode(&mode, c, state_clone, store_clone);
+                                } else {
+                                    log::error!("[startup] Config disappeared after login, cannot start connection");
                                 }
                             }
                             Err(e) => {
-                                eprintln!("[startup] Login failed: {}", e);
+                                error!("[startup] Login failed: {}", e);
                                 let mut s = state_clone.lock().unwrap();
                                 s.error = Some(format!("Login failed: {}", e));
                             }
@@ -820,6 +899,7 @@ fn main() {
             delete_message_undo,
             insert_message,
             get_unread_count,
+            drain_has_new,
             delete_message,
             clear_messages,
             open_url,
@@ -840,7 +920,11 @@ fn main() {
             window_close,
             window_start_drag,
             update_tray_status,
-            update_tray_unread
+            update_tray_unread,
+            get_log_settings,
+            set_log_level,
+            set_log_retention,
+            get_log_file_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

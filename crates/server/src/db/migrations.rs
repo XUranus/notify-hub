@@ -205,6 +205,7 @@ CREATE TABLE IF NOT EXISTS push_messages (
     format TEXT NOT NULL DEFAULT 'text',
     topic_id TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_push_messages_user_delivered ON push_messages (user_id, delivered);
 CREATE INDEX IF NOT EXISTS idx_push_messages_uuid_delivered ON push_messages (client_uuid, delivered);
 CREATE INDEX IF NOT EXISTS idx_push_messages_delivered ON push_messages (delivered);
 CREATE INDEX IF NOT EXISTS idx_push_messages_topic_id ON push_messages (topic_id);

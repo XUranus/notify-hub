@@ -1,6 +1,5 @@
 package com.notifyhub.client.service
 
-import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.notifyhub.client.data.AppLogger
@@ -92,18 +91,22 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     private suspend fun triggerPoll() {
         try {
             val config = ConfigStore.load(this)
-            if (config.jwtToken.isBlank() || config.serverUrl.isBlank()) return
+            if (config.jwtToken.isBlank() || config.serverUrl.isBlank()) {
+                AppLogger.w(TAG, "Cannot trigger poll: not configured")
+                return
+            }
 
             val api = ApiClient(config.serverUrl, config.jwtToken)
             val messages = api.poll(config.clientUuid)
             if (messages.isNotEmpty()) {
                 AppLogger.d(TAG, "FCM-triggered poll found ${messages.size} message(s)")
-                MessageStore.save(this, messages)
+                val newMessages = MessageStore.save(this, messages)
+                AppLogger.d(TAG, "${messages.size} received, ${newMessages.size} new, ${messages.size - newMessages.size} duplicates")
 
                 // Ack messages on server
                 val ids = messages.mapNotNull { it.id }
                 if (ids.isNotEmpty()) {
-                    try { api.ack(config.clientUuid, ids) } catch (_: Exception) {}
+                    try { api.ack(config.clientUuid, ids) } catch (e: Exception) { AppLogger.e(TAG, "FCM ack failed", e) }
                 }
             }
         } catch (e: Exception) {

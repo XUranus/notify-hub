@@ -3,6 +3,7 @@ use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
 use notifyhub_common::constants::{WORKER_POLL_INTERVAL_MS, WORKER_BATCH_SIZE, RETRY_DELAYS};
+use crate::routes::push::has_no_retention_policy;
 use notifyhub_common::constants::ChannelType;
 
 use crate::config::Config;
@@ -102,6 +103,16 @@ async fn process_batch(pool: &SqlitePool, config: &Config, push_state: &PushStat
                     // Create push messages for connected clients
                     if channel_type == ChannelType::Push {
                         create_push_messages(pool, push_state, &id, user_id_val, &to_address, subject.as_deref(), &body_str, &tags, &url, &attachment, &format, &topic_id).await;
+                    }
+
+                    // Check if user has "don't keep messages" policy (-1)
+                    if user_id_val > 0 && has_no_retention_policy(pool, user_id_val).await {
+                        sqlx::query("DELETE FROM messages WHERE id = ?")
+                            .bind(&id)
+                            .execute(pool)
+                            .await
+                            .ok();
+                        tracing::info!("[worker] Message {id} deleted (user policy: no retention)");
                     }
 
                     tracing::info!("[worker] Message {id} sent successfully");

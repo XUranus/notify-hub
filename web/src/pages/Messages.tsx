@@ -113,6 +113,7 @@ export default function Messages() {
   const [statusFilter, setStatusFilter] = useState('')
   const [selectedMsg, setSelectedMsg] = useState<Message | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [clearing, setClearing] = useState(false)
 
   const load = () => {
     messagesApi.list({ page, pageSize: 20, status: statusFilter || undefined }).then((res) => {
@@ -134,6 +135,20 @@ export default function Messages() {
     if (confirm(t('messages.deleteConfirm'))) {
       await messagesApi.delete(id)
       load()
+    }
+  }
+
+  const handleClearAll = async () => {
+    if (confirm(t('messages.clearAllConfirm'))) {
+      setClearing(true)
+      try {
+        const res = await messagesApi.deleteAll()
+        if (res.success) {
+          load()
+        }
+      } finally {
+        setClearing(false)
+      }
     }
   }
 
@@ -177,6 +192,10 @@ export default function Messages() {
           <Button variant="outline" size="sm" disabled={exporting} onClick={() => handleExport('xml')}>
             <Download className="h-4 w-4 mr-1" />
             XML
+          </Button>
+          <Button variant="destructive" size="sm" disabled={clearing} onClick={handleClearAll}>
+            <Trash2 className="h-4 w-4 mr-1" />
+            {t('messages.clearAll')}
           </Button>
           <Button variant="outline" onClick={load}>
             <RefreshCw className="h-4 w-4 mr-2" />

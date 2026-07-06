@@ -77,7 +77,9 @@ export function useApp() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
-  const [lastDeleted, setLastDeleted] = useState<{ msg: Message; idx: number } | null>(null)
+  const lastDeletedRef = useRef<{ msg: Message; idx: number } | null>(null)
+  const [lastDeletedTick, setLastDeletedTick] = useState(0)
+  const lastDeleted = lastDeletedRef.current
   const undoTimer = useRef<number | null>(null)
 
   // ── Detail State ──
@@ -187,14 +189,22 @@ export function useApp() {
     const idx = allMessages.findIndex(m => m.id === id); const msg = allMessages[idx]; if (!msg) return
     await invoke('delete_message_undo', { id })
     setAllMessages(prev => prev.filter(m => m.id !== id))
-    setLastDeleted({ msg, idx })
+    const entry = { msg, idx }
+    lastDeletedRef.current = entry
+    setLastDeletedTick(t => t + 1)
     if (undoTimer.current) clearTimeout(undoTimer.current)
-    undoTimer.current = window.setTimeout(() => setLastDeleted(null), 5000)
+    undoTimer.current = window.setTimeout(() => { lastDeletedRef.current = null; setLastDeletedTick(t => t + 1) }, 5000)
   }, [allMessages, T, showToast])
 
   const undoDelete = useCallback(async () => {
-    if (!lastDeleted) return; await invoke('insert_message', { msg: lastDeleted.msg }); setLastDeleted(null); refreshMessages()
-  }, [lastDeleted, refreshMessages])
+    const entry = lastDeletedRef.current
+    if (!entry) return
+    if (undoTimer.current) { clearTimeout(undoTimer.current); undoTimer.current = null }
+    lastDeletedRef.current = null
+    setLastDeletedTick(t => t + 1)
+    await invoke('insert_message', { msg: entry.msg })
+    refreshMessages()
+  }, [refreshMessages])
 
   const markAllRead = useCallback(async () => {
     for (const m of allMessages) { if (!m.read) await invoke('mark_as_read', { id: m.id }) }
@@ -268,8 +278,16 @@ export function useApp() {
     init()
     let unlisten: (() => void) | null = null
     listen('messages-updated', () => { refreshMessages() }).then(fn => { unlisten = fn })
-    const refreshTimer = setInterval(() => { if (currentView === 'dashboard') refreshMessages() }, 5000)
-    return () => { if (unlisten) unlisten(); clearInterval(refreshTimer) }
+    // Poll for new messages via drain_has_new flag (set by Rust when messages arrive)
+    const checkNewTimer = setInterval(async () => {
+      try {
+        const hasNew = await invoke('drain_has_new')
+        if (hasNew) refreshMessages()
+      } catch {}
+    }, 500)
+    // Also refresh periodically to sync read/flag state
+    const refreshTimer = setInterval(() => { if (currentView === 'dashboard') refreshMessages() }, 30000)
+    return () => { if (unlisten) unlisten(); clearInterval(checkNewTimer); clearInterval(refreshTimer) }
   }, [])
 
   // ── Keyboard shortcuts ──
