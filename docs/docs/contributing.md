@@ -15,9 +15,11 @@ Thank you for your interest in contributing to NotifyHub. This document explains
    git clone https://github.com/<your-username>/notifyhub.git
    cd notifyhub
    ```
-3. **Install dependencies**:
+3. **Set up the development environment** (see [Development](./development.md)):
    ```bash
-   pnpm install
+   cd rust-server
+   cargo build
+   cd ../web && pnpm install
    ```
 4. **Create a branch** for your work:
    ```bash
@@ -32,13 +34,13 @@ Before opening a new issue, search the [existing issues](https://github.com/noti
 
 When filing a bug report, include:
 
-- **NotifyHub version** -- Run `git rev-parse HEAD` or check the version in the server startup banner.
-- **Node.js version** -- Run `node --version`.
+- **NotifyHub version** -- Run `git rev-parse HEAD` or check the server startup logs.
+- **Rust version** -- Run `rustc --version`.
 - **Operating system** and architecture.
 - **Steps to reproduce** -- A minimal set of steps that trigger the bug.
 - **Expected behavior** -- What you expected to happen.
 - **Actual behavior** -- What actually happened, including any error messages or stack traces.
-- **Relevant logs** -- Server logs, browser console output, or network requests.
+- **Relevant logs** -- Server logs (`RUST_LOG=debug`), browser console output, or network requests.
 
 ### Feature requests
 
@@ -60,29 +62,25 @@ When requesting a feature, describe:
 
 1. **Make sure your code compiles**:
    ```bash
-   pnpm typecheck
-   pnpm build
+   cd rust-server
+   cargo check
+   cargo test
+   cd ../web && pnpm tsc --noEmit
    ```
 
 2. **Run the linter**:
    ```bash
-   pnpm lint
+   cd rust-server
+   cargo clippy -- -D warnings
    ```
 
 3. **Write or update tests** for your changes. Every new feature and bug fix should have test coverage.
 
 4. **Update documentation** if your change affects the public API, configuration, or user-facing behavior. Documentation lives in the `docs/` directory.
 
-5. **Write a clear commit message**:
-   ```
-   feat(channel): add Slack webhook adapter
+5. **Write a clear commit message** (see [Commit Conventions](#commit-conventions) below).
 
-   - Implement ChannelAdapter for Slack incoming webhooks
-   - Add 'slack' to SMS_PROVIDERS constant
-   - Include config validation for webhook URL
-   ```
-
-6. **Push your branch** and open a pull request against `main`.
+6. **Push your branch** and open a pull request against `master`.
 
 7. **Fill in the PR description** with:
    - What the PR does and why.
@@ -95,9 +93,10 @@ When requesting a feature, describe:
 Reviewers will check:
 
 - [ ] Code compiles without errors or warnings.
-- [ ] TypeScript types are correct and explicit where needed.
-- [ ] Input is validated with Zod schemas.
-- [ ] Database operations use Drizzle ORM (no raw SQL unless necessary).
+- [ ] Rust code passes `cargo clippy` with no warnings.
+- [ ] TypeScript code passes type checking.
+- [ ] Input is validated (serde for Rust, Zod for TypeScript).
+- [ ] Database operations use sqlx with parameterized queries.
 - [ ] Sensitive data (passwords, tokens, keys) is never logged or returned in responses.
 - [ ] New API endpoints have appropriate auth middleware.
 - [ ] Documentation is updated.
@@ -105,37 +104,44 @@ Reviewers will check:
 
 ## Code Standards
 
-### General
+### Rust (server, CLI, desktop backend)
 
-- Write TypeScript. No JavaScript files.
-- Use ESM (`import`/`export`). No `require()`.
-- Keep functions small and focused. If a function does too many things, split it.
-- Prefer composition over inheritance.
+- Use `rustfmt` for formatting (`cargo fmt`).
+- Use `clippy` for linting (`cargo clippy`).
+- Prefer `impl Trait` over boxed trait objects for return types.
+- Use `thiserror` for error types in the server, `anyhow` in the CLI.
+- Use `serde` with `#[serde(rename_all = "camelCase")]` for JSON serialization.
+- Use `sqlx` compile-time checked queries where possible.
+- Use `tracing` for structured logging (not `println!`).
+- Keep functions focused. If a function does too many things, split it.
 
-### Formatting and linting
+### TypeScript (web frontend, docs)
 
-The project uses ESLint for linting. Run `pnpm lint` to check your code. Most formatting issues are caught by the linter; there is no separate Prettier step.
+- Use `type` for object shapes and `interface` for contracts that may be extended.
+- Prefer `const` assertions and literal types over enums.
+- Use ESM (`import`/`export`) throughout.
 
 ### Error handling
 
-- Always handle errors in async functions. Use `try/catch` and return meaningful error messages.
+- Use `AppError` enum for API errors in the server. It implements `IntoResponse` and returns structured JSON.
 - API routes must return structured responses: `{ success: boolean, data?: T, error?: string }`.
 - Never expose internal details (stack traces, database errors) in API responses in production.
+- Log errors with `tracing::error!()` with context.
 
 ### Security
 
-- Never store secrets in plaintext. Channel credentials must be encrypted with `encrypt()` before writing to the database.
+- Never store secrets in plaintext. Channel credentials must be encrypted with AES-256-GCM before writing to the database.
 - Never log tokens, passwords, or encryption keys.
 - Validate and sanitize all user input.
-- Use `bcrypt` for password hashing (cost factor 10).
+- Use `argon2` or `bcrypt` for password hashing.
 - Use `jsonwebtoken` with a configured secret (not a hardcoded value).
 
 ### Database
 
-- Define all schema changes in `server/src/db/schema.ts`.
-- Generate migrations with `pnpm db:generate` and commit the generated files.
-- Use `snake_case` for SQL column names and `camelCase` in Drizzle/TypeScript (Drizzle handles the mapping).
+- All schema changes go through sqlx migrations.
+- Use `snake_case` for SQL column names.
 - Add indexes for columns used in `WHERE` clauses (especially in the messages table).
+- Always use parameterized queries. Never interpolate user input into SQL strings.
 
 ## Commit Conventions
 
@@ -163,37 +169,41 @@ NotifyHub follows [Conventional Commits](https://www.conventionalcommits.org/):
 
 ### Scopes
 
-Use the package or area affected:
+Use the component or area affected:
 
-- `server` -- API server changes
+- `server` -- Rust API server changes
+- `cli` -- Rust CLI changes
+- `common` -- Shared Rust types/constants
 - `web` -- Frontend dashboard changes
-- `cli` -- CLI tool changes
-- `shared` -- Shared types/schemas/constants
+- `desktop` -- Tauri desktop client changes
+- `android` -- Android client changes
 - `channel` -- Channel adapter changes
-- `queue` -- Message queue changes
+- `queue` -- Message queue/worker changes
 - `auth` -- Authentication and authorization
 - `db` -- Database schema and migrations
 - `docs` -- Documentation
+- `push` -- Push delivery (SSE/WS/poll)
 
 ### Examples
 
 ```
 feat(channel): add SendGrid email adapter
-fix(queue): prevent duplicate claims with concurrent workers
+fix(push): prevent duplicate delivery with concurrent workers
 docs(api): update send endpoint documentation
 refactor(auth): extract rate limiter into separate module
 test(template): add edge case tests for default values
-chore(deps): update hono to v4.6.0
+chore(deps): update axum to 0.8
 ```
 
 ## Release Process
 
 Releases are managed by the maintainers. The typical flow:
 
-1. Features and fixes are merged into `main`.
-2. The version in `package.json` is bumped following [Semantic Versioning](https://semver.org/).
+1. Features and fixes are merged into `master`.
+2. The version in `Cargo.toml` is bumped following [Semantic Versioning](https://semver.org/).
 3. A git tag is created (e.g., `v0.2.0`).
 4. The Docker image is built and published.
+5. Desktop and Android builds are created for the release.
 
 ## Getting Help
 

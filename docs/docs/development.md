@@ -11,419 +11,315 @@ This guide covers everything you need to know to develop NotifyHub locally, exte
 
 ### Prerequisites
 
-- **Node.js 18+** (20+ recommended)
-- **pnpm 9+**
-- A code editor with TypeScript support (VS Code recommended)
+- **Rust 1.75+** -- Install via [rustup.rs](https://rustup.rs/)
+- **pnpm 9+** -- For the web frontend and docs
+- **cargo-watch** -- For hot-reload during development (`cargo install cargo-watch`)
 
 ### Getting started
 
 ```bash
-# Clone and install
+# Clone
 git clone https://github.com/notifyhub/notifyhub.git
 cd notifyhub
-pnpm install
 
 # Copy environment config
-cp .env.example .env
+cd rust-server
+cp ../.env.example .env
 
-# Run database migrations
-pnpm db:migrate
-
-# Start the API server (with hot reload)
-pnpm dev
+# Start the API server with hot reload
+cargo watch -x run
 
 # In another terminal, start the frontend
-pnpm dev:web
+cd web
+pnpm install
+pnpm dev
 ```
 
-The API server runs on `http://localhost:9527` with `tsx watch` for automatic restarts on file changes. The frontend runs on `http://localhost:4321` with Vite HMR.
+The API server runs on `http://localhost:9527`. The frontend runs on `http://localhost:4321` with Vite HMR and proxies API requests to the backend.
 
 :::info Port Architecture
-- **9527** — Hono API server (backend)
-- **4321** — Vite dev server (frontend), proxies `/api` and `/uploads` to port 9527
+- **9527** -- Rust API server (Axum)
+- **4321** -- Vite dev server (frontend), proxies `/api`, `/uploads`, and WebSocket/SSE to port 9527
 
 When accessing the web dashboard in development, always use port **4321**. The Vite dev server proxies API requests to the backend.
 :::
 
 ## Project Structure
 
-NotifyHub is a pnpm monorepo with four packages:
+NotifyHub is organized as a multi-component monorepo:
 
-| Package | Path | Description |
-|---------|------|-------------|
-| `@notify-hub/shared` | `shared` | Shared types, Zod schemas, and constants. Used by all other packages. |
-| `@notify-hub/server` | `server` | Hono API server, SQLite database, message queue, and channel adapters. |
-| `@notify-hub/web` | `web` | React admin dashboard built with Vite, Tailwind CSS, and shadcn/ui. |
-| `@notify-hub/cli` | `cli` | Command-line interface for sending messages and managing NotifyHub. |
+| Component | Path | Language | Description |
+|-----------|------|----------|-------------|
+| Server | `rust-server/server/` | Rust | Axum API server, SQLite database, message queue, channel workers |
+| Common | `rust-server/common/` | Rust | Shared types, constants, error types |
+| CLI | `rust-server/cli/` | Rust | Command-line tool for sending messages |
+| Web | `web/` | TypeScript/React | Admin dashboard (Vite + Tailwind + shadcn/ui) |
+| Desktop | `desktop/` | Rust + TypeScript | Tauri desktop client with system tray |
+| Android | `android/` | Kotlin | Native Android client with Jetpack Compose |
+| Docs | `docs/` | TypeScript | Documentation site (Docusaurus) |
 
-### Dependency flow
+### Rust workspace
 
+The `rust-server/` directory is a Cargo workspace with three crates:
+
+```toml
+[workspace]
+members = ["common", "server", "cli"]
+default-members = ["server"]
 ```
-shared  <--  server
-shared  <--  web
-shared  <--  cli
-```
 
-The `shared` package has zero runtime dependencies (only `zod` as a peer dependency). All other packages depend on `shared` but not on each other.
+- **common** -- Shared types used by both server and CLI (`ChannelType`, `MessageStatus`, `ApiResponse`, etc.)
+- **server** -- The main API server binary
+- **cli** -- The CLI binary
 
 ## Key Commands
 
-All commands are run from the repository root:
-
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Start the API server with hot reload (`tsx watch`) |
-| `pnpm dev:web` | Start the frontend dev server (Vite) |
-| `pnpm build` | Build all packages |
-| `pnpm build:server` | Build the server package only |
-| `pnpm build:web` | Build the frontend package only |
-| `pnpm build:cli` | Build the CLI package only |
-| `pnpm lint` | Run linting across all packages |
-| `pnpm typecheck` | Run TypeScript type checking across all packages |
-| `pnpm db:generate` | Generate Drizzle migration files from schema changes |
-| `pnpm db:migrate` | Apply pending database migrations |
-| `pnpm db:push` | Push schema directly to the database (development only) |
-
-### Database workflow
-
-When you modify the Drizzle schema (`server/src/db/schema.ts`):
+### Rust server
 
 ```bash
-# 1. Generate a migration file
-pnpm db:generate
+cd rust-server
 
-# 2. Review the generated SQL in server/drizzle/
+# Run the server
+cargo run
 
-# 3. Apply the migration
-pnpm db:migrate
+# Run with hot-reload
+cargo watch -x run
+
+# Build release binary
+cargo build --release
+
+# Run tests
+cargo test
+
+# Check compilation without building
+cargo check
+
+# Run the CLI
+cargo run --bin notifyhub -- --help
 ```
 
-:::tip
-Use `pnpm db:push` during rapid prototyping to apply schema changes without generating migration files. Switch to `db:generate` + `db:migrate` before committing.
-:::
+### Web frontend
+
+```bash
+cd web
+
+# Install dependencies
+pnpm install
+
+# Start dev server (port 4321, proxies to :9527)
+pnpm dev
+
+# Build for production
+pnpm build
+
+# Type check
+pnpm tsc --noEmit
+```
+
+### Desktop client
+
+```bash
+cd desktop
+
+# Run in development mode
+cargo tauri dev
+
+# Build release binary
+cargo tauri build
+```
 
 ## Adding a New Channel Adapter
 
-Channel adapters implement the `ChannelAdapter` interface from `@notify-hub/shared`. Each adapter handles one delivery method (e.g., a specific SMS provider).
+Channel adapters implement the `send` function in `rust-server/server/src/worker/channels.rs`. Each adapter handles one delivery method.
 
-### Step 1: Define the adapter
+### Step 1: Add the provider module
 
-Create a new file in `server/src/channel/`. For example, to add a new SMS provider:
+Create a new function in `channels.rs` (or a new file in `worker/`) for your provider:
 
-```typescript
-// server/src/channel/sms/myprovider.ts
+```rust
+// rust-server/server/src/worker/channels.rs
 
-import type { ChannelAdapter, SendResult, MessagePayload } from '@notify-hub/shared'
+async fn send_myprovider(
+    config: &serde_json::Value,
+    to: &str,
+    body: &str,
+) -> Result<SendResult, String> {
+    let api_key = config["apiKey"].as_str().ok_or("missing apiKey")?;
+    let sender = config["sender"].as_str().ok_or("missing sender")?;
 
-export const myProviderAdapter: ChannelAdapter = {
-  type: 'sms',
-  name: 'myprovider',
+    let client = reqwest::Client::new();
+    let resp = client
+        .post("https://api.myprovider.com/v1/sms")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&serde_json::json!({
+            "to": to,
+            "from": sender,
+            "text": body,
+        }))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
 
-  async send(config: Record<string, unknown>, msg: MessagePayload): Promise<SendResult> {
-    try {
-      // Use config to authenticate with your provider
-      const apiKey = config.apiKey as string
-      const sender = config.sender as string
-
-      // Call the provider's API
-      const response = await fetch('https://api.myprovider.com/v1/sms', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: msg.to,
-          from: sender,
-          text: msg.body,
-        }),
-      })
-
-      const data = await response.json() as { id?: string; error?: string }
-
-      if (!response.ok) {
-        return {
-          success: false,
-          error: data.error || `API error: ${response.status}`,
-        }
-      }
-
-      return {
-        success: true,
-        externalId: data.id,
-      }
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : String(err),
-      }
+    if !resp.status().is_success() {
+        return Err(format!("API error: {}", resp.status()));
     }
-  },
 
-  async test(config: Record<string, unknown>): Promise<boolean> {
-    // Verify the configuration is valid (e.g., test API key)
-    try {
-      const apiKey = config.apiKey as string
-      const response = await fetch('https://api.myprovider.com/v1/account', {
-        headers: { 'Authorization': `Bearer ${apiKey}` },
-      })
-      return response.ok
-    } catch {
-      return false
-    }
-  },
+    Ok(SendResult { success: true, external_id: None })
 }
 ```
 
-### Step 2: Register the adapter
+### Step 2: Register in the dispatch logic
 
-Add the adapter to `server/src/channel/index.ts`:
+Add a match arm for your provider in the channel dispatch function:
 
-```typescript
-import { myProviderAdapter } from './sms/myprovider.js'
-
-export function registerBuiltinAdapters() {
-  // ... existing adapters
-  registerAdapter(myProviderAdapter)
-}
+```rust
+"myprovider" => send_myprovider(&config, &to, &body).await,
 ```
 
-### Step 3: Update shared constants
+### Step 3: Update the web UI
 
-Add your provider name to `shared/src/constants.ts`:
+Add your provider to the channel configuration form in `web/src/pages/Channels.tsx` so users can configure it through the dashboard.
 
-```typescript
-export const SMS_PROVIDERS = ['twilio', 'aliyun', 'tencent', 'myprovider'] as const
-```
-
-### Step 4: Update validation schemas
-
-If your adapter requires specific config fields, update the channel creation schema in `shared/src/schemas.ts` to validate them.
-
-### The ChannelAdapter interface
-
-```typescript
-interface ChannelAdapter {
-  type: ChannelType      // 'email' | 'sms' | 'push'
-  name: string           // Unique name within the type (e.g., 'twilio', 'smtp')
-  send(config: Record<string, unknown>, msg: MessagePayload): Promise<SendResult>
-  test(config: Record<string, unknown>): Promise<boolean>
-}
-
-interface MessagePayload {
-  to: string             // Recipient address or phone number
-  subject?: string       // Email subject (optional for SMS)
-  body: string           // Message body (HTML for email, plain text for SMS)
-  tags?: string[]        // Categorization labels
-  priority?: number      // 0 (lowest) to 99 (highest)
-  url?: string           // Associated URL for client-side linking
-  attachment?: { name: string; url?: string; data?: string }  // File attachment
-  format?: string        // Body format: 'text' | 'markdown' | 'html' | 'json'
-}
-
-interface SendResult {
-  success: boolean
-  externalId?: string    // Provider's message ID for tracking
-  error?: string         // Error message if delivery failed
-}
-```
-
-The `config` parameter contains the decrypted channel configuration from the database. The `test` method verifies that the configuration is valid (e.g., credentials work) and is used by the "Test Connection" feature in the dashboard.
-
-## Adding a New API Endpoint
+## Adding a New API Route
 
 ### Step 1: Create the route handler
 
-Create a new file in `server/src/api/` (or `server/src/api/admin/` for admin-only routes):
+Create a new file in `rust-server/server/src/routes/`:
 
-```typescript
-// server/src/api/admin/myresource.ts
+```rust
+// rust-server/server/src/routes/myresource.rs
 
-import { Hono } from 'hono'
-import { z } from 'zod'
-import { authMiddleware, requireAdmin } from '../../auth/index.js'
-import type { HonoEnv } from '../../types.js'
+use axum::{Json, Router, routing::get};
+use crate::AppState;
+use crate::auth::middleware::AuthUser;
+use notifyhub_common::error::AppError;
+use notifyhub_common::types::ApiResponse;
 
-const myResource = new Hono<HonoEnv>()
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/api/admin/myresource", get(list_myresource))
+}
 
-// Apply auth middleware to all routes in this file
-myResource.use('*', authMiddleware)
-myResource.use('*', requireAdmin)
-
-// GET /api/admin/myresource
-myResource.get('/', async (c) => {
-  // ... fetch and return resources
-  return c.json({ success: true, data: [] })
-})
-
-// POST /api/admin/myresource
-myResource.post('/', async (c) => {
-  const body = await c.req.json()
-  // Validate with Zod, create resource, return result
-  return c.json({ success: true, data: {} }, 201)
-})
-
-export { myResource }
-```
-
-### Step 2: Register the route
-
-Add the route to the API router in `server/src/api/index.ts`:
-
-```typescript
-import { myResource } from './admin/myresource.js'
-
-export function createApiRouter(): Hono {
-  const api = new Hono()
-
-  // ... existing routes
-  api.route('/admin/myresource', myResource)
-
-  return api
+async fn list_myresource(
+    auth: AuthUser,
+) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+    // ... fetch and return resources
+    Ok(Json(ApiResponse::ok(vec![])))
 }
 ```
 
-The route is now available at `http://localhost:9527/api/admin/myresource`.
+### Step 2: Register the router
+
+Add the module and register its router in `rust-server/server/src/routes/mod.rs`:
+
+```rust
+mod myresource;
+
+// In the combined router function:
+.merge(myresource::router())
+```
 
 ### Auth middleware reference
 
 | Middleware | Description | Use for |
 |-----------|-------------|---------|
-| `authMiddleware` | Validates JWT from `Authorization: Bearer <jwt>` header. Sets `currentUser` on context. | Any authenticated route |
-| `requireAdmin` | Checks that the authenticated user has `role = 'admin'`. Must be used after `authMiddleware`. | Admin-only routes |
-| `apiAuth` | Validates API token from `Authorization: Bearer <token>` header. Checks enabled status, IP whitelist, and rate limit. Sets `apiToken` on context. | Public API routes |
-| `requireScope(scope)` | Checks that the API token has the required scope. Must be used after `apiAuth`. | Scope-restricted routes |
+| `AuthUser` | Extracts and validates JWT from `Authorization: Bearer <jwt>` header. Provides `claims` with user info. | Any authenticated route |
+| `DualAuth` | Accepts both JWT and API tokens. For routes accessible by both admin users and external integrations. | Public API routes |
+| `extract_auth()` | Helper that tries Authorization header, then `?token=` query param. Used for SSE/WS endpoints. | Long-lived connections |
 
 ## Code Style and Conventions
 
-### TypeScript
+### Rust
 
-- All code is written in TypeScript with strict mode enabled.
+- Use `rustfmt` for formatting (`cargo fmt`).
+- Use `clippy` for linting (`cargo clippy`).
+- Prefer `impl Trait` over boxed trait objects for return types.
+- Use `thiserror` for error types, `anyhow` for application-level error handling in the CLI.
+- Use `serde` with `#[serde(rename_all = "camelCase")]` for JSON serialization.
+- Use `sqlx` compile-time checked queries where possible.
+
+### TypeScript (web frontend)
+
 - Use `type` for object shapes and `interface` for contracts that may be extended.
 - Prefer `const` assertions and literal types over enums.
-- Use ESM (`import`/`export`) throughout. The `type: "module"` field is set in all `package.json` files.
+- Use ESM (`import`/`export`) throughout.
 
 ### Naming conventions
 
 | Element | Convention | Example |
 |---------|-----------|---------|
-| Files | kebab-case | `rate-limit.ts`, `my-provider.ts` |
-| Functions | camelCase | `enqueue()`, `processMessage()` |
-| Types/Interfaces | PascalCase | `ChannelAdapter`, `MessagePayload` |
-| Constants | SCREAMING_SNAKE_CASE | `RETRY_DELAYS`, `WORKER_BATCH_SIZE` |
-| Database tables | snake_case (SQL), camelCase (Drizzle) | `api_tokens` / `apiTokens` |
+| Rust files | snake_case | `rate_limit.rs`, `my_resource.rs` |
+| Rust functions | snake_case | `enqueue()`, `process_message()` |
+| Rust types | PascalCase | `ChannelAdapter`, `MessagePayload` |
+| Rust constants | SCREAMING_SNAKE_CASE | `RETRY_DELAYS`, `WORKER_BATCH_SIZE` |
+| JSON fields | camelCase | `clientUuid`, `createdAt` |
+| Database tables | snake_case | `push_clients`, `api_tokens` |
+| API paths | kebab-case | `/api/v1/push/register` |
 
 ### Error handling
 
-- Use `try/catch` in async functions. Never let unhandled rejections escape.
-- Return structured error responses from API routes: `{ success: false, error: "message" }`.
-- Log errors with context using `console.error()` (the project uses Pino for structured logging in production).
+- Use `AppError` enum for API errors. It implements `IntoResponse` and returns structured JSON.
+- Use `Result<T, AppError>` as the return type for all route handlers.
+- Log errors with `tracing::error!()` with context.
 
 ### Validation
 
-- Validate all external input (API request bodies) with Zod schemas defined in `shared/src/schemas.ts`.
-- Use `safeParse()` rather than `parse()` in route handlers to avoid throwing on invalid input.
+- Validate request bodies using serde deserialization with `#[serde(default)]` for optional fields.
+- Use `validator` crate for complex validation rules.
+- Return `AppError::BadRequest` for validation failures.
 
-### Database
+## Client Development
 
-- Use Drizzle ORM for all database operations. Raw SQL is acceptable for complex queries but should be wrapped in Drizzle's `sql` template literal.
-- Always use parameterized queries. Never interpolate user input into SQL strings.
-- Use `returning()` for INSERT and UPDATE operations when you need the affected row.
+### Desktop (Tauri)
 
-### Testing
+The desktop client is a Tauri app with a Rust backend and React frontend:
 
-- Write unit tests for pure functions (template engine, crypto, rate limiter).
-- Write integration tests for API endpoints using the Hono test client.
-- Test channel adapters with mock HTTP servers.
+- `desktop/src/` -- Rust code: API client, connection modes (poll/sse/ws), message store, notifications, tray menu
+- `desktop/ui/` -- React frontend: message list, settings, compose
+
+**Connection modes**: The desktop supports SSE, WebSocket, and long-polling. The mode is persisted in the config file and can be changed at runtime via `set_connection_mode`.
+
+**System tray**: Shows connection status, unread count, and provides Show/Reconnect/Quit actions. Status and unread count are updated dynamically from the frontend.
+
+**JWT handling**: Client JWTs expire after 90 days. When a 401 is received, the client automatically re-logs in with stored credentials and re-registers.
+
+### Android
+
+The Android client is a Kotlin app with Jetpack Compose:
+
+- `android/app/src/main/java/com/notifyhub/client/data/` -- API client, models, message store, i18n
+- `android/app/src/main/java/com/notifyhub/client/service/` -- PollService (SSE/WS/poll), FCM service
+- `android/app/src/main/java/com/notifyhub/client/ui/` -- Compose screens
+
+**Firebase Cloud Messaging**: The Android client supports FCM for background push delivery. Configure `google-services.json` and the server's `FCM_SERVICE_ACCOUNT_PATH` environment variable.
+
+**Connection modes**: Same as desktop -- SSE, WebSocket, or long-polling. Mode is persisted in SharedPreferences.
 
 ## Common Pitfalls
 
-### Vite Proxy and `/uploads/` File Serving
+### Vite Proxy and WebSocket/SSE
 
-The Vite dev server (port 4321) only proxies specific paths to the backend. If a path is not configured in the proxy, Vite treats it as a frontend route and returns `index.html` instead of forwarding to the backend.
-
-**Symptom**: Requesting `/uploads/<uuid>.jpg` returns `Content-Type: text/html` with the Vite dev page HTML instead of the image.
-
-**Root Cause**: `web/vite.config.ts` proxy config was missing `/uploads`:
+The Vite dev server proxies WebSocket and SSE connections to the backend. Ensure `ws: true` is set in the proxy config:
 
 ```typescript
 // web/vite.config.ts
-server: {
-  port: 4321,
-  proxy: {
-    '/api': {
-      target: 'http://localhost:9527',
-      changeOrigin: true,
-    },
-    '/uploads': {                    // ← Must be present
-      target: 'http://localhost:9527',
-      changeOrigin: true,
-    },
+proxy: {
+  '/api': {
+    target: 'http://localhost:9527',
+    changeOrigin: true,
+    ws: true,  // Required for WebSocket proxy
   },
 },
 ```
 
-**How to verify**: Check the response headers when accessing a file URL:
+### SQLite WAL Mode
 
-```bash
-# Should return Content-Type: image/jpeg (or similar), NOT text/html
-curl -sI http://localhost:4321/uploads/<uuid>.jpg
-```
+The server enables WAL mode on the SQLite database for better concurrent read performance. If you encounter "database is locked" errors, ensure no other process has the database open in exclusive mode.
 
-### File Upload Path: `process.cwd()` Matters
+### JWT Secret Persistence
 
-The upload directory resolves relative to `process.cwd()`:
+If `JWT_SECRET` is not set, the server generates a random secret on each restart. This invalidates all existing tokens. Always set `JWT_SECRET` in production or when you need tokens to persist across restarts.
 
-```typescript
-// server/src/storage.ts
-const UPLOAD_DIR = join(process.cwd(), 'data', 'uploads')
-```
+### Push Message Format
 
-When running via `pnpm dev` from the repo root, `process.cwd()` is the repo root, so files are saved to `data/uploads/`. When running from `server/`, files go to `server/data/uploads/`. Always confirm the actual upload path if files seem missing:
-
-```bash
-find . -path "*/uploads/*.jpg" -o -path "*/uploads/*.png" 2>/dev/null
-```
-
-### CORS: PATCH Method
-
-The server uses CORS middleware. If a client (web dashboard, Tauri) needs to call `PATCH` endpoints (e.g., `PATCH /api/v1/push/client`), ensure `PATCH` is in the `allowMethods` list:
-
-```typescript
-// server/src/app.ts
-app.use('*', cors({
-  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-}))
-```
-
-### Android PollService: Register Retry
-
-When the Android app starts polling, the `register` call to the server may fail due to timing (server not fully ready). PollService retries up to 3 times with 2s delay. If the app shows "Connecting..." forever after login, check server logs for register errors.
-
-### Logout Flow (Android / Tauri)
-
-Logout must:
-1. Stop the poll service (`ACTION_STOP`)
-2. Clear JWT and credentials from config store
-3. Set `configured = false` to force navigation back to the login screen
-
-On Android, failing to null the `pollService` reference or set `configured = false` will leave the app stuck on the main screen.
-
-### File Serving: `c.body()` vs `new Response()`
-
-When serving binary files (images, PDFs) in Hono, use `c.body()` instead of `new Response(buffer, ...)`:
-
-```typescript
-// ✅ Correct — Hono's recommended way
-return c.body(buffer, 200, {
-  'Content-Type': contentType,
-  'Content-Length': String(fileStat.size),
-})
-
-// ❌ May cause issues — @hono/node-server's Response wrapper
-return new Response(buffer, {
-  headers: { 'Content-Type': contentType },
-})
-```
-
-The `@hono/node-server` adapter overrides `global.Response` with a custom class that has a `cacheKey` optimization. While both approaches should work in theory, `c.body()` is the documented Hono pattern and avoids potential edge cases with the Response wrapper.
+Push messages sent from the server use camelCase JSON fields (`clientUuid`, `createdAt`, `topicId`). The `tags` field is a raw JSON string (e.g., `"[]"`), not a parsed array. Client-side deserialization expects `Option<String>` for these fields.

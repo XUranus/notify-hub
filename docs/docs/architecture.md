@@ -9,23 +9,24 @@ This document describes NotifyHub's system architecture, database schema, messag
 
 ## High-Level Architecture
 
-NotifyHub is a monorepo containing four packages that work together:
+NotifyHub is a monorepo containing several components that work together:
 
 ```mermaid
 flowchart TB
     subgraph Clients
         Web[React Admin Dashboard]
-        CLI[CLI Tool]
+        CLI[Rust CLI]
         Ext[External Applications]
         Android[Android Client]
         Tauri[Tauri Desktop Client]
     end
 
-    subgraph Server ["API Server (Hono)"]
+    subgraph Server ["API Server (Rust + Axum)"]
         API[REST API Routes]
         Auth[Auth Middleware]
         Queue[Message Queue]
         Worker[Background Worker]
+        Push[Push State (broadcast)]
     end
 
     subgraph Storage
@@ -41,10 +42,10 @@ flowchart TB
     end
 
     Web -->|JWT Auth| API
-    CLI -->|API Token| API
+    CLI -->|API Token / JWT| API
     Ext -->|API Token| API
-    Android -->|Long-Poll + JWT| API
-    Tauri -->|Long-Poll + JWT| API
+    Android -->|SSE/WS/Poll + JWT| API
+    Tauri -->|SSE/WS/Poll + JWT| API
     API --> Auth
     Auth --> Queue
     Queue --> SQLite
@@ -53,6 +54,9 @@ flowchart TB
     Worker --> Twilio
     Worker --> Aliyun
     Worker --> Tencent
+    Worker --> Push
+    Push --> Android
+    Push --> Tauri
     API --> Files
 ```
 
@@ -63,7 +67,7 @@ When a client sends a notification, the request passes through several stages be
 ```mermaid
 sequenceDiagram
     participant Client
-    participant API as Hono API
+    participant API as Axum API
     participant Auth as Auth Middleware
     participant Queue as Queue Manager
     participant DB as SQLite
@@ -97,6 +101,51 @@ sequenceDiagram
         Worker->>DB: UPDATE status = 'dead'
     end
 ```
+
+## Push Delivery Flow
+
+When a message is sent to the `push` channel, the worker creates push messages and broadcasts them to connected clients in real-time:
+
+```mermaid
+sequenceDiagram
+    participant Sender as API Client
+    participant API as Axum API
+    participant DB as SQLite
+    participant Worker as Queue Worker
+    participant PushState as PushState (broadcast)
+    participant Client as Push Client (SSE/WS)
+
+    Sender->>API: POST /api/v1/send (channel: push)
+    API->>DB: INSERT INTO messages
+
+    Worker->>DB: Claim message
+    Worker->>DB: Find target push_clients
+    Worker->>DB: INSERT INTO push_messages
+    Worker->>PushState: broadcast(msg) per client
+
+    alt SSE
+        PushState-->>Client: data: {"data": [msg]}
+    else WebSocket
+        PushState-->>Client: {"data": [msg]}
+    else Long-Polling
+        Client->>API: GET /api/v1/push/poll
+        API->>DB: SELECT undelivered messages
+        API-->>Client: {"data": [msg1, msg2, ...]}
+    end
+
+    Client->>API: POST /api/v1/push/ack
+    API->>DB: UPDATE delivered = 1
+```
+
+### Connection Modes
+
+| Mode | Transport | Auth | Real-time | Notes |
+|------|-----------|------|-----------|-------|
+| **SSE** | `GET /api/v1/push/stream?uuid=&token=` | Query param or header | Yes | Unidirectional, auto-reconnect |
+| **WebSocket** | `GET /api/v1/push/ws?uuid=&token=` | Query param | Yes | Bidirectional, ping/pong keepalive |
+| **Poll** | `GET /api/v1/push/poll?uuid=` | Header | No (5s interval) | Compatible fallback |
+
+JWT is validated at connection time. Once established, the stream stays open regardless of token expiry. On disconnect, clients re-authenticate automatically.
 
 ## Message Lifecycle
 
@@ -143,7 +192,7 @@ After 5 failed attempts, the message moves to the dead letter queue (`status = '
 
 ## Database Schema
 
-NotifyHub uses SQLite with Drizzle ORM. The database runs in WAL (Write-Ahead Logging) mode for better concurrent read performance.
+NotifyHub uses SQLite with sqlx. The database runs in WAL (Write-Ahead Logging) mode for better concurrent read performance. Migrations are applied automatically on server startup.
 
 ### Entity Relationship Diagram
 
@@ -153,7 +202,7 @@ erDiagram
         integer id PK
         text email UK
         text username
-        text password "bcrypt hash"
+        text password "argon2/bcrypt hash"
         text role "admin | user"
         timestamp created_at
     }
@@ -162,13 +211,14 @@ erDiagram
         integer id PK
         integer user_id FK
         text name
-        text token UK "nh_ prefixed"
+        text token UK "nfkey_ prefixed"
         text scopes "JSON array"
         integer rate_limit "requests/min"
         text ip_whitelist "JSON array or null"
         boolean enabled
         timestamp last_used_at
         timestamp created_at
+        timestamp expires_at
     }
 
     channels {
@@ -224,107 +274,115 @@ erDiagram
     templates ||--o{ messages : "renders"
     users ||--o{ push_clients : "owns"
     push_clients ||--o{ push_messages : "receives"
+    messages ||--o{ push_messages : "creates"
 
     push_clients {
         integer id PK
         integer user_id FK
         text uuid UK "client UUID"
         text name "display name"
+        text os "android|windows|macos|linux"
+        text arch "x86_64|aarch64"
+        text desktop "GNOME|KDE|Windows|macOS"
+        text app_version
+        text fcm_token "Firebase Cloud Messaging token"
+        text connection_mode "sse|ws|poll"
         timestamp last_seen_at
-        timestamp created_at
+        timestamp registered_at
     }
 
     push_messages {
         integer id PK
-        text client_uuid "target client or __broadcast__"
+        text source_message_id FK "original message"
+        text client_uuid "target client UUID"
+        integer user_id FK
         text title
         text body
-        text level "info|warning|error"
+        text level "info|warning|error|critical"
         boolean delivered
         text tags "JSON array"
-        integer priority
-        text url
+        integer priority "0-99"
+        text url "optional link"
         text attachment "JSON {name,url?,data?}"
         text format "text|markdown|html|json"
+        text topic_id "optional topic grouping"
         timestamp created_at
     }
 ```
 
 ### Table Descriptions
 
-**users** -- Stores admin and regular user accounts. Passwords are hashed with bcrypt (cost factor 10). The `role` field controls access: `admin` users can manage channels, tokens, and templates; `user` users have limited access.
+**users** -- Stores admin and regular user accounts. Passwords are hashed with argon2 or bcrypt. The `role` field controls access: `admin` users can manage channels, tokens, and templates; `user` users have limited access.
 
-**api_tokens** -- API tokens for the public send API. Each token has a set of scopes (channel types it can send to), a rate limit (requests per minute), and an optional IP whitelist. Tokens are prefixed with `nh_`.
+**api_tokens** -- API tokens for the public send API. Each token has a set of scopes (channel types it can send to), a rate limit (requests per minute), and an optional IP whitelist. Tokens are prefixed with `nfkey_`.
 
 **channels** -- Channel configurations (SMTP servers, SMS provider credentials). The `config` field stores JSON encrypted with AES-256-GCM. Each channel has a `type` (email, sms) and can be marked as the default for its type.
 
 **templates** -- Reusable message templates. The `body` field supports `{{variable}}` syntax with optional default values (`{{name | default:"Guest"}}`). Templates are scoped to a channel type.
 
-**messages** -- The message queue table. Messages are inserted with `status = 'queued'`, claimed atomically by the worker, and progress through the lifecycle states. Each message can carry extended metadata: `tags` (JSON array of labels), `priority` (0--99, higher = processed first), `url` (an associated link), `attachment` (JSON object with file name and URL or base64 data), and `format` (body rendering hint: text, markdown, html, json). Indexes on `status`, `createdAt`, and `nextRetryAt` keep the worker's polling queries fast.
+**messages** -- The message queue table. Messages are inserted with `status = 'queued'`, claimed atomically by the worker, and progress through the lifecycle states. Each message can carry extended metadata: `tags` (JSON array of labels), `priority` (0--99, higher = processed first), `url` (an associated link), `attachment` (JSON object with file name and URL or base64 data), and `format` (body rendering hint: text, markdown, html, json).
 
-**push_clients** -- Registered push notification clients. Each client has a UUID, display name, and belongs to a user. Clients poll the server for new messages and register/unregister via JWT-authenticated endpoints.
+**push_clients** -- Registered push notification clients. Each client has a UUID, display name, OS info, and belongs to a user. The `fcm_token` field stores the Firebase Cloud Messaging token for Android devices. The `connection_mode` tracks the client's preferred transport (sse, ws, poll).
 
-**push_messages** -- Queued push notifications. When a message is sent to the `push` channel, it is inserted here with `clientUuid` (or `__broadcast__` for all clients), `delivered = false`, and priority/tags metadata. Clients poll to retrieve and acknowledge unread messages.
-
-### Push Channel Flow
-
-The push channel uses long-polling instead of external providers:
-
-1. A client (Android, Tauri, or web) registers with `POST /api/v1/push/register` using its JWT and a unique UUID.
-2. The client polls `GET /api/v1/push/poll` every few seconds. If there are unread messages, they are returned immediately. If not, the request hangs until a message arrives or a timeout occurs.
-3. After receiving messages, the client calls `POST /api/v1/push/ack` with the message IDs to mark them as delivered.
-4. Clients can update their display name via `PATCH /api/v1/push/client`.
-
-This approach works behind firewalls and NATs since the client initiates all connections. No push notification certificates (APNs, FCM) are required.
+**push_messages** -- Queued push notifications. Created by the queue worker when a message targets the push channel. The `source_message_id` links back to the original message. `delivered` is set to `true` when the client acknowledges receipt via `POST /api/v1/push/ack` or when the poll endpoint returns the message.
 
 ## Directory Structure
 
 ```
 notifyhub/
-├── shared/                    # Shared types, constants, and Zod schemas
-│   └── src/
-│       ├── constants.ts       # Channel types, retry delays, config defaults
-│       ├── schemas.ts         # Zod validation schemas
-│       ├── types.ts           # TypeScript interfaces
-│       └── index.ts           # Public exports
-│
-├── server/                    # API server (Hono + SQLite + Drizzle)
-│   └── src/
-│       ├── api/               # Route handlers
-│       │   ├── admin/         # Admin-only routes (auth, channels, tokens, etc.)
-│       │   ├── messages.ts    # Public message query API
-│       │   └── send.ts        # Public send API
-│       ├── auth/              # JWT auth, API token auth, rate limiting
-│       ├── channel/           # Channel adapter registry
-│       │   ├── email/         # SMTP adapter (nodemailer)
-│       │   └── sms/           # Twilio, Aliyun, Tencent adapters
-│       ├── db/                # Drizzle schema, migrations, DB connection
-│       ├── queue/             # Message queue manager and background worker
-│       ├── template/          # Template rendering engine
-│       ├── app.ts             # Hono app factory and bootstrap
-│       ├── config.ts          # Environment config loader
-│       ├── crypto.ts          # AES-256-GCM encrypt/decrypt
-│       └── index.ts           # Server entry point
+├── rust-server/               # Rust workspace
+│   ├── common/                # Shared types, constants, error types
+│   │   └── src/
+│   │       ├── constants.rs   # Channel types, retry delays, JWT expiry
+│   │       ├── schemas.rs     # Request/response schemas
+│   │       ├── types.rs       # Shared types (ApiResponse, etc.)
+│   │       └── error.rs       # AppError type
+│   │
+│   ├── server/                # API server (Axum + SQLite + sqlx)
+│   │   └── src/
+│   │       ├── auth/          # JWT, password hashing, middleware
+│   │       ├── routes/        # API route handlers
+│   │       │   ├── push.rs    # Push endpoints (poll, SSE, WS)
+│   │       │   ├── send.rs    # Send API
+│   │       │   ├── messages.rs # Message query API
+│   │       │   └── admin.rs   # Admin routes
+│   │       ├── worker/        # Queue worker, channel dispatchers
+│   │       ├── db/            # Database init, migrations
+│   │       ├── config.rs      # Environment config
+│   │       └── main.rs        # Server entry point
+│   │
+│   └── cli/                   # CLI tool (clap)
+│       └── src/
+│           ├── commands/      # send, status, config commands
+│           └── main.rs        # CLI entry point
 │
 ├── web/                       # Admin dashboard (React + Vite + Tailwind)
 │   └── src/
 │       ├── components/        # Reusable UI components (shadcn/ui)
-│       ├── layouts/           # Page layouts
 │       ├── lib/               # API client, utilities, i18n
 │       └── pages/             # Dashboard, Channels, Tokens, Messages, etc.
 │
-├── cli/                       # CLI tool (Commander.js)
-│   └── src/
-│       ├── commands/          # send, serve, config, status commands
-│       └── lib/               # CLI config and API client
+├── desktop/                   # Desktop client (Tauri + Rust)
+│   ├── src/
+│   │   ├── api.rs             # API client (reqwest)
+│   │   ├── config.rs          # Config file management
+│   │   ├── messages.rs        # Local message store (JSON file)
+│   │   ├── notify.rs          # Desktop notification bridge
+│   │   ├── poll.rs            # Long-polling connection mode
+│   │   ├── sse.rs             # SSE connection mode
+│   │   ├── ws.rs              # WebSocket connection mode
+│   │   └── main.rs            # Tauri app, tray menu, commands
+│   └── ui/                    # Frontend (React + Vite)
 │
-├── deploy/
-│   ├── Dockerfile             # Multi-stage production build
-│   └── docker-compose.yml     # Docker Compose configuration
+├── android/                   # Android client (Kotlin + Jetpack Compose)
+│   └── app/src/main/java/com/notifyhub/client/
+│       ├── data/              # API client, models, message store, i18n
+│       ├── service/           # PollService (SSE/WS/poll), FCM service
+│       └── ui/                # Compose UI screens
 │
-├── .env.example               # Environment variable template
-├── pnpm-workspace.yaml        # pnpm monorepo configuration
-└── package.json               # Root package.json with shared scripts
+├── docs/                      # Documentation site (Docusaurus)
+├── deploy/                    # Docker deployment configs
+└── .env.example               # Environment variable template
 ```
 
 ## Key Design Decisions
@@ -337,27 +395,26 @@ SQLite in WAL mode handles concurrent reads efficiently. The worker uses a write
 
 ### Atomic Message Claiming
 
-The worker claims messages using an `UPDATE ... RETURNING` pattern. This atomically transitions messages from `queued` (or `failed` with retry due) to `sending` in a single statement, preventing duplicate processing even if multiple workers were running:
+The worker claims messages using an `UPDATE ... RETURNING` pattern. This atomically transitions messages from `queued` (or `failed` with retry due) to `sending` in a single statement, preventing duplicate processing even if multiple workers were running.
 
-```sql
-UPDATE messages
-SET status = 'sending'
-WHERE id IN (
-    SELECT id FROM messages
-    WHERE status = 'queued'
-       OR (status = 'failed' AND next_retry_at <= ?)
-    ORDER BY created_at
-    LIMIT 10
-)
-AND (status = 'queued' OR status = 'failed')
-RETURNING *
-```
+### Rust Server with Axum
 
-The double-check on `status` in the `WHERE` clause guards against race conditions between the subquery and the update.
+The server is built with Axum, a high-performance async HTTP framework for Rust. Benefits include:
+- **Memory safety** without garbage collection
+- **Zero-cost abstractions** for request handling
+- **Compile-time SQL verification** via sqlx
+- **Async I/O** with tokio for efficient concurrency
+- **Single binary deployment** with no runtime dependencies
+
+### Push State with Broadcast Channels
+
+Real-time push delivery uses `tokio::sync::broadcast` channels. Each client UUID has a dedicated broadcast channel. When the queue worker creates a push message, it broadcasts to the target client's channel. SSE and WebSocket handlers subscribe to the channel and forward messages to connected clients.
+
+This design decouples message production from delivery -- the worker doesn't need to know which clients are connected or how they're connected.
 
 ### Encrypted Channel Credentials
 
-Channel configurations (SMTP passwords, API keys) are encrypted at the application level using AES-256-GCM before being written to the database. The encryption key is derived from the `ENCRYPTION_KEY` environment variable using `scryptSync`. This means that even if the SQLite file is compromised, the credentials remain protected.
+Channel configurations (SMTP passwords, API keys) are encrypted at the application level using AES-256-GCM before being written to the database. The encryption key is derived from the `JWT_SECRET` environment variable. This means that even if the SQLite file is compromised, the credentials remain protected.
 
 ### In-Memory Rate Limiting
 
@@ -376,3 +433,7 @@ Hello {{name | default:"Guest"}}, your order #{{orderId}} is ready.
 ```
 
 Variables that are not provided and have no default value are left as-is (`{{variableName}}`), making it easy to spot unresolved placeholders during debugging.
+
+### Client JWT with Long Expiry
+
+Push client JWTs use a 90-day expiry (vs 24 hours for admin web login). This minimizes re-authentication for long-running desktop and Android clients. When a client's JWT expires, it automatically re-logs in using stored credentials and re-registers.

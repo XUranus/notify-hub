@@ -1,17 +1,46 @@
 # NotifyHub
 
-Self-hosted notification push service. A unified API for email, SMS, and (coming soon) app push notifications.
+Self-hosted notification push service. A unified API for email, SMS, and push notifications.
 
 ## Features
 
 - 📧 **Email** — SMTP support with multiple provider fallback
 - 📱 **SMS** — Twilio, Aliyun, Tencent Cloud SMS
-- 🔔 **App Push** — Coming soon
+- 🔔 **Push** — Real-time push via SSE, WebSocket, or long-polling
+- 🖥️ **Desktop** — Tauri desktop client with system tray, notifications, and auto-reconnect
+- 📲 **Android** — Native Android client with Firebase Cloud Messaging support
 - 🔄 **Retry** — Exponential backoff with dead letter queue
 - 📊 **Admin Panel** — React-based web UI for management
-- ⌨️ **CLI** — Command-line tool for quick sending
-- 🔐 **Secure** — AES-256 encrypted credential storage
+- ⌨️ **CLI** — Rust CLI for quick sending and status checks
+- 🔐 **Secure** — AES-256 encrypted credential storage, JWT auth, bcrypt passwords
 - 🐳 **Docker** — One-command deployment
+
+## Architecture
+
+```
+┌─────────────┐     ┌─────────────────────────────────────┐
+│  Web Admin  │────▶│                                     │
+│  (React)    │     │     Rust Server (Axum + SQLite)     │
+├─────────────┤     │                                     │
+│  CLI (Rust) │────▶│  ┌─────────┐  ┌──────────────────┐  │
+├─────────────┤     │  │  Queue   │  │  Channel Workers │  │
+│  Desktop    │────▶│  │  Worker  │─▶│  - SMTP (Email)  │  │
+│  (Tauri)    │     │  └─────────┘  │  - Twilio (SMS)  │  │
+├─────────────┤     │               │  - Aliyun (SMS)   │  │
+│  Android    │────▶│               │  - Push (SSE/WS)  │  │
+└─────────────┘     └───────────────┴──────────────────┘  │
+                                                │         │
+                    ┌───────────────────────────┘         │
+                    ▼                                      │
+              ┌──────────┐     ┌──────────┐               │
+              │ SMTP/SDK │     │ Push DB  │◀──────────────┘
+              └──────────┘     └──────────┘
+```
+
+**Push delivery** supports three modes:
+- **SSE** (Server-Sent Events) — Real-time, unidirectional stream
+- **WebSocket** — Real-time, bidirectional
+- **Long-Polling** — Compatible fallback for restricted networks
 
 ## Quick Start
 
@@ -24,50 +53,68 @@ cp .env.docker .env
 docker-compose up -d
 ```
 
-Open `http://localhost:3000` and login with `admin` / `admin123`.
+Open `http://localhost:9527` and login with `admin` / `admin123`.
 
 **Configuration** (edit `.env`):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `3000` | Frontend port (exposed to host) |
+| `PORT` | `9527` | Server listen port |
 | `DB_PATH` | `notifyhub-data` | Database storage (volume or host path) |
 | `LOG_PATH` | `notifyhub-logs` | Logs storage (volume or host path) |
 | `ADMIN_USERNAME` | `admin` | Admin username |
 | `ADMIN_PASSWORD` | `admin123` | Admin password |
+| `JWT_SECRET` | *(auto)* | Secret for signing JWT tokens |
 
 See [deploy/README.md](deploy/README.md) for detailed documentation.
 
 ### Manual Installation
 
-```bash
-# Install dependencies
-pnpm install
+**Prerequisites:** Rust 1.75+, pnpm 9+
 
-# Build everything
-pnpm build
+```bash
+# Build the Rust server + CLI
+cd rust-server
+cargo build --release
 
 # Start the server
-cd server
-cp ../.env.example .env
-pnpm start
+./target/release/notifyhub-server
+
+# In another terminal, build the web frontend
+cd web
+pnpm install && pnpm build
+# Serve from the server's static files directory, or use a reverse proxy
+```
+
+### Development
+
+```bash
+# Start the Rust server with hot-reload
+cd rust-server
+cargo watch -x run
+
+# Start the web frontend dev server (proxies API to :9527)
+cd web
+pnpm dev
+# Open http://localhost:4321
 ```
 
 ## Usage
 
 ### Web Admin Panel
 
-After starting the server, open `http://localhost:3000` to access the admin panel.
+After starting the server, open `http://localhost:9527` (or `http://localhost:4321` in dev mode) to access the admin panel.
 
 1. **Configure a channel** — Add your SMTP server or SMS provider credentials
 2. **Create an API token** — Generate a token for API access
 3. **Send notifications** — Use the API or CLI to send messages
+4. **Register push clients** — Install the desktop or Android app to receive push notifications
 
 ### API
 
 ```bash
 # Send an email
-curl -X POST http://localhost:3000/api/v1/send \
+curl -X POST http://localhost:9527/api/v1/send \
   -H "Authorization: Bearer nh_your_token_here" \
   -H "Content-Type: application/json" \
   -d '{
@@ -78,7 +125,7 @@ curl -X POST http://localhost:3000/api/v1/send \
   }'
 
 # Send a push notification with extended fields
-curl -X POST http://localhost:3000/api/v1/send \
+curl -X POST http://localhost:9527/api/v1/send \
   -H "Authorization: Bearer nh_your_token_here" \
   -H "Content-Type: application/json" \
   -d '{
@@ -93,7 +140,7 @@ curl -X POST http://localhost:3000/api/v1/send \
   }'
 
 # Send using template
-curl -X POST http://localhost:3000/api/v1/send \
+curl -X POST http://localhost:9527/api/v1/send \
   -H "Authorization: Bearer nh_your_token_here" \
   -H "Content-Type: application/json" \
   -d '{
@@ -105,53 +152,116 @@ curl -X POST http://localhost:3000/api/v1/send \
       "name": "John"
     }
   }'
-
-# Check message status
-curl http://localhost:3000/api/v1/messages/1 \
-  -H "Authorization: Bearer nh_your_token_here"
 ```
 
 ### CLI
 
 ```bash
 # Configure
-npx notify-hub config set server http://localhost:3000
-npx notify-hub config set token nh_your_token_here
+notify-hub config set server http://localhost:9527
+notify-hub config set token nh_your_token_here
 
 # Send
-npx notify-hub send --channel email --to user@example.com --body "Hello!"
+notify-hub send --channel email --to user@example.com --body "Hello!"
 
 # Send with extended fields
-npx notify-hub send --channel push --to device-uuid \
+notify-hub send --channel push --to device-uuid \
   --subject "Alert" --body "CPU at 95%" \
   --tags alert,cpu --priority 90 \
   --url "https://monitor.example.com" --format markdown
 
 # Check status
-npx notify-hub status 1
+notify-hub status 1
+```
 
-# Start server
-npx notify-hub serve --port 3000
+### Push Clients
+
+**Desktop (Tauri):**
+- Supports SSE, WebSocket, and long-polling connection modes
+- System tray with connection status, unread count, and reconnect
+- Desktop notifications with sound
+- Auto-download image attachments
+- Auto-reconnect with JWT refresh on expiry
+
+**Android:**
+- Supports SSE, WebSocket, and long-polling
+- Firebase Cloud Messaging (FCM) for background delivery
+- Material Design 3 UI with dark mode
+- i18n support (English, Chinese)
+- Auto-download image attachments
+
+## Project Structure
+
+```
+notifyhub/
+├── rust-server/               # Rust workspace
+│   ├── common/                # Shared types, constants, error types
+│   ├── server/                # API server (Axum + SQLite + sqlx)
+│   │   └── src/
+│   │       ├── auth/          # JWT, password hashing, middleware
+│   │       ├── routes/        # API route handlers
+│   │       ├── worker/        # Queue worker, channel dispatchers
+│   │       └── main.rs        # Server entry point
+│   └── cli/                   # CLI tool (clap)
+│       └── src/
+│           ├── commands/      # send, status, config commands
+│           └── main.rs        # CLI entry point
+│
+├── web/                       # Admin dashboard (React + Vite + Tailwind)
+│   └── src/
+│       ├── components/        # Reusable UI components (shadcn/ui)
+│       ├── lib/               # API client, utilities, i18n
+│       └── pages/             # Dashboard, Channels, Tokens, Messages, etc.
+│
+├── desktop/                   # Desktop client (Tauri + Rust)
+│   ├── src/
+│   │   ├── api.rs             # API client
+│   │   ├── poll.rs            # Long-polling connection
+│   │   ├── sse.rs             # SSE connection
+│   │   ├── ws.rs              # WebSocket connection
+│   │   ├── messages.rs        # Local message store
+│   │   ├── notify.rs          # Desktop notifications
+│   │   └── main.rs            # Tauri app + system tray
+│   └── ui/                    # Frontend (React + Vite)
+│
+├── android/                   # Android client (Kotlin + Jetpack Compose)
+│   └── app/src/main/java/com/notifyhub/client/
+│       ├── data/              # API client, models, message store
+│       ├── service/           # PollService (SSE/WS/poll), FCM
+│       └── ui/                # Compose UI screens
+│
+├── docs/                      # Documentation site (Docusaurus)
+├── deploy/                    # Docker deployment configs
+└── .env.example               # Environment variable template
 ```
 
 ## API Documentation
 
 ### Authentication
 
-All API requests require a Bearer token:
+**JWT** — Used by web admin and push clients:
 ```
-Authorization: Bearer nh_your_token_here
+Authorization: Bearer <jwt_token>
 ```
 
-### Endpoints
+**API Token** — Used by external integrations:
+```
+Authorization: Bearer nh_<token>
+```
+
+### Key Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/v1/send` | Send a notification |
 | POST | `/api/v1/send/batch` | Send multiple notifications |
 | GET | `/api/v1/messages/:id` | Get message status |
-| GET | `/api/v1/messages` | List messages |
-| POST | `/api/admin/login` | Admin login |
+| POST | `/api/auth/login` | Admin login (returns JWT) |
+| GET | `/api/v1/push/poll` | Poll for push messages |
+| GET | `/api/v1/push/stream` | SSE stream for push messages |
+| GET | `/api/v1/push/ws` | WebSocket for push messages |
+| POST | `/api/v1/push/register` | Register a push client |
+| POST | `/api/v1/push/ack` | Acknowledge received messages |
 | GET | `/api/admin/stats/overview` | Get statistics |
 | CRUD | `/api/admin/channels` | Manage channels |
 | CRUD | `/api/admin/tokens` | Manage API tokens |
@@ -180,35 +290,16 @@ Authorization: Bearer nh_your_token_here
 
 ## Configuration
 
-Create a `.env` file or set environment variables:
+Server configuration via environment variables or `.env` file:
 
 ```env
-PORT=3000
+PORT=9527
 HOST=0.0.0.0
-DATABASE_URL=./data/notify-hub.db
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=changeme
+DATA_DIR=./data
+DATABASE_URL=./data/notifyhub.db
 JWT_SECRET=your-secret-key
-ENCRYPTION_KEY=your-encryption-key
-```
-
-## Development
-
-```bash
-# Install dependencies
-pnpm install
-
-# Start dev server (backend)
-pnpm dev
-
-# Start dev server (frontend)
-pnpm dev:web
-
-# Type check
-pnpm typecheck
-
-# Build all
-pnpm build
+CORS_ORIGIN=*
+FCM_SERVICE_ACCOUNT_PATH=./firebase-service-account.json
 ```
 
 ## License

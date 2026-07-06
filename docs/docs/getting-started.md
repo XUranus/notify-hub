@@ -11,14 +11,14 @@ This guide walks you through installing NotifyHub, running it locally, and sendi
 
 Before you begin, make sure you have the following installed:
 
-- **Node.js 18+** -- We recommend using the latest LTS release (Node.js 20+).
-- **pnpm 9+** -- NotifyHub uses pnpm as its package manager. Install it with `corepack enable` or `npm install -g pnpm`.
+- **Rust 1.75+** -- Install via [rustup.rs](https://rustup.rs/).
+- **pnpm 9+** -- For the web frontend. Install with `corepack enable` or `npm install -g pnpm`.
 
 :::tip
 You can verify your versions by running:
 ```bash
-node --version   # Should be v18.0.0 or higher
-pnpm --version   # Should be 9.0.0 or higher
+rustc --version   # Should be 1.75.0 or higher
+pnpm --version    # Should be 9.0.0 or higher
 ```
 :::
 
@@ -31,94 +31,82 @@ git clone https://github.com/notifyhub/notifyhub.git
 cd notifyhub
 ```
 
-### 2. Install dependencies
+### 2. Build the Rust server and CLI
 
 ```bash
+cd rust-server
+cargo build --release
+```
+
+This produces two binaries:
+- `target/release/notifyhub-server` -- The API server
+- `target/release/notifyhub` -- The CLI tool
+
+### 3. Build the web frontend
+
+```bash
+cd web
 pnpm install
+pnpm build
 ```
 
-This installs all dependencies for every package in the monorepo (`shared`, `server`, `web`, `cli`).
+The built frontend files go to `web/dist/`. In production, the Rust server serves these as static files.
 
-### 3. Configure environment variables
+### 4. Configure environment variables
 
-Copy the example environment file and edit it to suit your setup:
-
-```bash
-cp .env.example .env
-```
-
-Open `.env` in your editor. The key settings are:
+Create a `.env` file in the `rust-server/` directory:
 
 ```bash
-# Server
+cd rust-server
+cat > .env << 'EOF'
 PORT=9527
 HOST=0.0.0.0
-NODE_ENV=development
-
-# Database (SQLite file path)
-DATABASE_URL=./data/notify-hub.db
-
-# Admin credentials (used on first run to create the admin user)
-ADMIN_EMAIL=admin@notifyhub.local
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin123
-
-# Security (auto-generated if left empty, but set them for persistence)
-JWT_SECRET=your-jwt-secret-here
-ENCRYPTION_KEY=your-encryption-key-here
-
-# CORS (use * for development, restrict in production)
+DATA_DIR=./data
+JWT_SECRET=your-secret-key-change-me
 CORS_ORIGIN=*
+EOF
 ```
 
 :::warning
-In production, always set explicit `JWT_SECRET` and `ENCRYPTION_KEY` values. If left empty, NotifyHub generates random secrets on each restart, which invalidates all existing tokens and encrypted channel credentials.
+In production, always set an explicit `JWT_SECRET`. If left empty, NotifyHub generates a random secret on each restart, which invalidates all existing tokens.
 :::
-
-### 4. Run database migrations
-
-```bash
-pnpm db:migrate
-```
-
-This creates the SQLite database file and applies all schema migrations.
 
 ## First Run
 
 ### Start the API server
 
 ```bash
-pnpm dev
+cd rust-server
+./target/release/notifyhub-server
 ```
 
 You should see output like:
 
 ```
-╔═══════════════════════════════════════════╗
-║          NotifyHub v0.1.0                 ║
-║───────────────────────────────────────────║
-║  Server:  http://0.0.0.0:9527            ║
-║  Mode:    development                     ║
-║  API:     http://0.0.0.0:9527/api        ║
-║  Health:  http://0.0.0.0:9527/health      ║
-╚═══════════════════════════════════════════╝
+2026-07-06T12:00:00Z  INFO notifyhub_server: Starting NotifyHub server on 0.0.0.0:9527
+2026-07-06T12:00:00Z  INFO notifyhub_server::db: Database initialized at ./data/notifyhub.db
+2026-07-06T12:00:00Z  INFO notifyhub_server::db: Applied 18 database migrations
+2026-07-06T12:00:00Z  INFO notifyhub_server: Server ready
 ```
 
-### Start the frontend (in a separate terminal)
+The database is created automatically on first run.
+
+### Start the frontend (development mode)
 
 ```bash
-pnpm dev:web
+cd web
+pnpm dev
 ```
 
-The admin dashboard starts on `http://localhost:4321` (Vite dev server). In development, use port **4321** (not 9527) to access the web UI -- the Vite dev server proxies API requests to the backend.
+The admin dashboard starts on `http://localhost:4321` (Vite dev server). In development, the Vite dev server proxies API requests to the Rust backend on port 9527.
 
 ### Log in to the dashboard
 
-Open `http://localhost:4321` in your browser and log in with the default admin credentials:
+Open `http://localhost:4321` (or `http://localhost:9527` in production) in your browser and log in with the default admin credentials:
 
 | Field | Value |
 |-------|-------|
-| Email | `admin@notifyhub.local` |
+| Username | `admin` |
 | Password | `admin123` |
 
 :::warning
@@ -129,13 +117,25 @@ Change the default admin password immediately after your first login, especially
 
 ### Step 1: Create an API token
 
-From the admin dashboard, navigate to **Tokens** and create a new API token. Alternatively, use the API directly:
+From the admin dashboard, navigate to **Tokens** and create a new API token. Alternatively, use the CLI:
+
+```bash
+# Configure the CLI
+./target/release/notifyhub config set server http://localhost:9527
+./target/release/notifyhub config set username admin
+./target/release/notifyhub config set password admin123
+
+# Login and save JWT
+./target/release/notifyhub login
+```
+
+Or use the API directly:
 
 ```bash
 # Log in and get a JWT
-TOKEN=$(curl -s -X POST http://localhost:9527/api/admin/login \
+TOKEN=$(curl -s -X POST http://localhost:9527/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@notifyhub.local","password":"admin123"}' \
+  -d '{"emailOrUsername":"admin","password":"admin123"}' \
   | jq -r '.data.token')
 
 # Create an API token
@@ -208,7 +208,7 @@ The message enters the queue and the background worker picks it up within second
 
 ## Docker Quick Start
 
-If you prefer to run NotifyHub in a container without installing Node.js locally:
+If you prefer to run NotifyHub in a container without installing Rust locally:
 
 ### Using Docker Compose (recommended)
 
@@ -220,7 +220,7 @@ cd notifyhub
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
-The server starts on port 9527. The admin dashboard is served from the same port in production mode.
+The server starts on port 9527. The admin dashboard is served from the same port.
 
 ### Using Docker directly
 
@@ -235,25 +235,38 @@ docker run -d \
   -v notifyhub-data:/app/data \
   -e ADMIN_PASSWORD=your-secure-password \
   -e JWT_SECRET=your-jwt-secret \
-  -e ENCRYPTION_KEY=your-encryption-key \
   notifyhub
 ```
-
-:::note
-The Docker image uses a multi-stage build: it compiles the frontend and backend separately, then serves both from a single Node.js process. The SQLite database is stored in the `/app/data` volume.
-:::
 
 ### Environment variables for Docker
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `9527` | Server listen port |
-| `NODE_ENV` | `production` | Runtime environment |
 | `ADMIN_USERNAME` | `admin` | Default admin username |
 | `ADMIN_PASSWORD` | `changeme` | Default admin password |
 | `JWT_SECRET` | *(auto-generated)* | Secret for signing JWT tokens |
-| `ENCRYPTION_KEY` | *(auto-generated)* | Key for encrypting channel credentials |
-| `DATABASE_URL` | `/app/data/notify-hub.db` | SQLite database path |
+| `DATA_DIR` | `/app/data` | Data directory (database, uploads) |
+
+## Development Setup
+
+For development with hot-reload:
+
+```bash
+# Terminal 1: Rust server with hot-reload
+cd rust-server
+cargo install cargo-watch
+cargo watch -x run
+
+# Terminal 2: Web frontend with API proxy
+cd web
+pnpm dev
+# Opens http://localhost:4321, proxies API to :9527
+
+# Terminal 3: Desktop client (optional)
+cd desktop
+cargo run
+```
 
 ## Next Steps
 
