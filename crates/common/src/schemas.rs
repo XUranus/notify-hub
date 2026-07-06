@@ -333,7 +333,9 @@ pub struct UserInfo {
 #[serde(rename_all = "camelCase")]
 pub struct DailyStats {
     pub date: String,
-    pub count: i64,
+    pub total: i64,
+    pub sent: i64,
+    pub failed: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]

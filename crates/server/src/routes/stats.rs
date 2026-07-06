@@ -87,16 +87,30 @@ async fn stats_daily(
     let now = chrono::Utc::now().timestamp();
     let week_ago = now - 604800;
 
-    let rows: Vec<(String, i64)> = if is_admin {
+    #[derive(sqlx::FromRow)]
+    struct DailyRow {
+        day: String,
+        total: i64,
+        sent: i64,
+        failed: i64,
+    }
+
+    let rows: Vec<DailyRow> = if is_admin {
         sqlx::query_as(
-            "SELECT strftime('%Y-%m-%d', created_at, 'unixepoch') as day, COUNT(*) as cnt \
+            "SELECT strftime('%Y-%m-%d', created_at, 'unixepoch') as day, \
+                    COUNT(*) as total, \
+                    SUM(CASE WHEN status IN ('sent', 'delivered') THEN 1 ELSE 0 END) as sent, \
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed \
              FROM messages WHERE created_at >= ? GROUP BY day ORDER BY day"
         )
         .bind(week_ago)
         .fetch_all(&state.pool).await?
     } else {
         sqlx::query_as(
-            "SELECT strftime('%Y-%m-%d', created_at, 'unixepoch') as day, COUNT(*) as cnt \
+            "SELECT strftime('%Y-%m-%d', created_at, 'unixepoch') as day, \
+                    COUNT(*) as total, \
+                    SUM(CASE WHEN status IN ('sent', 'delivered') THEN 1 ELSE 0 END) as sent, \
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed \
              FROM messages WHERE created_at >= ? AND user_id = ? GROUP BY day ORDER BY day"
         )
         .bind(week_ago)
@@ -104,7 +118,12 @@ async fn stats_daily(
         .fetch_all(&state.pool).await?
     };
 
-    let stats = rows.into_iter().map(|(date, count)| DailyStats { date, count }).collect();
+    let stats = rows.into_iter().map(|r| DailyStats {
+        date: r.day,
+        total: r.total,
+        sent: r.sent,
+        failed: r.failed,
+    }).collect();
     Ok(Json(ApiResponse::ok(stats)))
 }
 
