@@ -14,9 +14,9 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/admin/tokens", get(list_tokens).post(create_token))
+        .route("/api/admin/tokens/generate-client-token", post(generate_client_token))
         .route("/api/admin/tokens/{id}", get(get_token).put(update_token).delete(delete_token))
         .route("/api/admin/tokens/{id}/rotate", post(rotate_token))
-        .route("/api/admin/tokens/generate-client-token", post(generate_client_token))
 }
 
 async fn list_tokens(
@@ -214,7 +214,7 @@ async fn rotate_token(
 async fn generate_client_token(
     State(state): State<AppState>,
     auth: AuthUser,
-    Json(_req): Json<GenerateClientTokenRequest>,
+    req: Option<Json<GenerateClientTokenRequest>>,
 ) -> Result<Json<ApiResponse<TokenCreatedResponse>>, AppError> {
     let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
 

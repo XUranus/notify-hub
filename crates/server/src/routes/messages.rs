@@ -17,7 +17,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/messages", get(v1_list_messages))
         .route("/api/v1/messages/{id}", get(v1_get_message))
         // Admin API (JWT only, can see all messages)
-        .route("/api/admin/messages", get(admin_list_messages))
+        .route("/api/admin/messages", get(admin_list_messages).delete(delete_all_messages))
         .route("/api/admin/messages/export", get(export_messages))
         .route("/api/admin/messages/{id}", get(admin_get_message).delete(delete_message))
         .route("/api/admin/messages/{id}/retry", post(retry_message))
@@ -205,6 +205,31 @@ async fn delete_message(
     }
 
     Ok(Json(ApiResponse::success()))
+}
+
+async fn delete_all_messages(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    require_admin(&auth)?;
+
+    let user_id: i64 = auth.claims.sub.parse()
+        .map_err(|_| AppError::BadRequest("invalid user id".into()))?;
+
+    let messages_result = sqlx::query("DELETE FROM messages WHERE user_id = ?")
+        .bind(user_id)
+        .execute(&state.pool)
+        .await?;
+
+    let push_result = sqlx::query("DELETE FROM push_messages WHERE user_id = ?")
+        .bind(user_id)
+        .execute(&state.pool)
+        .await?;
+
+    Ok(Json(ApiResponse::ok(serde_json::json!({
+        "deleted_messages": messages_result.rows_affected(),
+        "deleted_push_messages": push_result.rows_affected()
+    }))))
 }
 
 async fn retry_message(

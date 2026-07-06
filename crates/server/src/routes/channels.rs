@@ -209,21 +209,131 @@ async fn delete_channel(
 async fn test_config(
     State(_state): State<AppState>,
     auth: AuthUser,
-    Json(_req): Json<TestChannelConfigRequest>,
+    Json(req): Json<TestChannelConfigRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     require_admin(&auth)?;
-    // TODO: implement actual channel config testing
-    Ok(Json(ApiResponse::ok(serde_json::json!({ "success": true, "message": "config test not yet implemented" }))))
+
+    let config_json = serde_json::to_string(&req.config)
+        .map_err(|e| AppError::BadRequest(format!("invalid config: {e}")))?;
+
+    match req.channel_type {
+        ChannelType::Email => test_email_channel(&config_json).await,
+        ChannelType::Sms => test_sms_channel(&config_json).await,
+        ChannelType::Push => Ok(Json(ApiResponse::ok(serde_json::json!({
+            "success": true,
+            "message": "Push channel does not require connectivity test"
+        })))),
+    }
 }
 
 async fn test_channel(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthUser,
-    Path(_id): Path<String>,
+    Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     require_admin(&auth)?;
-    // TODO: implement actual channel connectivity testing
-    Ok(Json(ApiResponse::ok(serde_json::json!({ "success": true, "message": "channel test not yet implemented" }))))
+
+    let row: Option<ChannelRow> = sqlx::query_as("SELECT * FROM channels WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await?;
+
+    let channel = row.ok_or_else(|| AppError::NotFound("channel not found".into()))?;
+    let channel_type: ChannelType = channel.channel_type.parse().unwrap_or(ChannelType::Push);
+
+    match channel_type {
+        ChannelType::Email => test_email_channel(&channel.config).await,
+        ChannelType::Sms => test_sms_channel(&channel.config).await,
+        ChannelType::Push => Ok(Json(ApiResponse::ok(serde_json::json!({
+            "success": true,
+            "message": "Push channel does not require connectivity test"
+        })))),
+    }
+}
+
+async fn test_email_channel(config_str: &str) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let cfg: serde_json::Value = serde_json::from_str(config_str)
+        .map_err(|e| AppError::BadRequest(format!("invalid channel config: {e}")))?;
+
+    let host = cfg.get("host").and_then(|v| v.as_str()).unwrap_or("localhost");
+    let port = cfg.get("port").and_then(|v| v.as_u64()).unwrap_or(587) as u16;
+    let username = cfg.get("username").and_then(|v| v.as_str()).unwrap_or("");
+    let password = cfg.get("password").and_then(|v| v.as_str()).unwrap_or("");
+    let secure = cfg.get("secure").and_then(|v| v.as_bool()).unwrap_or(true);
+
+    use lettre::transport::smtp::authentication::Credentials;
+    use lettre::transport::smtp::client::Tls;
+    use lettre::{SmtpTransport, Transport};
+
+    let creds = Credentials::new(username.to_string(), password.to_string());
+
+    let transport = if secure {
+        SmtpTransport::relay(host)
+            .map_err(|e| AppError::BadRequest(format!("SMTP relay error: {e}")))?
+            .port(port)
+            .credentials(creds)
+            .build()
+    } else {
+        SmtpTransport::builder_dangerous(host)
+            .port(port)
+            .credentials(creds)
+            .build()
+    };
+
+    // Test connection by trying to send a NOOP command
+    match transport.test_connection() {
+        Ok(true) => Ok(Json(ApiResponse::ok(serde_json::json!({
+            "success": true,
+            "message": format!("SMTP connection to {}:{} successful", host, port)
+        })))),
+        Ok(false) => Ok(Json(ApiResponse::ok(serde_json::json!({
+            "success": false,
+            "message": format!("SMTP connection to {}:{} failed", host, port)
+        })))),
+        Err(e) => Ok(Json(ApiResponse::ok(serde_json::json!({
+            "success": false,
+            "message": format!("SMTP connection error: {}", e)
+        })))),
+    }
+}
+
+async fn test_sms_channel(config_str: &str) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let cfg: serde_json::Value = serde_json::from_str(config_str)
+        .map_err(|e| AppError::BadRequest(format!("invalid channel config: {e}")))?;
+
+    let provider = cfg.get("provider").and_then(|v| v.as_str()).unwrap_or("twilio");
+
+    // For SMS, we just validate the config is present, actual sending test would cost money
+    let has_credentials = match provider {
+        "twilio" => {
+            let sid = cfg.get("accountSid").and_then(|v| v.as_str());
+            let token = cfg.get("authToken").and_then(|v| v.as_str());
+            sid.is_some() && !sid.unwrap().is_empty() && token.is_some() && !token.unwrap().is_empty()
+        }
+        "aliyun" => {
+            let key = cfg.get("accessKeyId").and_then(|v| v.as_str());
+            let secret = cfg.get("accessKeySecret").and_then(|v| v.as_str());
+            key.is_some() && !key.unwrap().is_empty() && secret.is_some() && !secret.unwrap().is_empty()
+        }
+        "tencent" => {
+            let id = cfg.get("secretId").and_then(|v| v.as_str());
+            let key = cfg.get("secretKey").and_then(|v| v.as_str());
+            id.is_some() && !id.unwrap().is_empty() && key.is_some() && !key.unwrap().is_empty()
+        }
+        _ => false,
+    };
+
+    if has_credentials {
+        Ok(Json(ApiResponse::ok(serde_json::json!({
+            "success": true,
+            "message": format!("SMS channel ({provider}) configuration is valid")
+        }))))
+    } else {
+        Ok(Json(ApiResponse::ok(serde_json::json!({
+            "success": false,
+            "message": format!("SMS channel ({provider}) is missing credentials")
+        }))))
+    }
 }
 
 #[derive(sqlx::FromRow)]

@@ -251,6 +251,7 @@ pub struct UpdatePushClientRequest {
 #[serde(rename_all = "camelCase")]
 pub struct AckPushRequest {
     pub message_ids: Vec<String>,
+    pub uuid: Option<String>,
 }
 
 // ── User Settings ──
