@@ -125,7 +125,7 @@ impl ApiClient {
             .map_err(|e| e.to_string())?;
 
         let status = resp.status();
-        let api_resp: ApiResponse<()> = resp.json().await.map_err(|e| e.to_string())?;
+        let api_resp: ApiResponse<serde_json::Value> = resp.json().await.map_err(|e| e.to_string())?;
         if !status.is_success() || !api_resp.success {
             return Err(format!("HTTP {}: register failed", status));
         }
@@ -201,7 +201,7 @@ impl ApiClient {
             .map_err(|e| e.to_string())?;
 
         let status = resp.status();
-        let api_resp: ApiResponse<()> = resp.json().await.map_err(|e| e.to_string())?;
+        let api_resp: ApiResponse<serde_json::Value> = resp.json().await.map_err(|e| e.to_string())?;
         if !status.is_success() || !api_resp.success {
             return Err(format!("HTTP {}: update client failed", status));
         }
