@@ -5,14 +5,16 @@ mod config;
 mod messages;
 mod notify;
 mod poll;
+mod sse;
+mod ws;
 
 use config::AppConfig;
 use messages::{LocalMessage, MessageStore};
 use poll::PollState;
 use std::sync::{Arc, Mutex};
 use tauri::{
-    menu::{Menu, MenuItem},
-    tray::TrayIconBuilder,
+    menu::{Menu, MenuItem, PredefinedMenuItem},
+    tray::{TrayIconBuilder, MouseButton, MouseButtonState, TrayIconEvent},
     Manager,
 };
 use tauri_plugin_autostart::{AutoLaunchManager, MacosLauncher};
@@ -34,6 +36,7 @@ fn get_poll_state(state: tauri::State<'_, Arc<Mutex<PollState>>>) -> PollStateSn
     let s = state.lock().unwrap();
     PollStateSnapshot {
         running: s.running,
+        mode: s.mode.clone(),
         last_poll: s.last_poll.clone(),
         error: s.error.clone(),
     }
@@ -196,6 +199,13 @@ fn read_image_data_url(path: String) -> Result<String, String> {
     Ok(format!("data:{};base64,{}", mime, b64))
 }
 
+// ── Tray menu item handles for dynamic updates ──
+
+struct TrayMenuItems {
+    status: MenuItem<tauri::Wry>,
+    unread: MenuItem<tauri::Wry>,
+}
+
 #[derive(serde::Deserialize)]
 struct ComposeAttachment {
     name: String,
@@ -246,6 +256,38 @@ async fn update_client_name(name: String) -> Result<(), String> {
     let mut cfg = cfg;
     cfg.client.name = name;
     cfg.save()?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_connection_mode(state: tauri::State<'_, Arc<Mutex<PollState>>>) -> String {
+    let s = state.lock().unwrap();
+    s.mode.clone()
+}
+
+#[tauri::command]
+fn set_connection_mode(
+    mode: String,
+    state: tauri::State<'_, Arc<Mutex<PollState>>>,
+    msg_store: tauri::State<'_, Arc<MessageStore>>,
+) -> Result<(), String> {
+    // Save to config
+    if let Some(mut cfg) = AppConfig::load() {
+        cfg.connection_mode = mode.clone();
+        cfg.save()?;
+    }
+    // Update poll state mode — existing loops check this and exit if mode changed
+    {
+        let mut s = state.lock().unwrap();
+        s.mode = mode.clone();
+    }
+    // Start the appropriate mode
+    let cfg = AppConfig::load().ok_or("No config")?;
+    match mode.as_str() {
+        "sse" => sse::start_sse(cfg, state.inner().clone(), msg_store.inner().clone()),
+        "ws" => ws::start_ws(cfg, state.inner().clone(), msg_store.inner().clone()),
+        _ => poll::start_polling(cfg, state.inner().clone(), msg_store.inner().clone()),
+    }
     Ok(())
 }
 
@@ -382,7 +424,12 @@ async fn reconnect(
         s.last_poll = None;
         s.error = None;
     }
-    poll::start_polling(cfg.clone(), state.inner().clone(), msg_store.inner().clone());
+    let mode = cfg.connection_mode.clone();
+    match mode.as_str() {
+        "sse" => sse::start_sse(cfg.clone(), state.inner().clone(), msg_store.inner().clone()),
+        "ws" => ws::start_ws(cfg.clone(), state.inner().clone(), msg_store.inner().clone()),
+        _ => poll::start_polling(cfg.clone(), state.inner().clone(), msg_store.inner().clone()),
+    }
 
     Ok(())
 }
@@ -413,16 +460,45 @@ fn window_start_drag(window: tauri::Window) -> Result<(), String> {
     window.start_dragging().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn update_tray_status(tray_items: tauri::State<'_, TrayMenuItems>, connected: bool, mode: Option<String>, error: Option<String>) {
+    let text = if let Some(ref err) = error {
+        format!("● Error: {}", if err.len() > 30 { &err[..30] } else { err })
+    } else if connected {
+        match mode.as_deref() {
+            Some("sse") => "● Connected (SSE)".to_string(),
+            Some("ws") => "● Connected (WS)".to_string(),
+            _ => "● Connected (Poll)".to_string(),
+        }
+    } else {
+        "● Connecting...".to_string()
+    };
+    let _ = tray_items.status.set_text(&text);
+}
+
+#[tauri::command]
+fn update_tray_unread(tray_items: tauri::State<'_, TrayMenuItems>, count: usize) {
+    let text = if count == 0 {
+        "No unread".to_string()
+    } else {
+        format!("Unread: {}", count)
+    };
+    let _ = tray_items.unread.set_text(&text);
+}
+
 // ── Types ──
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct PollStateSnapshot {
     running: bool,
+    mode: String,
     last_poll: Option<String>,
     error: Option<String>,
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SystemInfo {
     os: String,
     arch: String,
@@ -430,6 +506,7 @@ struct SystemInfo {
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct AppInfo {
     version: String,
     config_path: String,
@@ -437,6 +514,11 @@ struct AppInfo {
 }
 
 // ── Helpers ──
+
+/// Shared tokio runtime for SSE/WS threads (avoids creating a new runtime per connection)
+pub fn shared_runtime() -> tokio::runtime::Runtime {
+    tokio::runtime::Runtime::new().expect("failed to create tokio runtime")
+}
 
 pub fn detect_desktop_env() -> String {
     if let Ok(de) = std::env::var("XDG_CURRENT_DESKTOP") {
@@ -467,7 +549,7 @@ pub fn detect_desktop_env() -> String {
     }
 }
 
-// ── Single Instance Lock (flock) ──
+// ── Single Instance Lock ──
 
 fn lock_path() -> std::path::PathBuf {
     let dir = dirs::config_dir()
@@ -477,43 +559,81 @@ fn lock_path() -> std::path::PathBuf {
     dir.join("lock")
 }
 
-/// Try to acquire an exclusive flock. Returns Ok(guard) on success.
-/// The lock is held until the guard is dropped (process exit).
-fn acquire_lock() -> Result<LockGuard, ()> {
-    use std::os::unix::io::AsRawFd;
-    let path = lock_path();
-    let file = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(false)
-        .open(&path)
-        .map_err(|_| ())?;
+fn is_process_alive(pid: u32) -> bool {
+    #[cfg(unix)]
+    {
+        // Send signal 0 — doesn't kill, just checks existence
+        unsafe { libc::kill(pid as i32, 0) == 0 }
+    }
+    #[cfg(windows)]
+    {
+        use std::process::Command;
+        Command::new("tasklist")
+            .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+            .output()
+            .map(|o| {
+                let out = String::from_utf8_lossy(&o.stdout);
+                out.contains(&pid.to_string())
+            })
+            .unwrap_or(false)
+    }
+}
 
-    let fd = file.as_raw_fd();
-    let ret = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
-    if ret != 0 {
-        return Err(());
+/// Try to acquire single-instance lock. Returns Ok(lock) on success, Err(existing_pid) if another instance is running.
+fn acquire_lock() -> Result<LockGuard, u32> {
+    let path = lock_path();
+
+    // Check if lock file exists
+    if path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            if let Ok(pid) = content.trim().parse::<u32>() {
+                if pid != std::process::id() && is_process_alive(pid) {
+                    return Err(pid);
+                }
+            }
+        }
     }
 
-    // Write PID for debugging purposes
-    use std::io::Write;
-    let _ = (&file).write_all(std::process::id().to_string().as_bytes());
+    // Write our PID
+    std::fs::write(&path, std::process::id().to_string()).ok();
 
-    Ok(LockGuard { _file: file })
+    // Verify we won the race (double-check)
+    if let Ok(content) = std::fs::read_to_string(&path) {
+        if let Ok(pid) = content.trim().parse::<u32>() {
+            if pid != std::process::id() && is_process_alive(pid) {
+                return Err(pid);
+            }
+        }
+    }
+
+    Ok(LockGuard { path })
 }
 
 struct LockGuard {
-    _file: std::fs::File,
+    path: std::path::PathBuf,
+}
+
+impl Drop for LockGuard {
+    fn drop(&mut self) {
+        // Only remove if we own it
+        if let Ok(content) = std::fs::read_to_string(&self.path) {
+            if let Ok(pid) = content.trim().parse::<u32>() {
+                if pid == std::process::id() {
+                    std::fs::remove_file(&self.path).ok();
+                }
+            }
+        }
+    }
 }
 
 // ── Main ──
 
 fn main() {
-    // Single instance check (flock)
+    // Single instance check
     let _lock = match acquire_lock() {
         Ok(lock) => lock,
-        Err(()) => {
-            eprintln!("Another instance is already running. Exiting.");
+        Err(pid) => {
+            eprintln!("Another instance is already running (PID {}). Exiting.", pid);
             std::process::exit(0);
         }
     };
@@ -552,16 +672,27 @@ fn main() {
             let msg_store = Arc::new(MessageStore::new());
             app.manage(msg_store.clone());
 
+            let initial_mode = cfg.connection_mode.clone();
             let poll_state = Arc::new(Mutex::new(PollState {
                 running: true,
+                mode: initial_mode.clone(),
                 last_poll: None,
                 error: None,
                 was_connected: false,
             }));
             app.manage(poll_state.clone());
 
+            // Helper: start the appropriate connection mode
+            fn start_connection_mode(mode: &str, cfg: AppConfig, state: Arc<Mutex<PollState>>, store: Arc<MessageStore>) {
+                match mode {
+                    "sse" => sse::start_sse(cfg, state, store),
+                    "ws" => ws::start_ws(cfg, state, store),
+                    _ => poll::start_polling(cfg, state, store),
+                }
+            }
+
             if !cfg.server.jwt.is_empty() {
-                // JWT exists — register and start polling
+                // JWT exists — register and start connection
                 let api = api::ApiClient::new(&cfg.server.url, &cfg.server.jwt);
                 let uuid = cfg.client.uuid.clone();
                 let name = cfg.client.name.clone();
@@ -577,7 +708,7 @@ fn main() {
                     });
                 });
 
-                poll::start_polling(cfg.clone(), poll_state.clone(), msg_store.clone());
+                start_connection_mode(&initial_mode, cfg.clone(), poll_state.clone(), msg_store.clone());
             } else if !cfg.server.username.is_empty() && !cfg.server.password.is_empty() {
                 // No JWT but credentials exist — login first, then register and poll
                 let url = cfg.server.url.clone();
@@ -606,9 +737,10 @@ fn main() {
                                 let desktop = detect_desktop_env();
                                 let version = env!("CARGO_PKG_VERSION");
                                 let _ = api.register(&uuid, &name, os, arch, &desktop, version).await;
-                                // Start polling with updated config
+                                // Start connection with updated config
                                 if let Some(c) = AppConfig::load() {
-                                    poll::start_polling(c, state_clone, store_clone);
+                                    let mode = c.connection_mode.clone();
+                                    start_connection_mode(&mode, c, state_clone, store_clone);
                                 }
                             }
                             Err(e) => {
@@ -622,30 +754,51 @@ fn main() {
             }
 
             // System tray
-            let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
+            let status_item = MenuItem::with_id(app, "status", "● Connecting...", false, None::<&str>)?;
+            let unread_item = MenuItem::with_id(app, "unread", "No unread", false, None::<&str>)?;
+            let separator1 = PredefinedMenuItem::separator(app)?;
+            let show_item = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
+            let reconnect_item = MenuItem::with_id(app, "reconnect", "Reconnect", true, None::<&str>)?;
+            let separator2 = PredefinedMenuItem::separator(app)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&status_item, &unread_item, &separator1, &show_item, &reconnect_item, &separator2, &quit_item])?;
 
             let icon = app
                 .default_window_icon()
                 .map(|i| i.clone())
                 .expect("app icon not found");
 
+            app.manage(TrayMenuItems { status: status_item, unread: unread_item });
+
             let _tray = TrayIconBuilder::new()
                 .icon(icon)
                 .menu(&menu)
                 .tooltip("NotifyHub Client")
-                .on_menu_event(|app, event| match event.id.as_ref() {
+                .on_menu_event(move |app, event| match event.id.as_ref() {
                     "show" => {
                         if let Some(win) = app.get_webview_window("main") {
                             win.show().ok();
                             win.set_focus().ok();
                         }
                     }
+                    "reconnect" => {
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.eval("window.__reconnect && window.__reconnect()");
+                        }
+                    }
                     "quit" => {
                         app.exit(0);
                     }
                     _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
                 })
                 .build(app)?;
 
@@ -659,6 +812,8 @@ fn main() {
             get_app_info,
             get_autostart,
             set_autostart,
+            get_connection_mode,
+            set_connection_mode,
             get_messages,
             mark_as_read,
             toggle_flag,
@@ -683,7 +838,9 @@ fn main() {
             window_minimize,
             window_toggle_maximize,
             window_close,
-            window_start_drag
+            window_start_drag,
+            update_tray_status,
+            update_tray_unread
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

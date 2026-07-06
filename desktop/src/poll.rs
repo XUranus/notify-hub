@@ -9,7 +9,7 @@ use std::time::Duration;
 const MAX_AUTO_DOWNLOAD_SIZE: u64 = 5 * 1024 * 1024; // 5MB
 
 /// Try to download an image attachment to local cache. Returns the local path if successful.
-async fn try_download_image(attachment_json: &str, server_url: &str) -> Option<String> {
+pub async fn try_download_image(attachment_json: &str, server_url: &str) -> Option<String> {
     let att: serde_json::Value = serde_json::from_str(attachment_json).ok()?;
     let url = att.get("url")?.as_str()?;
     let name = att.get("name").and_then(|v| v.as_str()).unwrap_or("image");
@@ -67,6 +67,7 @@ async fn try_download_image(attachment_json: &str, server_url: &str) -> Option<S
 
 pub struct PollState {
     pub running: bool,
+    pub mode: String,  // Current connection mode: "poll", "sse", "ws"
     pub last_poll: Option<String>,
     pub error: Option<String>,
     pub was_connected: bool,
@@ -86,10 +87,10 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
         let mut current_jwt = jwt;
 
         loop {
-            // Check if polling should stop (e.g. after logout)
+            // Check if polling should stop or mode changed
             {
                 let s = state.lock().unwrap();
-                if !s.running {
+                if !s.running || s.mode != "poll" {
                     break;
                 }
             }
@@ -136,6 +137,7 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
                             s.error = None;
                             s.was_connected = true;
                         }
+                        eprintln!("[poll] Received {} message(s) via Poll", messages.len());
                         for msg in messages {
                             // Auto-download image if enabled
                             let local_image_path = if auto_download {
@@ -191,7 +193,16 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
                 }
             });
 
-            std::thread::sleep(Duration::from_secs(5));
+            // Interruptible sleep: check running flag every 500ms
+            for _ in 0..10 {
+                {
+                    let s = state.lock().unwrap();
+                    if !s.running || s.mode != "poll" {
+                        break;
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(500));
+            }
         }
     });
 }

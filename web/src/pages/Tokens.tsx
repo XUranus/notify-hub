@@ -9,8 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { EmptyState } from '@/components/ui/empty-state'
 import { tokensApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
-import { Plus, Copy, Trash2, Key, Code2, RotateCw, Timer } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
+import { Plus, Copy, Check, Trash2, Key, Code2, RotateCw, Timer } from 'lucide-react'
+import { formatDate, toDate, copyToClipboard } from '@/lib/utils'
 import { CodeBlock } from '@/components/ui/code-block'
 
 interface Token {
@@ -228,7 +228,7 @@ function ExpirationBadge({ expiresAt, t }: { expiresAt: string | null; t: (k: st
   if (!expiresAt) {
     return <span className="text-xs text-muted-foreground">{t('tokens.never')}</span>
   }
-  const isExpired = new Date(expiresAt) < new Date()
+  const isExpired = toDate(expiresAt) < new Date()
   if (isExpired) {
     return (
       <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
@@ -238,7 +238,7 @@ function ExpirationBadge({ expiresAt, t }: { expiresAt: string | null; t: (k: st
   }
   return (
     <span className="text-xs text-muted-foreground">
-      {new Date(expiresAt).toLocaleDateString()}
+      {toDate(expiresAt).toLocaleDateString()}
     </span>
   )
 }
@@ -253,6 +253,7 @@ export default function Tokens() {
     rateLimit: '100',
     expiresIn: 'never' as string,
   })
+  const [copiedId, setCopiedId] = useState<number | null>(null)
 
   const load = () => tokensApi.list().then((res) => {
     if (res.success) setTokens(res.data || [])
@@ -290,8 +291,12 @@ export default function Tokens() {
     }
   }
 
-  const copyToken = (token: string) => {
-    navigator.clipboard.writeText(token)
+  const copyToken = async (id: number, token: string) => {
+    const ok = await copyToClipboard(token)
+    if (ok) {
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    }
   }
 
   // Use the first enabled token for examples
@@ -408,10 +413,14 @@ export default function Tokens() {
                         size="sm"
                         variant="ghost"
                         className="h-7 w-7 p-0 shrink-0"
-                        onClick={() => copyToken(tok.token)}
+                        onClick={() => copyToken(tok.id, tok.token)}
                         title={t('tokens.copy')}
                       >
-                        <Copy className="h-3 w-3" />
+                        {copiedId === tok.id ? (
+                          <Check className="h-3 w-3 text-green-500" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
                       </Button>
                     </div>
                   </td>

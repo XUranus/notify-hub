@@ -14,6 +14,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.activity.compose.BackHandler
 import androidx.core.content.ContextCompat
@@ -87,55 +89,87 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                when {
-                    !configured -> {
-                        ConfigScreen(
-                            onSaved = { config ->
-                                AppLogger.d(TAG, "ConfigScreen onSaved: serverUrl=${config.serverUrl}")
-                                currentConfig = config
-                                configured = true
-                                startPollService()
-                            },
-                            onScanQr = { qrScanTarget = "config"; showQrScanner = true },
-                            qrData = if (qrScanTarget == "config") pendingQrData else null,
-                            onQrDataConsumed = { pendingQrData = null }
-                        )
-                    }
-                    showCompose -> {
-                        BackHandler { showCompose = false }
-                        ComposeScreen(
-                            config = currentConfig,
-                            onBack = { showCompose = false }
-                        )
-                    }
-                    showSettings -> {
-                        BackHandler { showSettings = false }
-                        SettingsScreen(
-                            currentConfig = currentConfig,
-                            onBack = { showSettings = false },
-                            onSave = { newConfig ->
-                                currentConfig = newConfig
-                                showSettings = false
-                            },
-                            onLogout = {
-                                pollService?.switchAccount()
-                                val stopIntent = Intent(this, PollService::class.java).apply { action = PollService.ACTION_STOP }
-                                startService(stopIntent)
-                                pollService = null
-                                showSettings = false
-                                configured = false
-                            }
-                        )
-                    }
-                    else -> {
-                        MainScreen(
-                            config = currentConfig,
-                            pollService = pollService,
-                            onOpenSettings = { showSettings = true },
-                            onCompose = { showCompose = true },
-                            openMessageId = pendingOpenMessageId,
-                            onMessageOpened = { pendingOpenMessageId = null }
-                        )
+                val screenKey = when {
+                    !configured -> "config"
+                    showCompose -> "compose"
+                    showSettings -> "settings"
+                    else -> "main"
+                }
+
+                val screenOrder = mapOf("config" to 0, "main" to 1, "settings" to 2, "compose" to 2)
+
+                AnimatedContent(
+                    targetState = screenKey,
+                    transitionSpec = {
+                        val forward = (screenOrder[targetState] ?: 0) >= (screenOrder[initialState] ?: 0)
+                        if (forward) {
+                            slideInHorizontally(animationSpec = tween(300)) { it } togetherWith
+                                slideOutHorizontally(animationSpec = tween(300)) { -it }
+                        } else {
+                            slideInHorizontally(animationSpec = tween(300)) { -it } togetherWith
+                                slideOutHorizontally(animationSpec = tween(300)) { it }
+                        }
+                    },
+                    label = "screenTransition"
+                ) { target ->
+                    when (target) {
+                        "config" -> {
+                            ConfigScreen(
+                                onSaved = { config ->
+                                    AppLogger.d(TAG, "ConfigScreen onSaved: serverUrl=${config.serverUrl}")
+                                    currentConfig = config
+                                    configured = true
+                                    startPollService()
+                                },
+                                onScanQr = { qrScanTarget = "config"; showQrScanner = true },
+                                qrData = if (qrScanTarget == "config") pendingQrData else null,
+                                onQrDataConsumed = { pendingQrData = null }
+                            )
+                        }
+                        "compose" -> {
+                            BackHandler { showCompose = false }
+                            ComposeScreen(
+                                config = currentConfig,
+                                onBack = { showCompose = false }
+                            )
+                        }
+                        "settings" -> {
+                            BackHandler { showSettings = false }
+                            val service = pollService
+                            SettingsScreen(
+                                currentConfig = currentConfig,
+                                onBack = { showSettings = false },
+                                onSave = { newConfig ->
+                                    currentConfig = newConfig
+                                    showSettings = false
+                                },
+                                onLogout = {
+                                    pollService?.switchAccount()
+                                    val stopIntent = Intent(this@MainActivity, PollService::class.java).apply { action = PollService.ACTION_STOP }
+                                    startService(stopIntent)
+                                    pollService = null
+                                    showSettings = false
+                                    configured = false
+                                },
+                                onRestartService = {
+                                    pollService?.restart()
+                                },
+                                onTrySwitchMode = if (service != null) {
+                                    { mode -> service.trySwitchMode(mode) }
+                                } else null,
+                                actualConnectionMode = service?.actualConnectionMode?.value ?: "poll"
+                            )
+                        }
+                        else -> {
+                            MainScreen(
+                                config = currentConfig,
+                                pollService = pollService,
+                                onOpenSettings = { showSettings = true },
+                                onCompose = { showCompose = true },
+                                openMessageId = pendingOpenMessageId,
+                                onMessageOpened = { pendingOpenMessageId = null }
+                            )
+                        }
                     }
                 }
 

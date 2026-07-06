@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { useTranslation } from '@/lib/i18n'
 import { appLogsApi } from '@/lib/api'
 import { FileText, Download, Radio, ChevronLeft, ChevronRight, Settings, Play, Square } from 'lucide-react'
+import { toDate } from '@/lib/utils'
 
 const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const
 type LogLevel = (typeof LOG_LEVELS)[number]
@@ -268,7 +269,7 @@ export default function AdminLogs() {
               liveLogs.map((entry, i) => (
                 <div key={i} className="py-0.5 flex gap-2 leading-relaxed">
                   <span className="text-gray-500 shrink-0">
-                    {new Date(entry.createdAt).toLocaleTimeString()}
+                    {toDate(entry.createdAt).toLocaleTimeString()}
                   </span>
                   <span className={`shrink-0 font-bold uppercase w-12 ${
                     entry.level === 'error' ? 'text-red-400' :
@@ -342,7 +343,7 @@ export default function AdminLogs() {
                       {logs.map((log) => (
                         <tr key={log.id} className="border-t hover:bg-muted/30">
                           <td className="px-3 py-1.5 text-muted-foreground text-xs whitespace-nowrap">
-                            {new Date(log.createdAt).toLocaleString()}
+                            {toDate(log.createdAt).toLocaleString()}
                           </td>
                           <td className="px-3 py-1.5">{levelBadge(log.level)}</td>
                           <td className="px-3 py-1.5 text-xs text-muted-foreground">

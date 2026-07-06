@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/ui/empty-state'
 import { attachmentsApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
+import { toDate, copyToClipboard } from '@/lib/utils'
 import {
-  Upload, Trash2, Copy, File, Image as ImageIcon, FileText, FileArchive,
+  Upload, Trash2, Copy, Check, File, Image as ImageIcon, FileText, FileArchive,
   FileVideo, FileAudio, FileCode, ChevronLeft, ChevronRight,
   HardDrive, Clock, Download, Eye, CheckSquare, Square, X,
 } from 'lucide-react'
@@ -74,6 +75,7 @@ export default function Attachments() {
   const [dragOver, setDragOver] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [preview, setPreview] = useState<Attachment | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
   const load = useCallback(async () => {
@@ -130,9 +132,13 @@ export default function Attachments() {
     await load()
   }
 
-  const handleCopyUrl = (url: string) => {
+  const handleCopyUrl = async (id: string, url: string) => {
     const full = window.location.origin + url
-    navigator.clipboard.writeText(full)
+    const ok = await copyToClipboard(full)
+    if (ok) {
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    }
   }
 
   const handleDownload = (att: Attachment) => {
@@ -311,7 +317,7 @@ export default function Attachments() {
                           </span>
                           {att.expiresAt && (
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
-                              {t('attachments_expires')}: {new Date(att.expiresAt).toLocaleDateString()}
+                              {t('attachments_expires')}: {toDate(att.expiresAt).toLocaleDateString()}
                             </Badge>
                           )}
                         </div>
@@ -327,7 +333,7 @@ export default function Attachments() {
                       <td className="px-3 py-2.5 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {new Date(att.createdAt).toLocaleDateString()}
+                          {toDate(att.createdAt).toLocaleDateString()}
                         </div>
                       </td>
                       <td className="px-3 py-2.5 text-right">
@@ -356,10 +362,14 @@ export default function Attachments() {
                             variant="ghost"
                             size="sm"
                             className="h-7 w-7 p-0"
-                            onClick={() => handleCopyUrl(att.url)}
+                            onClick={() => handleCopyUrl(att.id, att.url)}
                             title={t('attachments_copy_url')}
                           >
-                            <Copy className="w-3.5 h-3.5" />
+                            {copiedId === att.id ? (
+                              <Check className="w-3.5 h-3.5 text-green-500" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
                           </Button>
                           <Button
                             variant="ghost"

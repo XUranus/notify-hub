@@ -1,1 +1,0 @@
-ALTER TABLE `api_tokens` ADD `expires_at` integer;

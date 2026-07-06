@@ -3,28 +3,36 @@ use reqwest::multipart;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PushMessage {
     pub id: String,
+    #[serde(default)]
     pub client_uuid: Option<String>,
     pub title: String,
     pub body: String,
     pub level: String,
+    #[serde(default)]
     pub delivered: bool,
+    #[serde(default)]
     pub created_at: Option<String>,
     // Extended fields
+    #[serde(default)]
     pub tags: Option<String>,
+    #[serde(default)]
     pub priority: Option<i32>,
+    #[serde(default)]
     pub url: Option<String>,
+    #[serde(default)]
     pub attachment: Option<String>,
+    #[serde(default)]
     pub format: Option<String>,
-    // Topic fields
-    #[serde(alias = "topicId")]
+    #[serde(default)]
     pub topic_id: Option<String>,
-    #[serde(alias = "topicName")]
+    #[serde(default)]
     pub topic_name: Option<String>,
-    #[serde(alias = "topicDisplayName")]
+    #[serde(default)]
     pub topic_display_name: Option<String>,
-    #[serde(alias = "topicIcon")]
+    #[serde(default)]
     pub topic_icon: Option<String>,
 }
 
@@ -296,5 +304,30 @@ impl ApiClient {
     pub async fn poll(&self, uuid: &str) -> Result<Vec<PushMessage>, String> {
         let (_, messages) = self.poll_with_status(uuid).await?;
         Ok(messages)
+    }
+
+    /// Acknowledge received push messages so they won't be re-delivered.
+    pub async fn ack(&self, uuid: &str, message_ids: &[String]) -> Result<(), String> {
+        let url = format!("{}/api/v1/push/ack", self.base_url);
+        let body = serde_json::json!({
+            "uuid": uuid,
+            "messageIds": message_ids,
+        });
+
+        let resp = self
+            .client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.jwt))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(format!("HTTP {}: ack failed", status));
+        }
+        Ok(())
     }
 }

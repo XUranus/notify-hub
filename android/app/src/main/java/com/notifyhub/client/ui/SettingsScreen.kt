@@ -24,8 +24,12 @@ import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.VolumeOff
@@ -52,6 +56,7 @@ import com.notifyhub.client.data.MessageStore
 import com.notifyhub.client.data.i18n
 import com.notifyhub.client.ui.theme.palettes
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -62,7 +67,10 @@ fun SettingsScreen(
     currentConfig: ClientConfig,
     onBack: () -> Unit,
     onSave: (ClientConfig) -> Unit,
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    onRestartService: () -> Unit = {},
+    onTrySwitchMode: (suspend (String) -> Boolean)? = null,
+    actualConnectionMode: String = "poll"
 ) {
     val context = LocalContext.current
     var showDeviceNameDialog by remember { mutableStateOf(false) }
@@ -189,6 +197,85 @@ fun SettingsScreen(
                     )
                 }
             )
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+            // ── Connection Mode ──
+            SettingsSectionHeader(i18n("settings_connection"))
+            var connMenuExpanded by remember { mutableStateOf(false) }
+            var currentConnMode by remember { mutableStateOf(actualConnectionMode) }
+            var isSwitchingMode by remember { mutableStateOf(false) }
+            var modeSwitchError by remember { mutableStateOf<String?>(null) }
+            val connModes = listOf(
+                "sse" to i18n("conn_sse"),
+                "ws" to i18n("conn_ws"),
+                "poll" to i18n("conn_poll"),
+            )
+            val currentConnLabel = connModes.find { it.first == currentConnMode }?.second ?: i18n("conn_sse")
+            val switchScope = rememberCoroutineScope()
+            Box {
+                ListItem(
+                    headlineContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(currentConnLabel, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                            if (isSwitchingMode) {
+                                Spacer(Modifier.width(8.dp))
+                                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            }
+                        }
+                    },
+                    supportingContent = {
+                        if (modeSwitchError != null) {
+                            Text(modeSwitchError!!, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                        } else {
+                            Text(i18n("settings_connection_hint"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    },
+                    leadingContent = {
+                        Icon(Icons.Default.SwapHoriz, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                    },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    },
+                    modifier = Modifier.clickable { if (!isSwitchingMode) connMenuExpanded = true }
+                )
+                DropdownMenu(expanded = connMenuExpanded, onDismissRequest = { connMenuExpanded = false }) {
+                    connModes.forEach { (mode, label) ->
+                        DropdownMenuItem(
+                            text = { Text(label, fontWeight = if (mode == currentConnMode) FontWeight.Bold else FontWeight.Normal) },
+                            onClick = {
+                                connMenuExpanded = false
+                                if (mode == currentConnMode) return@DropdownMenuItem
+                                if (onTrySwitchMode != null) {
+                                    isSwitchingMode = true
+                                    modeSwitchError = null
+                                    switchScope.launch {
+                                        val success = onTrySwitchMode(mode)
+                                        isSwitchingMode = false
+                                        if (success) {
+                                            currentConnMode = mode
+                                            modeSwitchError = null
+                                        } else {
+                                            modeSwitchError = i18n("mode_switch_failed")
+                                            // Revert UI to actual mode after a delay
+                                            delay(3000)
+                                            currentConnMode = ConfigStore.getConnectionMode(context)
+                                            modeSwitchError = null
+                                        }
+                                    }
+                                } else {
+                                    // Fallback: no validation
+                                    ConfigStore.setConnectionMode(context, mode)
+                                    currentConnMode = mode
+                                    onRestartService()
+                                }
+                            }
+                        )
+                    }
+                }
+            }
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
 
@@ -507,8 +594,57 @@ fun SettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
 
+            // ── Read-only info ──
+            SettingsSectionHeader(i18n("settings_system"))
+            CopyableRow(context, i18n("dash_uuid"), currentConfig.clientUuid, monospace = true)
+            CopyableRow(context, i18n("dash_system"), "Android / ${System.getProperty("os.arch") ?: "arm64"}")
+            CopyableRow(context, i18n("settings_app_version"), "0.2.0")
+            CopyableRow(context, i18n("settings_platform"), "Android ${android.os.Build.VERSION.RELEASE}")
+            CopyableRow(context, i18n("config_device_name"), currentConfig.clientName)
+            CopyableRow(context, i18n("settings_sdk"), "API ${android.os.Build.VERSION.SDK_INT}")
+            CopyableRow(context, i18n("settings_device"), "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+            // ── About ──
+            SettingsSectionHeader(i18n("about"))
+            ListItem(
+                headlineContent = { Text(i18n("about_github"), fontSize = 15.sp, fontWeight = FontWeight.Medium) },
+                supportingContent = { Text("github.com/XUranus/NotifyHub", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                leadingContent = {
+                    Icon(Icons.Default.Code, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                },
+                modifier = Modifier.clickable {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/XUranus/NotifyHub")))
+                }
+            )
+            ListItem(
+                headlineContent = { Text(i18n("about_docs"), fontSize = 15.sp, fontWeight = FontWeight.Medium) },
+                supportingContent = { Text("xuranus.github.com/notify-hub", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                leadingContent = {
+                    Icon(Icons.Default.MenuBook, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                },
+                modifier = Modifier.clickable {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://xuranus.github.com/notify-hub")))
+                }
+            )
+            ListItem(
+                headlineContent = { Text(i18n("about_email"), fontSize = 15.sp, fontWeight = FontWeight.Medium) },
+                supportingContent = { Text("xuranus@foxmail.com", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                leadingContent = {
+                    Icon(Icons.Default.Email, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                },
+                modifier = Modifier.clickable {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("mailto:xuranus@foxmail.com")))
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
             // ── Logout ──
-            SettingsSectionHeader(i18n("logout"))
             var showLogoutConfirm by remember { mutableStateOf(false) }
             ListItem(
                 headlineContent = {
@@ -547,9 +683,7 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
 
             // ── Clear All Messages ──
-            SettingsSectionHeader(i18n("settings_clear_messages"))
             var showClearConfirm by remember { mutableStateOf(false) }
-
             ListItem(
                 headlineContent = {
                     Text(i18n("settings_clear_messages"), fontSize = 15.sp, fontWeight = FontWeight.Medium,
@@ -585,18 +719,6 @@ fun SettingsScreen(
                     }
                 )
             }
-
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-
-            // ── Read-only info ──
-            SettingsSectionHeader(i18n("settings_system"))
-            CopyableRow(context, i18n("dash_uuid"), currentConfig.clientUuid, monospace = true)
-            CopyableRow(context, i18n("dash_system"), "Android / ${System.getProperty("os.arch") ?: "arm64"}")
-            CopyableRow(context, i18n("settings_app_version"), "0.2.0")
-            CopyableRow(context, i18n("settings_platform"), "Android ${android.os.Build.VERSION.RELEASE}")
-            CopyableRow(context, i18n("config_device_name"), currentConfig.clientName)
-            CopyableRow(context, i18n("settings_sdk"), "API ${android.os.Build.VERSION.SDK_INT}")
-            CopyableRow(context, i18n("settings_device"), "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
 
             Spacer(Modifier.height(16.dp))
         }

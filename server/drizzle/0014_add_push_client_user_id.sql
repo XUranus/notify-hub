@@ -1,1 +1,0 @@
-ALTER TABLE `push_clients` ADD `user_id` integer;

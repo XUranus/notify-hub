@@ -1,1 +1,0 @@
-ALTER TABLE `api_tokens` ADD `user_id` integer;

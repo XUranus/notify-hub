@@ -1,4 +1,4 @@
-use notify_rust::Notification;
+use notify_rust::{Image as NotifImage, Notification};
 use std::path::PathBuf;
 
 /// Cache dir for decoded topic icons.
@@ -25,10 +25,10 @@ fn find_app_icon() -> Option<PathBuf> {
     // Fallback: look for icons/128x128.png relative to the executable
     if let Ok(exe) = std::env::current_exe() {
         if let Some(exe_dir) = exe.parent() {
-            // Try: exe_dir/icons/128x128.png  (dev build: target/debug/ → desktop/icons/)
-            // Try: exe_dir/../icons/128x128.png  (installed: bin/ → share/icons/)
-            // Try: exe_dir/../../../icons/128x128.png  (cargo run: target/debug/deps/ → desktop/icons/)
-            for rel in ["icons/128x128.png", "../icons/128x128.png", "../../icons/128x128.png"] {
+            // Try multiple relative paths to cover different layouts:
+            //   exe_dir/../icons/     → installed: bin/../icons/
+            //   exe_dir/../../icons/  → cargo run: target/debug/../../icons/ = desktop/icons/
+            for rel in ["../icons/128x128.png", "../../icons/128x128.png"] {
                 let candidate = exe_dir.join(rel);
                 if candidate.exists() {
                     return Some(candidate);
@@ -105,9 +105,15 @@ pub fn show_notification_with_icon(title: &str, body: &str, content_icon_path: O
         notif.icon("dialog-information");
     }
 
-    // Content image (inline) — topic icon when available
+    // Content image — topic icon when available, otherwise app icon
+    // KDE Plasma only renders the content image area; without it, the notification
+    // appears to have no icon even when `icon` is set.
     if let Some(path) = content_icon_path {
         notif.image_path(&format!("file://{}", path));
+    } else if let Some(app_icon_path) = find_app_icon() {
+        if let Ok(img) = NotifImage::open(&app_icon_path) {
+            notif.image_data(img);
+        }
     }
 
     let _ = notif.show();

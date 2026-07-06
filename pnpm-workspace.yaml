@@ -1,5 +1,2 @@
 packages:
-  - "server"
   - "web"
-  - "shared"
-  - "cli"

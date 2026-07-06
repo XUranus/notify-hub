@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { messagesApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { RefreshCw, RotateCw, Trash2, Download, Link, Paperclip, ExternalLink } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
+import { formatDate, toDate } from '@/lib/utils'
 
 interface Message {
   id: string
@@ -264,7 +264,7 @@ export default function Messages() {
                   </td>
                   <td className="px-4 py-1.5 text-xs">{msg.retryCount > 0 ? `${msg.retryCount}/${msg.maxRetries}` : '—'}</td>
                   <td className="px-4 py-1.5 text-xs text-muted-foreground">
-                    {msg.sentAt ? `${((new Date(msg.sentAt).getTime() - new Date(msg.createdAt).getTime()) / 1000).toFixed(1)}s` : '—'}
+                    {msg.sentAt ? `${((toDate(msg.sentAt).getTime() - toDate(msg.createdAt).getTime()) / 1000).toFixed(1)}s` : '—'}
                   </td>
                   <td className="px-4 py-1.5 text-xs text-muted-foreground">{formatDate(msg.createdAt)}</td>
                   <td className="px-4 py-1.5 text-right">
@@ -358,7 +358,7 @@ export default function Messages() {
                   <span className="text-muted-foreground">{t('messages.colDuration')}</span>
                   <p className="mt-0.5">
                     {selectedMsg.sentAt
-                      ? `${((new Date(selectedMsg.sentAt).getTime() - new Date(selectedMsg.createdAt).getTime()) / 1000).toFixed(1)}s`
+                      ? `${((toDate(selectedMsg.sentAt).getTime() - toDate(selectedMsg.createdAt).getTime()) / 1000).toFixed(1)}s`
                       : '—'}
                   </p>
                 </div>

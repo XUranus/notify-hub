@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { pushApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { Trash2, Monitor, Smartphone, RefreshCw } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
+import { formatDate, toDate } from '@/lib/utils'
 
 interface PushClient {
   id: string
@@ -16,6 +16,7 @@ interface PushClient {
   arch: string | null
   desktop: string | null
   appVersion: string | null
+  connectionMode: string | null  // 'sse' | 'ws' | 'poll' | null
   lastSeenAt: string | null
   registeredAt: string
 }
@@ -36,7 +37,7 @@ const osLabels: Record<string, string> = {
 
 function isOnline(lastSeenAt: string | null): boolean {
   if (!lastSeenAt) return false
-  const diff = Date.now() - new Date(lastSeenAt).getTime()
+  const diff = Date.now() - toDate(lastSeenAt).getTime()
   return diff < 5 * 60 * 1000 // 5 minutes
 }
 
@@ -79,6 +80,7 @@ export default function PushClients() {
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colDesktop')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colVersion')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colStatus')}</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colMode')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colLastSeen')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colRegistered')}</th>
                 <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colActions')}</th>
@@ -107,6 +109,9 @@ export default function PushClients() {
                       </Badge>
                     </td>
                     <td className="px-4 py-1.5 text-xs text-muted-foreground">
+                      {online ? (client.connectionMode?.toUpperCase() || '—') : '—'}
+                    </td>
+                    <td className="px-4 py-1.5 text-xs text-muted-foreground">
                       {client.lastSeenAt ? formatDate(client.lastSeenAt) : '—'}
                     </td>
                     <td className="px-4 py-1.5 text-xs text-muted-foreground">{formatDate(client.registeredAt)}</td>
@@ -125,7 +130,7 @@ export default function PushClients() {
               })}
               {clients.length === 0 && (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={10}>
                     <EmptyState title={t('push.empty')} />
                   </td>
                 </tr>

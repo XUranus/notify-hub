@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { statsApi, messagesApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
-import { formatDate } from '@/lib/utils'
+import { formatDate, toDate } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
 import {
   AreaChart,

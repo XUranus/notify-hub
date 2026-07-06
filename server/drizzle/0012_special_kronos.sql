@@ -1,1 +1,0 @@
-ALTER TABLE `user_settings` ADD `message_expiration` integer DEFAULT 0 NOT NULL;

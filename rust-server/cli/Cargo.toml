@@ -1,0 +1,16 @@
+[package]
+name = "notifyhub-cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+notifyhub-common = { path = "../common" }
+tokio = { workspace = true }
+clap = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+dirs = "6"
+serde_yaml = "0.9"

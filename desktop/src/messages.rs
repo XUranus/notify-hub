@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LocalMessage {
     pub id: String,
     pub title: String,
@@ -27,7 +28,6 @@ pub struct LocalMessage {
     pub format: Option<String>,
     #[serde(default)]
     pub local_image_path: Option<String>,
-    // Topic fields
     #[serde(default)]
     pub topic_id: Option<String>,
     #[serde(default)]

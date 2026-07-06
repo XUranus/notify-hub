@@ -107,6 +107,13 @@ pub struct AppConfig {
     pub autostart: bool,
     #[serde(default)]
     pub auto_download_images: bool,
+    /// Connection mode: "sse", "ws", or "poll" (default: "sse")
+    #[serde(default = "default_connection_mode")]
+    pub connection_mode: String,
+}
+
+fn default_connection_mode() -> String {
+    "sse".to_string()
 }
 
 impl AppConfig {
@@ -148,6 +155,7 @@ impl AppConfig {
             },
             autostart: false,
             auto_download_images: false,
+            connection_mode: "sse".to_string(),
         }
     }
 }

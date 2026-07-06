@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import com.notifyhub.client.MainActivity
 import com.notifyhub.client.R
 import com.notifyhub.client.data.ApiClient
+import com.notifyhub.client.data.ClientConfig
 import com.notifyhub.client.data.PollException
 import com.notifyhub.client.data.AppLogger
 import com.notifyhub.client.data.ConfigStore
@@ -23,9 +24,16 @@ import com.notifyhub.client.data.LocalMessage
 import com.notifyhub.client.data.MessageStore
 import com.notifyhub.client.data.AppDatabase
 import com.notifyhub.client.data.PushMessage
+import com.notifyhub.client.data.SseClient
+import com.notifyhub.client.data.WsClient
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.*
+import kotlinx.coroutines.tasks.await
+import kotlin.coroutines.coroutineContext
 import java.io.File
 import java.net.URL
 import java.text.SimpleDateFormat
@@ -61,7 +69,9 @@ class PollService : Service() {
     val lastError = mutableStateOf<String?>(null)
     val isOfflineMode = mutableStateOf(false)
     val showOfflineDialog = mutableStateOf(false)
+    val actualConnectionMode = mutableStateOf("poll") // tracks the real active mode
     private var wasConnected = false
+    private var reconnectJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder = binder
 
@@ -94,22 +104,29 @@ class PollService : Service() {
     }
 
     fun restart() {
-        pollJob?.cancel()
+        stopPolling()
         startPolling()
     }
+
+    private var sseClient: SseClient? = null
+    private var wsClient: WsClient? = null
+    private var modeJob: Job? = null  // Tracks the active connection mode coroutine
+    private var currentApi: ApiClient? = null  // For ack'ing messages
+    private var currentUuid: String? = null
 
     private fun startPolling() {
         if (pollJob?.isActive == true) return
 
         pollJob = scope.launch {
             var config = ConfigStore.load(this@PollService)
-            AppLogger.d(TAG, "Polling started: serverUrl=${config.serverUrl}, username=${config.username}, uuid=${config.clientUuid}")
+            val mode = ConfigStore.getConnectionMode(this@PollService)
+            AppLogger.d(TAG, "Connection started: mode=$mode, serverUrl=${config.serverUrl}, uuid=${config.clientUuid}")
 
             // Login if JWT is empty
             var jwt = config.jwtToken
             if (jwt.isBlank()) {
                 if (config.username.isBlank()) {
-                    AppLogger.w(TAG, "No JWT and no username configured, skipping polling")
+                    AppLogger.w(TAG, "No JWT and no username configured, skipping")
                     isConnected.value = false
                     lastError.value = I18n["notif_conn_failed"]
                     return@launch
@@ -122,11 +139,23 @@ class PollService : Service() {
 
             var api = ApiClient(config.serverUrl, jwt)
 
+            // Fetch FCM token (if Firebase is configured)
+            var fcmToken: String? = null
+            try {
+                fcmToken = com.google.firebase.messaging.FirebaseMessaging.getInstance()
+                    .token.await()
+                if (fcmToken != null) {
+                    AppLogger.d(TAG, "FCM token obtained: ${fcmToken.take(16)}...")
+                }
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "Could not get FCM token (Firebase may not be configured): ${e.message}")
+            }
+
             // Initial registration with retry
             AppLogger.d(TAG, "Attempting register...")
             var registered = false
             for (attempt in 1..3) {
-                registered = api.register(config.clientUuid, config.clientName)
+                registered = api.register(config.clientUuid, config.clientName, fcmToken)
                 AppLogger.d(TAG, "Register attempt $attempt result: $registered")
                 if (registered) break
                 if (attempt < 3) delay(2000)
@@ -136,73 +165,275 @@ class PollService : Service() {
                 lastError.value = null
             }
 
-            // Poll loop
-            while (isActive) {
-                try {
-                    val (code, messages) = api.pollRawResponse(config.clientUuid)
+            startMode(mode, config, jwt, api)
+        }
+    }
 
-                    val now = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-                    lastPollTime.value = now
+    /** Start a specific connection mode. Stops any previous mode first. */
+    private fun startMode(mode: String, config: ClientConfig, jwt: String, api: ApiClient) {
+        // Stop previous mode and cancel any pending reconnect
+        reconnectJob?.cancel()
+        reconnectJob = null
+        modeJob?.cancel()
+        modeJob = null
+        sseClient?.stop()
+        sseClient = null
+        wsClient?.stop()
+        wsClient = null
 
-                    if (messages.isNotEmpty()) {
-                        MessageStore.save(this@PollService, messages)
+        // Store for ack'ing messages received via SSE/WS
+        currentApi = api
+        currentUuid = config.clientUuid
 
-                        // Auto-download images if enabled
-                        if (ConfigStore.getAutoDownloadImages(this@PollService)) {
-                            for (msg in messages) {
-                                tryAutoDownloadImage(msg)
-                            }
-                        }
-
-                        if (!ConfigStore.isMuted(this@PollService)) {
-                            for (msg in messages) {
-                                showPushNotification(msg)
-                            }
-                        }
-                    }
-
-                    if (!isConnected.value) {
-                        // Connection restored - send notification
-                        if (wasConnected) {
-                            showStatusNotification(I18n["notif_connected"] ?: "Connected", I18n["notif_connected_body"] ?: "Connection restored")
-                        }
-                        isConnected.value = true
-                        lastError.value = null
-                    }
-                    // Connection restored - exit offline mode and close dialog
-                    if (isOfflineMode.value || showOfflineDialog.value) {
-                        isOfflineMode.value = false
-                        showOfflineDialog.value = false
-                    }
-                    wasConnected = true
-                } catch (e: PollException) {
-                    // 401 = JWT expired, try re-login
-                    if (e.code == 401 && config.username.isNotBlank()) {
-                        AppLogger.w(TAG, "JWT expired (401), re-logging in...")
-                        val reloginPair = loginAndCreateApi(config.serverUrl, config.username, config.password)
-                        if (reloginPair != null) {
-                            api = reloginPair.first
-                            jwt = reloginPair.second
-                            AppLogger.d(TAG, "Re-login successful")
-                            api.register(config.clientUuid, config.clientName)
-                            continue
-                        }
-                    }
-                    AppLogger.e(TAG, "Poll HTTP error: ${e.code}", e)
-                    handlePollError(e)
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "Poll error", e)
-                    handlePollError(e)
-                }
-
-                delay(POLL_INTERVAL_MS)
+        actualConnectionMode.value = mode
+        AppLogger.d(TAG, "Starting mode: $mode")
+        when (mode) {
+            "sse" -> startSseMode(config, jwt, api)
+            "ws" -> startWsMode(config, jwt, api)
+            else -> {
+                modeJob = scope.launch { startPollMode(config, jwt, api) }
             }
         }
+    }
+
+    /**
+     * Try switching to a new connection mode.
+     * Returns true if switch succeeded (connection established within timeout), false otherwise.
+     * On failure, reverts to the previous mode.
+     */
+    suspend fun trySwitchMode(newMode: String): Boolean {
+        val oldMode = ConfigStore.getConnectionMode(this@PollService)
+        if (newMode == oldMode) return true
+
+        // Save new mode and restart
+        ConfigStore.setConnectionMode(this@PollService, newMode)
+        restart()
+
+        // Wait up to 8 seconds for connection
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < 8000) {
+            delay(500)
+            if (isConnected.value && actualConnectionMode.value == newMode) {
+                return true
+            }
+        }
+
+        // Connection failed — revert to old mode
+        AppLogger.w(TAG, "Mode switch to $newMode failed, reverting to $oldMode")
+        ConfigStore.setConnectionMode(this@PollService, oldMode)
+        restart()
+        return false
+    }
+
+    private suspend fun handleIncomingMessages(messages: List<PushMessage>, source: String) {
+        val now = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        lastPollTime.value = now
+
+        if (messages.isNotEmpty()) {
+            AppLogger.d(TAG, "Received ${messages.size} message(s) via $source")
+            MessageStore.save(this@PollService, messages)
+
+            // Ack messages on server so they won't be re-delivered via poll
+            if (source != "Poll") {
+                val api = currentApi
+                val uuid = currentUuid
+                if (api != null && uuid != null) {
+                    val ids = messages.mapNotNull { it.id }
+                    if (ids.isNotEmpty()) {
+                        scope.launch(Dispatchers.IO) {
+                            try { api.ack(uuid, ids) } catch (_: Exception) {}
+                        }
+                    }
+                }
+            }
+
+            if (ConfigStore.getAutoDownloadImages(this@PollService)) {
+                for (msg in messages) {
+                    tryAutoDownloadImage(msg)
+                }
+            }
+
+            if (!ConfigStore.isMuted(this@PollService)) {
+                for (msg in messages) {
+                    showPushNotification(msg)
+                }
+            }
+        }
+    }
+
+    private fun handleConnectionRestored() {
+        if (!isConnected.value) {
+            if (wasConnected) {
+                showStatusNotification(
+                    I18n["notif_connected"] ?: "Connected",
+                    I18n["notif_connected_body"] ?: "Connection restored"
+                )
+            }
+            isConnected.value = true
+            lastError.value = null
+        }
+        if (isOfflineMode.value || showOfflineDialog.value) {
+            isOfflineMode.value = false
+            showOfflineDialog.value = false
+        }
+        wasConnected = true
+    }
+
+    private fun startSseMode(config: ClientConfig, jwt: String, api: ApiClient) {
+        sseClient = SseClient(
+            serverUrl = config.serverUrl,
+            jwtToken = jwt,
+            uuid = config.clientUuid,
+            onMessage = { messages ->
+                scope.launch { handleIncomingMessages(messages, "SSE") }
+            },
+            onConnected = {
+                actualConnectionMode.value = "sse"
+                scope.launch { handleConnectionRestored() }
+            },
+            onError = { e ->
+                AppLogger.e(TAG, "SSE error: ${e.message}")
+                // Only reconnect if still in SSE mode and no pending reconnect
+                if (ConfigStore.getConnectionMode(this@PollService) == "sse" && reconnectJob?.isActive != true) {
+                    reconnectJob = scope.launch {
+                        sseClient?.stop()
+                        sseClient = null
+                        delay(POLL_INTERVAL_MS)
+                        if (isActive) startSseMode(config, jwt, api)
+                    }
+                }
+            },
+            onClosed = {
+                AppLogger.w(TAG, "SSE closed")
+                // Only reconnect if still in SSE mode and no pending reconnect
+                if (ConfigStore.getConnectionMode(this@PollService) == "sse" && reconnectJob?.isActive != true) {
+                    reconnectJob = scope.launch {
+                        sseClient?.stop()
+                        sseClient = null
+                        delay(POLL_INTERVAL_MS)
+                        if (isActive) startSseMode(config, jwt, api)
+                    }
+                }
+            },
+            onAuthError = {
+                AppLogger.w(TAG, "SSE auth error (401), re-logging in...")
+                scope.launch {
+                    sseClient?.stop()
+                    sseClient = null
+                    if (config.username.isNotBlank()) {
+                        val reloginPair = loginAndCreateApi(config.serverUrl, config.username, config.password)
+                        if (reloginPair != null) {
+                            val (newApi, newJwt) = reloginPair
+                            newApi.register(config.clientUuid, config.clientName)
+                            if (ConfigStore.getConnectionMode(this@PollService) == "sse") {
+                                startSseMode(config, newJwt, newApi)
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        sseClient?.start()
+    }
+
+    private fun startWsMode(config: ClientConfig, jwt: String, api: ApiClient) {
+        wsClient = WsClient(
+            serverUrl = config.serverUrl,
+            jwtToken = jwt,
+            uuid = config.clientUuid,
+            onMessage = { messages ->
+                scope.launch { handleIncomingMessages(messages, "WebSocket") }
+            },
+            onConnected = {
+                actualConnectionMode.value = "ws"
+                scope.launch { handleConnectionRestored() }
+            },
+            onError = { e ->
+                AppLogger.e(TAG, "WS error: ${e.message}")
+                if (ConfigStore.getConnectionMode(this@PollService) == "ws" && reconnectJob?.isActive != true) {
+                    reconnectJob = scope.launch {
+                        wsClient?.stop()
+                        wsClient = null
+                        delay(POLL_INTERVAL_MS)
+                        if (isActive) startWsMode(config, jwt, api)
+                    }
+                }
+            },
+            onClosed = {
+                AppLogger.w(TAG, "WS closed")
+                if (ConfigStore.getConnectionMode(this@PollService) == "ws" && reconnectJob?.isActive != true) {
+                    reconnectJob = scope.launch {
+                        wsClient?.stop()
+                        wsClient = null
+                        delay(POLL_INTERVAL_MS)
+                        if (isActive) startWsMode(config, jwt, api)
+                    }
+                }
+            },
+            onAuthError = {
+                AppLogger.w(TAG, "WS auth error (401), re-logging in...")
+                scope.launch {
+                    wsClient?.stop()
+                    wsClient = null
+                    if (config.username.isNotBlank()) {
+                        val reloginPair = loginAndCreateApi(config.serverUrl, config.username, config.password)
+                        if (reloginPair != null) {
+                            val (newApi, newJwt) = reloginPair
+                            newApi.register(config.clientUuid, config.clientName)
+                            if (ConfigStore.getConnectionMode(this@PollService) == "ws") {
+                                startWsMode(config, newJwt, newApi)
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        wsClient?.start()
+    }
+
+    private suspend fun startPollMode(config: ClientConfig, jwt: String, api: ApiClient) {
+        AppLogger.d(TAG, "Poll loop started")
+        var currentApi = api
+        var currentJwt = jwt
+
+        while (coroutineContext.isActive) {
+            try {
+                val (code, messages) = currentApi.pollRawResponse(config.clientUuid)
+                handleIncomingMessages(messages, "Poll")
+                handleConnectionRestored()
+            } catch (e: PollException) {
+                if (e.code == 401 && config.username.isNotBlank()) {
+                    AppLogger.w(TAG, "JWT expired (401), re-logging in...")
+                    val reloginPair = loginAndCreateApi(config.serverUrl, config.username, config.password)
+                    if (reloginPair != null) {
+                        currentApi = reloginPair.first
+                        currentJwt = reloginPair.second
+                        AppLogger.d(TAG, "Re-login successful")
+                        currentApi.register(config.clientUuid, config.clientName)
+                        continue
+                    }
+                }
+                AppLogger.e(TAG, "Poll HTTP error: ${e.code}", e)
+                handlePollError(e)
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Poll error", e)
+                handlePollError(e)
+            }
+
+            delay(POLL_INTERVAL_MS)
+        }
+        AppLogger.d(TAG, "Poll loop ended")
     }
 
     private fun stopPolling() {
         pollJob?.cancel()
         pollJob = null
+        modeJob?.cancel()
+        modeJob = null
+        sseClient?.stop()
+        sseClient = null
+        wsClient?.stop()
+        wsClient = null
         isConnected.value = false
     }
 
@@ -271,6 +502,8 @@ class PollService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val largeIcon = decodeTopicIcon(msg.topicIcon)
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID_PUSH)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(msg.title)
@@ -281,6 +514,10 @@ class PollService : Service() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setDefaults(Notification.DEFAULT_ALL) // sound + vibrate + lights
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+
+        if (largeIcon != null) {
+            builder.setLargeIcon(largeIcon)
+        }
 
         // Wake screen for error/critical
         if (msg.level.lowercase() in listOf("error", "critical")) {
@@ -295,6 +532,20 @@ class PollService : Service() {
         }
 
         nm.notify(msg.id.hashCode(), builder.build())
+    }
+
+    private fun decodeTopicIcon(icon: String?): Bitmap? {
+        if (icon.isNullOrEmpty()) return null
+        return try {
+            val bytes = if (icon.startsWith("data:")) {
+                Base64.decode(icon.substringAfter(","), Base64.DEFAULT)
+            } else {
+                Base64.decode(icon, Base64.DEFAULT)
+            }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun showStatusNotification(title: String, body: String) {
@@ -374,7 +625,7 @@ class PollService : Service() {
         title = title,
         body = body,
         level = level,
-        receivedAt = createdAt ?: SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
+        receivedAt = createdAt?.let { MessageStore.normalizeTimeFormat(it) } ?: SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
         tags = tags,
         priority = priority,
         url = url,

@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { channelsApi, pushApi, tokensApi } from '@/lib/api'
 import { QRCodeSVG } from 'qrcode.react'
 import { useTranslation } from '@/lib/i18n'
-import { formatDate } from '@/lib/utils'
+import { formatDate, toDate } from '@/lib/utils'
 import {
   Plus, TestTube, Trash2, Radio, Mail, Smartphone, Pencil,
   CheckCircle, XCircle, Loader2, Star, Monitor, RefreshCw, QrCode,
@@ -68,6 +68,7 @@ interface PushClient {
   arch: string | null
   desktop: string | null
   appVersion: string | null
+  connectionMode: string | null  // 'sse' | 'ws' | 'poll' | null
   lastSeenAt: string | null
   registeredAt: string
 }
@@ -88,7 +89,7 @@ const osLabels: Record<string, string> = {
 
 function isOnline(lastSeenAt: string | null): boolean {
   if (!lastSeenAt) return false
-  return Date.now() - new Date(lastSeenAt).getTime() < 5 * 60 * 1000
+  return Date.now() - toDate(lastSeenAt).getTime() < 5 * 60 * 1000
 }
 
 /* ── Main component ── */
@@ -154,7 +155,7 @@ export default function Channels() {
       // Detect: new UUID, OR existing UUID that just registered (lastSeenAt after modal opened)
       const matchedClient = res.data.find((c: PushClient) =>
         !knownUuids.has(c.uuid) ||
-        (c.lastSeenAt && new Date(c.lastSeenAt).getTime() > openTime - 5000)
+        (c.lastSeenAt && toDate(c.lastSeenAt).getTime() > openTime - 5000)
       )
       if (matchedClient) {
         setQrRegisteredClient(matchedClient)
@@ -660,6 +661,7 @@ export default function Channels() {
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colDesktop')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colVersion')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colStatus')}</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colMode')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colLastSeen')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colRegistered')}</th>
                 <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colActions')}</th>
@@ -688,6 +690,9 @@ export default function Channels() {
                       </Badge>
                     </td>
                     <td className="px-4 py-1.5 text-xs text-muted-foreground">
+                      {online ? (client.connectionMode?.toUpperCase() || '—') : '—'}
+                    </td>
+                    <td className="px-4 py-1.5 text-xs text-muted-foreground">
                       {client.lastSeenAt ? formatDate(client.lastSeenAt) : '—'}
                     </td>
                     <td className="px-4 py-1.5 text-xs text-muted-foreground">{formatDate(client.registeredAt)}</td>
@@ -701,7 +706,7 @@ export default function Channels() {
                 )
               })}
               {clients.length === 0 && (
-                <tr><td colSpan={10} className="p-6 text-center text-muted-foreground text-sm">{t('push.empty')}</td></tr>
+                <tr><td colSpan={11} className="p-6 text-center text-muted-foreground text-sm">{t('push.empty')}</td></tr>
               )}
             </tbody>
           </table>

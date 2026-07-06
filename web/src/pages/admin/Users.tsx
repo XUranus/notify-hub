@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { useTranslation } from '@/lib/i18n'
 import { usersApi } from '@/lib/api'
 import { Users, Plus, Trash2, Pencil } from 'lucide-react'
+import { toDate } from '@/lib/utils'
 
 interface UserItem {
   id: number
@@ -231,7 +232,7 @@ export default function AdminUsers() {
                         </span>
                       </td>
                       <td className="px-4 py-2 text-muted-foreground">
-                        {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}
+                        {user.createdAt ? toDate(user.createdAt).toLocaleDateString() : '-'}
                       </td>
                       <td className="px-4 py-2 text-right">
                         <Button size="sm" variant="ghost" onClick={() => startEdit(user)}

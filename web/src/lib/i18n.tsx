@@ -282,6 +282,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'push.colDesktop': '桌面环境',
     'push.colVersion': '版本',
     'push.colStatus': '状态',
+    'push.colMode': '连接方式',
     'push.colLastSeen': '最近在线',
     'push.colRegistered': '注册时间',
     'push.online': '在线',
@@ -756,6 +757,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'push.colDesktop': 'Desktop',
     'push.colVersion': 'Version',
     'push.colStatus': 'Status',
+    'push.colMode': 'Mode',
     'push.colLastSeen': 'Last Seen',
     'push.colRegistered': 'Registered',
     'push.online': 'Online',
@@ -981,7 +983,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     let text = dictionaries[locale]?.[key] || key
     if (vars) {
       for (const [k, v] of Object.entries(vars)) {
-        text = text.replace(`{${k}}`, String(v))
+        text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v))
       }
     }
     return text

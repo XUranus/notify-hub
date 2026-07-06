@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useTranslation } from '@/lib/i18n'
+import { toDate } from '@/lib/utils'
 import { cleanupLogsApi } from '@/lib/api'
 import { Trash, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -80,7 +81,7 @@ export default function AdminCleanup() {
                     {logs.map((log) => (
                       <tr key={log.id} className="border-t hover:bg-muted/30">
                         <td className="px-4 py-2 text-muted-foreground">
-                          {new Date(log.startedAt).toLocaleString()}
+                          {toDate(log.startedAt).toLocaleString()}
                         </td>
                         <td className="px-4 py-2">{statusBadge(log.status)}</td>
                         <td className="px-4 py-2 text-right">{log.expiredAttachments || '-'}</td>

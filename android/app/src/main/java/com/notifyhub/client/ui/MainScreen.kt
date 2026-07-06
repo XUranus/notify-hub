@@ -3,9 +3,15 @@ package com.notifyhub.client.ui
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import com.notifyhub.client.R
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,9 +46,13 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Badge
@@ -274,6 +284,7 @@ fun MainScreen(
     var lastDeletedIndex by remember { mutableStateOf(0) }
 
     val isConnected = pollService?.isConnected?.value == true
+    val connectionMode = pollService?.actualConnectionMode?.value ?: "poll"
     val isOfflineMode = pollService?.isOfflineMode?.value == true
     val lastError = pollService?.lastError?.value
     val hasError = !isConnected && !isOfflineMode && lastError != null
@@ -347,6 +358,35 @@ fun MainScreen(
         }
     }
 
+    val slideSpec = tween<androidx.compose.animation.ContentTransform>(300)
+
+    AnimatedContent(
+        targetState = selectedMessage?.id,
+        transitionSpec = {
+            if (targetState != null) {
+                slideInHorizontally(tween(300)) { it } togetherWith slideOutHorizontally(tween(300)) { -it / 3 }
+            } else {
+                slideInHorizontally(tween(300)) { -it / 3 } togetherWith slideOutHorizontally(tween(300)) { it }
+            }
+        },
+        label = "messageDetailTransition"
+    ) { detailMsgId ->
+    if (detailMsgId != null) {
+        val msg = remember(detailMsgId) { selectedMessage } ?: return@AnimatedContent
+        MessageDetailScreen(
+            msg = msg,
+            onBack = { selectedMessage = null },
+            onDownload = { url, filename ->
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                    context.startActivity(intent)
+                } catch (_: Exception) {
+                    Toast.makeText(context, "Cannot open URL", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    } else {
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
@@ -381,7 +421,7 @@ fun MainScreen(
                             } else if (isConnected) {
                                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
                                 Spacer(Modifier.width(4.dp))
-                                Text(i18n("status_connected"), fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                                Text(connectionMode.uppercase(), fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                             } else if (hasError) {
                                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error))
                                 Spacer(Modifier.width(4.dp))
@@ -435,32 +475,35 @@ fun MainScreen(
                         IconButton(onClick = { showSearch = !showSearch }) {
                             Icon(Icons.Default.Search, contentDescription = i18n("search"))
                         }
-                        // View toggle
-                        IconButton(onClick = {
-                            val newMode = if (viewMode == "messages") "topics" else "messages"
-                            viewMode = newMode
-                            topicDetailKey = null
-                            ConfigStore.setViewMode(context, newMode)
-                        }) {
-                            Icon(
-                                if (viewMode == "messages") Icons.Default.GridView else Icons.Default.ViewList,
-                                contentDescription = if (viewMode == "messages") I18n["topic_view"] else I18n["message_view"],
-                                tint = if (viewMode == "topics") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        // Filter button
+                        // Menu button
                         Box {
                             IconButton(onClick = { showFilterMenu = true }) {
-                                Icon(
-                                    Icons.Default.FilterList,
-                                    contentDescription = i18n("filter"),
-                                    tint = if (currentFilter != MessageFilter.ALL) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                )
+                                Icon(Icons.Default.MoreVert, contentDescription = i18n("settings"))
                             }
                             DropdownMenu(
                                 expanded = showFilterMenu,
                                 onDismissRequest = { showFilterMenu = false }
                             ) {
+                                // View toggle
+                                DropdownMenuItem(
+                                    text = { Text(if (viewMode == "messages") I18n["topic_view"] else I18n["message_view"]) },
+                                    onClick = {
+                                        val newMode = if (viewMode == "messages") "topics" else "messages"
+                                        viewMode = newMode
+                                        topicDetailKey = null
+                                        ConfigStore.setViewMode(context, newMode)
+                                        showFilterMenu = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            if (viewMode == "messages") Icons.Default.GridView else Icons.Default.ViewList,
+                                            contentDescription = null,
+                                            tint = if (viewMode == "topics") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                )
+                                HorizontalDivider()
+                                // Filter options
                                 DropdownMenuItem(
                                     text = { Text(i18n("filter_all")) },
                                     onClick = { currentFilter = MessageFilter.ALL; showFilterMenu = false },
@@ -481,10 +524,14 @@ fun MainScreen(
                                     onClick = { currentFilter = MessageFilter.FLAGGED; showFilterMenu = false },
                                     leadingIcon = { if (currentFilter == MessageFilter.FLAGGED) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
                                 )
+                                HorizontalDivider()
+                                // Settings
+                                DropdownMenuItem(
+                                    text = { Text(i18n("settings")) },
+                                    onClick = { showFilterMenu = false; onOpenSettings() },
+                                    leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) }
+                                )
                             }
-                        }
-                        IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Default.Settings, contentDescription = i18n("settings"))
                         }
                     }
                 },
@@ -618,7 +665,18 @@ fun MainScreen(
                         }
                     }
                 }
-            } else if (viewMode == "topics" && topicDetailKey == null) {
+            } else AnimatedContent(
+                targetState = topicDetailKey,
+                transitionSpec = {
+                    if (targetState != null) {
+                        slideInHorizontally(tween(300)) { it } togetherWith slideOutHorizontally(tween(300)) { -it / 3 }
+                    } else {
+                        slideInHorizontally(tween(300)) { -it / 3 } togetherWith slideOutHorizontally(tween(300)) { it }
+                    }
+                },
+                label = "topicDetailTransition"
+            ) { topicKey ->
+            if (viewMode == "topics" && topicKey == null) {
                 // ── Topic List View ──
                 val topicGroups = remember(filtered) { groupByTopic(filtered) }
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -647,13 +705,13 @@ fun MainScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(displayName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, false))
                                     Spacer(Modifier.width(6.dp))
-                                    Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                                        Text(totalCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                                    Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                                        Text(totalCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Medium)
                                     }
                                     if (unreadCount > 0) {
                                         Spacer(Modifier.width(4.dp))
-                                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.error) {
-                                            Text(unreadCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                                        Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error), contentAlignment = Alignment.Center) {
+                                            Text(unreadCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                         }
                                     }
                                 }
@@ -814,6 +872,7 @@ fun MainScreen(
                     }
                 }
             }
+            } // AnimatedContent (topicDetail)
         }
     }
 
@@ -824,9 +883,10 @@ fun MainScreen(
             text = { Text("${i18n("dash_clear_confirm")} (${selectedIds.size})") },
             confirmButton = {
                 TextButton(onClick = {
-                    scope.launch { MessageStore.deleteByIds(context, selectedIds.toList()) }
-                    exitSelectionMode()
+                    val idsToDelete = selectedIds.toList()
                     showDeleteConfirm = false
+                    exitSelectionMode()
+                    scope.launch { MessageStore.deleteByIds(context, idsToDelete) }
                 }) {
                     Text(i18n("confirm"), color = MaterialTheme.colorScheme.error)
                 }
@@ -867,22 +927,8 @@ fun MainScreen(
         )
     }
 
-    // Message detail screen
-    selectedMessage?.let { msg ->
-        MessageDetailScreen(
-            msg = msg,
-            onBack = { selectedMessage = null },
-            onDownload = { url, filename ->
-                try {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                    context.startActivity(intent)
-                } catch (_: Exception) {
-                    Toast.makeText(context, "Cannot open URL", Toast.LENGTH_SHORT).show()
-                }
-            }
-        )
-        return // Don't show the list when viewing detail
-    }
+    } // else (not detail)
+    } // AnimatedContent
 }
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
@@ -1020,8 +1066,15 @@ private fun MessageItem(
 
 private fun formatRelativeTime(dateStr: String): String {
     return try {
-        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-        val date = sdf.parse(dateStr) ?: return dateStr
+        val date = try {
+            // ISO 8601 with 'Z' (UTC) — parse as UTC then display in local time
+            val utcFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault()).apply {
+                timeZone = java.util.TimeZone.getTimeZone("UTC")
+            }
+            utcFmt.parse(dateStr.take(19))
+        } catch (_: Exception) {
+            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).parse(dateStr)
+        } ?: return dateStr
         val now = System.currentTimeMillis()
         val diff = now - date.time
 

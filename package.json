@@ -1,17 +1,11 @@
 {
   "name": "notify-hub",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Self-hosted notification push service",
   "scripts": {
-    "dev": "pnpm --filter @notify-hub/server dev",
     "dev:web": "pnpm --filter @notify-hub/web dev",
-    "build": "pnpm -r build",
-    "build:server": "pnpm --filter @notify-hub/server build",
-    "build:web": "pnpm --filter @notify-hub/web build",
-    "build:cli": "pnpm --filter @notify-hub/cli build",
-    "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "build:web": "pnpm --filter @notify-hub/web build"
   },
   "engines": {
     "node": ">=18"

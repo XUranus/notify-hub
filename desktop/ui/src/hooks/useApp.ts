@@ -1,0 +1,326 @@
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { listen } from '@tauri-apps/api/event'
+import { detectLang, getTranslations, type Locale, type Translations } from '../lib/i18n'
+
+// ── Tauri invoke ──
+const invoke = window.__TAURI_INTERNALS__.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<any>
+
+// ── Types ──
+export interface Message {
+  id: string; title: string; body: string; level: string; read: boolean; flagged: boolean
+  tags: string | null; channel: string | null; topic_id: string | null; topic_name: string | null
+  topic_display_name: string | null; topic_icon: string | null; url: string | null
+  attachment: string | null; format: string | null; priority: string | null
+  received_at: string; client_uuid: string | null
+}
+
+export interface TopicGroup {
+  key: string; topicId: string | null; topicName: string | null
+  topicDisplayName: string | null; topicIcon: string | null; messages: Message[]
+}
+
+// ── Constants ──
+const MSG_HEIGHT = 72
+const TOPIC_CARD_HEIGHT = 64
+const COLOR_SCHEMES = ['purple', 'blue', 'teal', 'green', 'orange', 'rose']
+
+export function useApp() {
+  // ── i18n ──
+  const [lang, setLangState] = useState<Locale>(detectLang)
+  const [T, setT] = useState<Translations>(() => getTranslations(detectLang()))
+
+  const setLang = useCallback((l: Locale) => {
+    setLangState(l); setT(getTranslations(l)); localStorage.setItem('nh_lang', l)
+    document.documentElement.lang = l
+  }, [])
+
+  // ── Theme ──
+  const [theme, setThemeState] = useState<string>(() => localStorage.getItem('nh_theme') || 'system')
+  const [colorScheme, setColorSchemeState] = useState<string>(() => localStorage.getItem('nh_color_scheme') || 'purple')
+
+  const setTheme = useCallback((t: string) => {
+    setThemeState(t); localStorage.setItem('nh_theme', t)
+    const root = document.documentElement; root.classList.remove('light', 'dark')
+    if (t === 'dark') root.classList.add('dark'); else if (t === 'light') root.classList.add('light')
+  }, [])
+
+  const setColorScheme = useCallback((s: string) => {
+    setColorSchemeState(s); localStorage.setItem('nh_color_scheme', s || 'purple')
+    const root = document.documentElement; COLOR_SCHEMES.forEach(cs => root.classList.remove(cs))
+    if (s && s !== 'purple') root.classList.add(s)
+  }, [])
+
+  // Apply theme on mount
+  useEffect(() => { setTheme(theme); setColorScheme(colorScheme) }, [])
+
+  // ── Toast ──
+  const [toast, setToast] = useState({ text: '', type: 'info' as string, visible: false })
+  const toastTimer = useRef<number | null>(null)
+
+  const showToast = useCallback((text: string, type = 'info') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    setToast({ text, type, visible: true })
+    toastTimer.current = window.setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000)
+  }, [])
+
+  // ── View State ──
+  const [currentView, setCurrentView] = useState<'connect' | 'dashboard'>('connect')
+  const [viewMode, setViewMode] = useState<string>(() => localStorage.getItem('viewMode') || 'messages')
+  const [offlineMode, setOfflineMode] = useState(false)
+
+  // ── Messages State ──
+  const [allMessages, setAllMessages] = useState<Message[]>([])
+  const allMessagesRef = useRef<Message[]>([])
+  // Keep ref in sync
+  useEffect(() => { allMessagesRef.current = allMessages }, [allMessages])
+  const [currentFilter, setCurrentFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectMode, setSelectMode] = useState(false)
+  const [lastDeleted, setLastDeleted] = useState<{ msg: Message; idx: number } | null>(null)
+  const undoTimer = useRef<number | null>(null)
+
+  // ── Detail State ──
+  const [detailMsg, setDetailMsg] = useState<Message | null>(null)
+
+  // ── Topic State ──
+  const [topicDetailKey, setTopicDetailKey] = useState<string | null>(null)
+
+  // ── Modal State ──
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [composeOpen, setComposeOpen] = useState(false)
+  const [quickSendOpen, setQuickSendOpen] = useState(false)
+  const [offlineOpen, setOfflineOpen] = useState(false)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleteModalText, setDeleteModalText] = useState('')
+  const [deleteModalCallback, setDeleteModalCallback] = useState<(() => void) | null>(null)
+
+  // ── Connection State ──
+  const [connStatus, setConnStatus] = useState({ text: '—', connected: false })
+
+  // ── Helpers ──
+  const escHtml = useCallback((s: string) => { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML }, [])
+
+  const formatRelativeTime = useCallback((dateStr: string) => {
+    try {
+      const date = new Date(dateStr.replace(' ', 'T'))
+      const diff = Date.now() - date.getTime()
+      if (diff < 60000) return T.justNow
+      if (diff < 3600000) return Math.floor(diff / 60000) + ' ' + T.minAgo
+      if (diff < 86400000) return Math.floor(diff / 3600000) + ' ' + T.hrAgo
+      if (diff < 2592000000) return Math.floor(diff / 86400000) + ' ' + T.daysAgo
+      const m = date.getMonth() + 1, d = date.getDate()
+      return (m < 10 ? '0' : '') + m + '/' + (d < 10 ? '0' : '') + d
+    } catch { return dateStr }
+  }, [T])
+
+  const parseTags = useCallback((m: Message): string[] => {
+    try { if (m.tags) { const t = JSON.parse(m.tags); return Array.isArray(t) ? t : [] } } catch {} return []
+  }, [])
+
+  const parseAttachment = useCallback((m: Message) => {
+    try { if (m.attachment) return JSON.parse(m.attachment) } catch {} return null
+  }, [])
+
+  // ── Filtered Messages ──
+  const getFilteredMessages = useCallback(() => {
+    return allMessages.filter(m => {
+      const matchesSearch = !searchQuery || (m.title || '').toLowerCase().includes(searchQuery) || (m.body || '').toLowerCase().includes(searchQuery)
+      const matchesFilter = currentFilter === 'all' || (currentFilter === 'unread' && !m.read) || (currentFilter === 'read' && m.read) || (currentFilter === 'flagged' && m.flagged)
+      return matchesSearch && matchesFilter
+    })
+  }, [allMessages, searchQuery, currentFilter])
+
+  // ── Topic Grouping ──
+  const groupMessagesByTopic = useCallback((messages: Message[]): TopicGroup[] => {
+    const groups = new Map<string, TopicGroup>()
+    for (const m of messages) {
+      const key = m.topic_id || '__no_topic__'
+      if (!groups.has(key)) {
+        groups.set(key, { key, topicId: m.topic_id || null, topicName: m.topic_name || null, topicDisplayName: m.topic_display_name || null, topicIcon: m.topic_icon || null, messages: [] })
+      }
+      groups.get(key)!.messages.push(m)
+    }
+    const arr = Array.from(groups.values())
+    arr.sort((a, b) => {
+      if (!a.topicId && b.topicId) return 1; if (a.topicId && !b.topicId) return -1
+      return (b.messages[0]?.received_at || '').localeCompare(a.messages[0]?.received_at || '')
+    })
+    for (const g of arr) g.messages.sort((a, b) => (b.received_at || '').localeCompare(a.received_at || ''))
+    return arr
+  }, [])
+
+  // ── New Message ID tracking (for msg-new animation) ──
+  const [newMsgIds, setNewMsgIds] = useState<Set<string>>(new Set())
+  const newMsgTimer = useRef<number | null>(null)
+
+  // ── Message Actions ──
+  const refreshMessages = useCallback(async () => {
+    try {
+      const oldIds = new Set(allMessagesRef.current.map((m: Message) => m.id))
+      const msgs = await invoke('get_messages')
+      setAllMessages(msgs || [])
+      // Update tray unread count
+      const unread = (msgs || []).filter((m: Message) => !m.read).length
+      invoke('update_tray_unread', { count: unread })
+      const fresh = new Set<string>()
+      for (const m of (msgs || [])) { if (!oldIds.has(m.id)) fresh.add(m.id) }
+      if (fresh.size > 0) {
+        setNewMsgIds(fresh)
+        if (newMsgTimer.current) clearTimeout(newMsgTimer.current)
+        newMsgTimer.current = window.setTimeout(() => setNewMsgIds(new Set()), 500)
+      }
+    } catch {}
+  }, [])
+
+  const markAsRead = useCallback(async (id: string) => {
+    await invoke('mark_as_read', { id })
+    setAllMessages(prev => prev.map(m => m.id === id ? { ...m, read: true } : m))
+  }, [])
+
+  const toggleFlag = useCallback(async (id: string) => {
+    await invoke('toggle_flag', { id })
+    setAllMessages(prev => prev.map(m => m.id === id ? { ...m, flagged: !m.flagged } : m))
+  }, [])
+
+  const deleteWithUndo = useCallback(async (id: string) => {
+    const idx = allMessages.findIndex(m => m.id === id); const msg = allMessages[idx]; if (!msg) return
+    await invoke('delete_message_undo', { id })
+    setAllMessages(prev => prev.filter(m => m.id !== id))
+    setLastDeleted({ msg, idx })
+    if (undoTimer.current) clearTimeout(undoTimer.current)
+    undoTimer.current = window.setTimeout(() => setLastDeleted(null), 5000)
+  }, [allMessages, T, showToast])
+
+  const undoDelete = useCallback(async () => {
+    if (!lastDeleted) return; await invoke('insert_message', { msg: lastDeleted.msg }); setLastDeleted(null); refreshMessages()
+  }, [lastDeleted, refreshMessages])
+
+  const markAllRead = useCallback(async () => {
+    for (const m of allMessages) { if (!m.read) await invoke('mark_as_read', { id: m.id }) }
+    setAllMessages(prev => prev.map(m => ({ ...m, read: true })))
+  }, [allMessages])
+
+  const clearAll = useCallback(async () => {
+    await invoke('clear_messages'); setAllMessages([])
+  }, [])
+
+  const deleteSelected = useCallback(async () => {
+    const ids = Array.from(selectedIds)
+    for (const id of ids) await invoke('delete_message', { id })
+    setSelectedIds(new Set()); setSelectMode(false); refreshMessages()
+  }, [selectedIds, refreshMessages])
+
+  // ── Delete Modal ──
+  const showDeleteConfirm = useCallback((text: string, callback: () => void) => {
+    setDeleteModalText(text); setDeleteModalCallback(() => callback); setDeleteModalOpen(true)
+  }, [])
+
+  // ── Connect ──
+  const handleConnect = useCallback(async (url: string, username: string, password: string) => {
+    const cfg = await invoke('get_config')
+    const newCfg = {
+      server: { url, username, password, jwt: '' },
+      client: { uuid: cfg.client.uuid, name: cfg.client.name },
+      autostart: cfg.autostart || false, auto_download_images: cfg.auto_download_images || false,
+      connection_mode: cfg.connection_mode || 'sse'
+    }
+    await invoke('save_config', { cfg: newCfg })
+    await invoke('reconnect')
+    setCurrentView('dashboard'); refreshMessages()
+  }, [refreshMessages])
+
+  // ── Status Polling + Tray Update ──
+  useEffect(() => {
+    if (currentView !== 'dashboard') return
+    let wasConnected = false; let dialogShown = false
+    const timer = setInterval(async () => {
+      try {
+        const state = await invoke('get_poll_state')
+        if (state.error) {
+          setConnStatus({ text: state.error, connected: false })
+          invoke('update_tray_status', { connected: false, mode: state.mode, error: state.error })
+          if (wasConnected && !dialogShown) { setOfflineOpen(true); dialogShown = true }
+        } else {
+          wasConnected = true; dialogShown = false
+          setOfflineOpen(false)
+          setOfflineMode(false)
+          const mode = state.mode || 'sse'
+          const label = mode === 'sse' ? 'SSE' : mode === 'ws' ? 'WS' : 'Poll'
+          setConnStatus({ text: label, connected: true })
+          invoke('update_tray_status', { connected: true, mode, error: null })
+        }
+      } catch {}
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [currentView])
+
+  // ── Refresh on mount + listen ──
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const cfg = await invoke('get_config')
+        if (cfg?.server?.jwt) { setCurrentView('dashboard'); refreshMessages(); return }
+        if (cfg?.server?.url) { /* pre-fill connect form */ }
+      } catch {}
+      setCurrentView('connect')
+    }
+    init()
+    let unlisten: (() => void) | null = null
+    listen('messages-updated', () => { refreshMessages() }).then(fn => { unlisten = fn })
+    const refreshTimer = setInterval(() => { if (currentView === 'dashboard') refreshMessages() }, 5000)
+    return () => { if (unlisten) unlisten(); clearInterval(refreshTimer) }
+  }, [])
+
+  // ── Keyboard shortcuts ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (deleteModalOpen) { setDeleteModalOpen(false); return }
+      if (composeOpen) { setComposeOpen(false); return }
+      if (quickSendOpen) { setQuickSendOpen(false); return }
+      if (offlineOpen) { setOfflineOpen(false); setOfflineMode(true); return }
+      if (detailMsg) { setDetailMsg(null); return }
+      if (settingsOpen) { setSettingsOpen(false); return }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [deleteModalOpen, composeOpen, quickSendOpen, offlineOpen, detailMsg, settingsOpen])
+
+  // ── Expose global functions for tray menu ──
+  useEffect(() => {
+    (window as any).__reconnect = async () => {
+      try { await invoke('reconnect'); refreshMessages() } catch {}
+    }
+    return () => { delete (window as any).__reconnect }
+  }, [refreshMessages])
+
+  return {
+    // i18n
+    lang, T, setLang,
+    // Theme
+    theme, colorScheme, setTheme, setColorScheme, colorSchemes: COLOR_SCHEMES,
+    // Toast
+    toast, showToast,
+    // View
+    currentView, setCurrentView, viewMode, setViewMode, offlineMode,
+    // Messages
+    allMessages, currentFilter, searchQuery, selectedIds, selectMode, lastDeleted, newMsgIds,
+    detailMsg, topicDetailKey,
+    setCurrentFilter, setSearchQuery, setSelectedIds, setSelectMode, setDetailMsg, setTopicDetailKey,
+    // Actions
+    refreshMessages, markAsRead, toggleFlag, deleteWithUndo, undoDelete, markAllRead, clearAll, deleteSelected,
+    // Helpers
+    escHtml, formatRelativeTime, parseTags, parseAttachment, getFilteredMessages, groupMessagesByTopic,
+    // Constants
+    MSG_HEIGHT, TOPIC_CARD_HEIGHT,
+    // Modals
+    settingsOpen, setSettingsOpen, composeOpen, setComposeOpen, quickSendOpen, setQuickSendOpen,
+    offlineOpen, setOfflineOpen, deleteModalOpen, setDeleteModalOpen, deleteModalText, deleteModalCallback,
+    showDeleteConfirm,
+    // Connection
+    connStatus, handleConnect,
+    // Tauri
+    invoke,
+  }
+}
