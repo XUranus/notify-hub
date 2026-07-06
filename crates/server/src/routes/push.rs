@@ -75,6 +75,9 @@ struct PushMessageRow {
     attachment: Option<String>,
     format: String,
     topic_id: Option<String>,
+    topic_name: Option<String>,
+    topic_display_name: Option<String>,
+    topic_icon: Option<String>,
 }
 
 impl PushMessageRow {
@@ -92,6 +95,9 @@ impl PushMessageRow {
             "attachment": self.attachment.as_deref(),
             "format": self.format,
             "topicId": self.topic_id,
+            "topicName": self.topic_name,
+            "topicDisplayName": self.topic_display_name,
+            "topicIcon": self.topic_icon,
         })
     }
 }
@@ -113,6 +119,9 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for PushMessageRow {
             attachment: row.try_get("attachment")?,
             format: row.try_get("format")?,
             topic_id: row.try_get("topic_id")?,
+            topic_name: row.try_get("topic_name").ok(),
+            topic_display_name: row.try_get("topic_display_name").ok(),
+            topic_icon: row.try_get("topic_icon").ok(),
         })
     }
 }
@@ -316,8 +325,10 @@ async fn poll_messages(
 
     let rows: Vec<PushMessageRow> = sqlx::query_as(
         r#"SELECT pm.id, pm.client_uuid, pm.source_message_id, pm.title, pm.body, pm.level,
-                  pm.tags, pm.priority, pm.url, pm.attachment, pm.format, pm.topic_id
+                  pm.tags, pm.priority, pm.url, pm.attachment, pm.format, pm.topic_id,
+                  t.name as topic_name, t.display_name as topic_display_name, t.icon as topic_icon
            FROM push_messages pm
+           LEFT JOIN topics t ON t.id = pm.topic_id
            WHERE pm.user_id = ? AND pm.delivered = 0
              AND (pm.client_uuid = ? OR ? = '')
            ORDER BY pm.created_at ASC LIMIT ?"#,
@@ -430,8 +441,10 @@ async fn stream_messages(
         // Send any undelivered messages from DB first
         let rows: Vec<PushMessageRow> = sqlx::query_as(
             r#"SELECT pm.id, pm.client_uuid, pm.source_message_id, pm.title, pm.body,
-                      pm.level, pm.tags, pm.priority, pm.url, pm.attachment, pm.format, pm.topic_id
+                      pm.level, pm.tags, pm.priority, pm.url, pm.attachment, pm.format, pm.topic_id,
+                      t.name as topic_name, t.display_name as topic_display_name, t.icon as topic_icon
                FROM push_messages pm
+               LEFT JOIN topics t ON t.id = pm.topic_id
                WHERE pm.user_id = ? AND pm.delivered = 0
                  AND (pm.client_uuid = ? OR ? = '')
                ORDER BY pm.created_at ASC"#
@@ -491,8 +504,10 @@ async fn handle_ws(mut socket: WebSocket, user_id: i64, client_uuid: String, sta
     // Send undelivered messages from DB first as a batch
     let rows: Vec<PushMessageRow> = sqlx::query_as(
         r#"SELECT pm.id, pm.client_uuid, pm.source_message_id, pm.title, pm.body,
-                  pm.level, pm.tags, pm.priority, pm.url, pm.attachment, pm.format, pm.topic_id
+                  pm.level, pm.tags, pm.priority, pm.url, pm.attachment, pm.format, pm.topic_id,
+                  t.name as topic_name, t.display_name as topic_display_name, t.icon as topic_icon
            FROM push_messages pm
+           LEFT JOIN topics t ON t.id = pm.topic_id
            WHERE pm.user_id = ? AND pm.delivered = 0
              AND (pm.client_uuid = ? OR ? = '')
            ORDER BY pm.created_at ASC"#

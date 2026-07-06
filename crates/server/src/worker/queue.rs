@@ -34,8 +34,8 @@ async fn process_batch(pool: &SqlitePool, config: &Config, push_state: &PushStat
     let now = chrono::Utc::now().timestamp();
 
     // Atomically claim a batch of messages using UPDATE...RETURNING
-    // (id, channel_type, channel_id, to_address, subject, body, template_vars, tags, url, attachment, format, user_id)
-    let messages: Vec<(String, String, Option<String>, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, String, Option<i64>)> = sqlx::query_as(
+    // (id, channel_type, channel_id, to_address, subject, body, template_vars, tags, url, attachment, format, user_id, topic_id)
+    let messages: Vec<(String, String, Option<String>, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, String, Option<i64>, Option<String>)> = sqlx::query_as(
         r#"UPDATE messages SET status = 'sending'
            WHERE id IN (
              SELECT id FROM messages
@@ -44,7 +44,7 @@ async fn process_batch(pool: &SqlitePool, config: &Config, push_state: &PushStat
              ORDER BY priority DESC, created_at ASC
              LIMIT ?
            )
-           RETURNING id, channel_type, channel_id, to_address, subject, body, template_vars, tags, url, attachment, format, user_id"#
+           RETURNING id, channel_type, channel_id, to_address, subject, body, template_vars, tags, url, attachment, format, user_id, topic_id"#
     )
     .bind(now)
     .bind(now)
@@ -55,7 +55,7 @@ async fn process_batch(pool: &SqlitePool, config: &Config, push_state: &PushStat
     let count = messages.len();
 
     for msg in messages {
-        let (id, channel_type_str, channel_id, to_address, subject, body, _template_vars, tags, url, attachment, format, user_id) = msg;
+        let (id, channel_type_str, channel_id, to_address, subject, body, _template_vars, tags, url, attachment, format, user_id, topic_id) = msg;
 
         let channel_type: ChannelType = channel_type_str.parse().unwrap_or(ChannelType::Push);
         let body_str = body.unwrap_or_default();
@@ -101,7 +101,7 @@ async fn process_batch(pool: &SqlitePool, config: &Config, push_state: &PushStat
 
                     // Create push messages for connected clients
                     if channel_type == ChannelType::Push {
-                        create_push_messages(pool, push_state, &id, user_id_val, &to_address, subject.as_deref(), &body_str, &tags, &url, &attachment, &format).await;
+                        create_push_messages(pool, push_state, &id, user_id_val, &to_address, subject.as_deref(), &body_str, &tags, &url, &attachment, &format, &topic_id).await;
                     }
 
                     tracing::info!("[worker] Message {id} sent successfully");
@@ -171,6 +171,7 @@ async fn create_push_messages(
     url: &Option<String>,
     attachment: &Option<String>,
     format: &str,
+    topic_id: &Option<String>,
 ) {
     // Find clients to deliver to
     let clients: Vec<(String,)> = if to_address == "*" || to_address.is_empty() || to_address == "__broadcast__" {
@@ -196,6 +197,19 @@ async fn create_push_messages(
     let attachment_json = attachment.as_ref()
         .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok());
 
+    // Look up topic info if topic_id is present
+    let (topic_name, topic_display_name, topic_icon): (Option<String>, Option<String>, Option<String>) = if let Some(ref tid) = topic_id {
+        sqlx::query_as("SELECT name, display_name, icon FROM topics WHERE id = ?")
+            .bind(tid)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or((None, None, None))
+    } else {
+        (None, None, None)
+    };
+
     if clients.is_empty() {
         tracing::warn!("[worker] No push clients found for user_id={user_id}, to_address={to_address}");
         return;
@@ -209,8 +223,8 @@ async fn create_push_messages(
     // Insert push messages one by one (more reliable than batch for SQLite)
     for (i, (client_uuid,)) in clients.iter().enumerate() {
         let result = sqlx::query(
-            r#"INSERT INTO push_messages (id, user_id, client_uuid, source_message_id, title, body, level, delivered, created_at, tags, priority, url, attachment, format)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
+            r#"INSERT INTO push_messages (id, user_id, client_uuid, source_message_id, title, body, level, delivered, created_at, tags, priority, url, attachment, format, topic_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
         )
         .bind(&push_ids[i])
         .bind(user_id)
@@ -226,6 +240,7 @@ async fn create_push_messages(
         .bind(url)
         .bind(attachment)
         .bind(format)
+        .bind(topic_id)
         .execute(pool)
         .await;
 
@@ -253,6 +268,10 @@ async fn create_push_messages(
             "url": url,
             "attachment": attachment.as_deref(),
             "format": format,
+            "topicId": topic_id,
+            "topicName": topic_name,
+            "topicDisplayName": topic_display_name,
+            "topicIcon": topic_icon,
         });
         push_state.notify(client_uuid, msg).await;
     }
