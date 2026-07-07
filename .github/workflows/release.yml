@@ -54,6 +54,10 @@ jobs:
         with:
           workspaces: desktop
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -66,6 +70,10 @@ jobs:
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Install frontend dependencies
+        working-directory: desktop/ui
+        run: npm install
 
       - name: Build
         working-directory: desktop
@@ -96,6 +104,10 @@ jobs:
         with:
           workspaces: desktop
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -108,6 +120,10 @@ jobs:
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Install frontend dependencies
+        working-directory: desktop/ui
+        run: npm install
 
       - name: Build
         working-directory: desktop
@@ -140,8 +156,16 @@ jobs:
         with:
           workspaces: desktop
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Install frontend dependencies
+        working-directory: desktop/ui
+        run: npm install
 
       - name: Build
         working-directory: desktop
@@ -178,6 +202,10 @@ jobs:
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
+
+      - name: Install frontend dependencies
+        working-directory: desktop/ui
+        run: npm install
 
       - name: Build
         working-directory: desktop
@@ -219,6 +247,26 @@ jobs:
           distribution: zulu
           java-version: 17
 
+      - name: Setup google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          else
+            echo "Warning: GOOGLE_SERVICES_JSON secret not set, using placeholder (FCM won't work)"
+            cat > android/app/google-services.json << 'EOF'
+          {
+            "project_info": { "project_number": "000000000000", "project_id": "placeholder-00000", "storage_bucket": "placeholder-00000.appspot.com" },
+            "client": [{ "client_info": { "mobilesdk_app_id": "1:000000000000:android:0000000000000000", "android_client_info": { "package_name": "com.xuranus.notifyhub" } },
+              "api_key": [{ "current_key": "placeholder" }],
+              "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+            }],
+            "configuration_version": "1"
+          }
+          EOF
+          fi
+
       - name: Build APK
         working-directory: android
         env:
@@ -244,10 +292,12 @@ jobs:
   # ─────────────────────────────────────────────
   release:
     needs:
+      - deploy-docs
       - build-linux-amd64
       - build-linux-aarch64
       - build-macos-arm64
       - build-windows-amd64
+      - build-android
     if: always()
     runs-on: ubuntu-latest
     steps:

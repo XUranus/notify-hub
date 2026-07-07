@@ -73,7 +73,7 @@ All modes authenticate via JWT (in `Authorization` header or `?token=` query par
 
 - **[Getting Started](./getting-started.md)** -- Install and run NotifyHub in 5 minutes.
 - **[Architecture](./architecture.md)** -- Deep dive into system design, database schema, and message lifecycle.
-- **[API Reference](./api/v1/send.md)** -- REST API documentation for sending messages.
+- **[API Reference](./api/send.md)** -- REST API documentation for sending messages.
 - **[Channels](./channels/overview.md)** -- Configure email and SMS channel providers.
 - **[Templates](./templates.md)** -- Create reusable message templates.
 - **[Deployment](./deployment/docker.md)** -- Deploy NotifyHub with Docker or on a VPS.

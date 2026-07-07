@@ -273,5 +273,5 @@ cargo run
 - **[Architecture](./architecture.md)** -- Understand how NotifyHub works under the hood.
 - **[Channels](./channels/overview.md)** -- Set up email and SMS providers.
 - **[Templates](./templates.md)** -- Create reusable message templates with variables.
-- **[API Reference](./api/v1/send.md)** -- Explore the full REST API.
+- **[API Reference](./api/send.md)** -- Explore the full REST API.
 - **[Deployment](./deployment/docker.md)** -- Deploy NotifyHub to production.
