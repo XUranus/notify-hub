@@ -94,7 +94,19 @@ class PollService : Service() {
                 startPolling()
             }
         }
-        return START_STICKY
+        // Always return START_STICKY so the system restarts us if killed,
+        // unless the master keep-alive switch is off
+        return if (ConfigStore.isKeepAliveEnabled(this)) START_STICKY else START_NOT_STICKY
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        AppLogger.i(TAG, "onTaskRemoved called")
+        if (ConfigStore.isKeepAliveEnabled(this) && ConfigStore.isKeepAliveTaskRemovedEnabled(this)) {
+            AppLogger.i(TAG, "Restarting service after task removed")
+            val intent = Intent(this, PollService::class.java).apply { action = ACTION_START }
+            try { startForegroundService(intent) } catch (e: Exception) { AppLogger.e(TAG, "Failed to restart on task removed", e) }
+        }
     }
 
     override fun onDestroy() {
@@ -144,11 +156,16 @@ class PollService : Service() {
             // Fetch FCM token (if Firebase is configured, with 5s timeout)
             var fcmToken: String? = null
             try {
+                // Delete old token first to force refresh (fixes stale tokens from old Firebase projects)
+                val fcm = com.google.firebase.messaging.FirebaseMessaging.getInstance()
+                withTimeoutOrNull(3000L) { fcm.deleteToken().await() }
+                AppLogger.i(TAG, "Old FCM token deleted, fetching new one...")
+
                 fcmToken = withTimeoutOrNull(5000L) {
-                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
+                    fcm.token.await()
                 }
                 if (fcmToken != null) {
-                    AppLogger.d(TAG, "FCM token obtained: ${fcmToken.take(16)}...")
+                    AppLogger.i(TAG, "FCM token obtained: ${fcmToken!!.take(20)}...")
                 } else {
                     AppLogger.w(TAG, "FCM token fetch timed out")
                 }

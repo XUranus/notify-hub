@@ -13,20 +13,14 @@ pub async fn send(
     _tags: &Option<String>,
     _url: Option<&str>,
     _attachment: &Option<String>,
-    app_config: &Config,
+    _app_config: &Config,
 ) -> anyhow::Result<SendResult> {
     match channel_type {
         ChannelType::Email => send_email(config, to, subject.unwrap_or(""), body).await,
         ChannelType::Sms => send_sms(config, to, subject, body).await,
         ChannelType::Push => {
             // Push messages are delivered via SSE/WS/Poll (push_messages table).
-            // FCM delivery for Android is handled separately.
-            if let Some(fcm_json) = get_fcm_config(app_config) {
-                match send_fcm(&fcm_json, to, subject.unwrap_or("Notification"), body, app_config).await {
-                    Ok(result) => return Ok(result),
-                    Err(e) => tracing::warn!("[fcm] FCM send failed, falling back to poll: {e}"),
-                }
-            }
+            // FCM is sent per-client in create_push_messages() with the correct fcm_token.
             Ok(SendResult { success: true, external_id: None, error: None })
         }
     }
@@ -297,7 +291,7 @@ async fn send_tencent_sms(cfg: &serde_json::Value, to: &str, template_id: &str, 
 
 // ── FCM Push (HTTP v1 API with service account) ──
 
-fn get_fcm_config(config: &Config) -> Option<String> {
+pub fn get_fcm_config(config: &Config) -> Option<String> {
     if let Some(ref path) = config.fcm_service_account_path {
         std::fs::read_to_string(path).ok()
     } else {
@@ -332,14 +326,8 @@ async fn get_fcm_access_token(service_account_json: &str) -> anyhow::Result<Stri
         exp: now + 3600,
     };
 
-    // Decode PEM private key
-    let pem = private_key
-        .replace("-----BEGIN PRIVATE KEY-----", "")
-        .replace("-----END PRIVATE KEY-----", "")
-        .replace('\n', "")
-        .replace('\r', "");
-    let key_bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &pem)?;
-    let encoding_key = jsonwebtoken::EncodingKey::from_rsa_pem(&key_bytes)?;
+    // Use the PEM key directly (jsonwebtoken handles PEM parsing)
+    let encoding_key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key.as_bytes())?;
 
     let jwt = encode(&Header::new(Algorithm::RS256), &claims, &encoding_key)?;
 
@@ -361,38 +349,28 @@ async fn get_fcm_access_token(service_account_json: &str) -> anyhow::Result<Stri
     Ok(access_token.to_string())
 }
 
-async fn send_fcm(
+/// Send an FCM data message to a specific device token.
+/// Uses data-only messages so the Android app controls notification display.
+pub async fn send_fcm(
     service_account_json: &str,
-    to: &str,
-    title: &str,
-    body: &str,
-    _config: &Config,
-) -> anyhow::Result<SendResult> {
+    fcm_token: &str,
+    data: std::collections::HashMap<String, String>,
+) -> anyhow::Result<String> {
     let sa: serde_json::Value = serde_json::from_str(service_account_json)?;
     let project_id = sa.get("project_id").and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("missing project_id"))?;
 
     let access_token = get_fcm_access_token(service_account_json).await?;
 
-    let is_broadcast = to.is_empty() || to == "*";
-
-    let message = if is_broadcast {
-        serde_json::json!({
-            "message": {
-                "topic": "all",
-                "notification": { "title": title, "body": body },
-                "android": { "priority": "high" }
+    let message = serde_json::json!({
+        "message": {
+            "token": fcm_token,
+            "data": data,
+            "android": {
+                "priority": "high"
             }
-        })
-    } else {
-        serde_json::json!({
-            "message": {
-                "token": to,
-                "notification": { "title": title, "body": body },
-                "android": { "priority": "high" }
-            }
-        })
-    };
+        }
+    });
 
     let url = format!("https://fcm.googleapis.com/v1/projects/{project_id}/messages:send");
     let client = reqwest::Client::new();
@@ -405,11 +383,11 @@ async fn send_fcm(
 
     if resp.status().is_success() {
         let data: serde_json::Value = resp.json().await?;
-        let name = data.get("name").and_then(|v| v.as_str()).map(String::from);
-        Ok(SendResult { success: true, external_id: name, error: None })
+        let name = data.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        Ok(name)
     } else {
         let status = resp.status();
         let err = resp.text().await.unwrap_or_default();
-        Ok(SendResult { success: false, external_id: None, error: Some(format!("FCM {status}: {err}")) })
+        anyhow::bail!("FCM {status}: {err}")
     }
 }

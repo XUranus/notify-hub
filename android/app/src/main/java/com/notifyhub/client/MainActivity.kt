@@ -36,6 +36,7 @@ import com.notifyhub.client.data.ConfigStore
 import com.notifyhub.client.data.I18n
 import com.notifyhub.client.data.MessageStore
 import com.notifyhub.client.service.PollService
+import com.notifyhub.client.service.KeepAliveWorker
 import com.notifyhub.client.ui.ComposeScreen
 import com.notifyhub.client.ui.ConfigScreen
 import com.notifyhub.client.ui.MainScreen
@@ -80,6 +81,7 @@ class MainActivity : ComponentActivity() {
         ConfigStore.init(this)
         requestNotificationPermission()
         handleNotificationIntent()
+        syncKeepAliveWorker()
 
         setContent {
             NotifyHubTheme {
@@ -263,6 +265,20 @@ class MainActivity : ComponentActivity() {
         if (!bound) {
             val intent = Intent(this, PollService::class.java)
             bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        }
+    }
+
+    /**
+     * Sync WorkManager keep-alive worker with current config.
+     * Enqueues if both master and workmanager switches are on, cancels otherwise.
+     */
+    private fun syncKeepAliveWorker() {
+        val masterOn = ConfigStore.isKeepAliveEnabled(this)
+        val workManagerOn = ConfigStore.isKeepAliveWorkManagerEnabled(this)
+        if (masterOn && workManagerOn) {
+            KeepAliveWorker.enqueue(this)
+        } else {
+            KeepAliveWorker.cancel(this)
         }
     }
 }

@@ -4,7 +4,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,6 +31,14 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Power
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.ExitToApp
@@ -46,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 
 import com.notifyhub.client.data.ApiClient
 import com.notifyhub.client.data.AppLogger
@@ -54,6 +66,8 @@ import com.notifyhub.client.data.ConfigStore
 import com.notifyhub.client.data.I18n
 import com.notifyhub.client.data.MessageStore
 import com.notifyhub.client.data.i18n
+import com.notifyhub.client.service.KeepAliveHelper
+import com.notifyhub.client.service.KeepAliveWorker
 import com.notifyhub.client.ui.theme.palettes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -169,6 +183,210 @@ fun SettingsScreen(
                             }
                         )
                     }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+            // ── Notification Permission ──
+            val notificationsEnabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            } else {
+                // On Android < 13, notifications are enabled by default
+                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+                nm.areNotificationsEnabled()
+            }
+            ListItem(
+                headlineContent = {
+                    Text(
+                        if (notificationsEnabled) i18n("notif_permission_enabled") else i18n("notif_permission_disabled"),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (notificationsEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
+                    )
+                },
+                supportingContent = {
+                    if (!notificationsEnabled) {
+                        Text(i18n("notif_permission_hint"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+                leadingContent = {
+                    Icon(
+                        if (notificationsEnabled) Icons.Default.Notifications else Icons.Default.NotificationsOff,
+                        contentDescription = null,
+                        tint = if (notificationsEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(22.dp)
+                    )
+                },
+                trailingContent = {
+                    if (!notificationsEnabled) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+                modifier = Modifier.clickable {
+                    if (!notificationsEnabled) {
+                        // Open system notification settings for this app
+                        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        }
+                        context.startActivity(intent)
+                    }
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+            // ── Keep-Alive Settings ──
+            SettingsSectionHeader(i18n("settings_keep_alive"))
+            var keepAliveMaster by remember { mutableStateOf(ConfigStore.isKeepAliveEnabled(context)) }
+            val keepAliveScope = rememberCoroutineScope()
+
+            ListItem(
+                headlineContent = { Text(i18n("keep_alive_master"), fontSize = 15.sp, fontWeight = FontWeight.Medium) },
+                supportingContent = { Text(i18n("keep_alive_master_hint"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                leadingContent = {
+                    Icon(Icons.Default.Power, contentDescription = null,
+                        tint = if (keepAliveMaster) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp))
+                },
+                trailingContent = {
+                    Switch(
+                        checked = keepAliveMaster,
+                        onCheckedChange = {
+                            keepAliveMaster = it
+                            ConfigStore.setKeepAliveEnabled(context, it)
+                            // Sync WorkManager when master switch changes
+                            if (it && ConfigStore.isKeepAliveWorkManagerEnabled(context)) {
+                                KeepAliveWorker.enqueue(context)
+                            } else {
+                                KeepAliveWorker.cancel(context)
+                            }
+                        }
+                    )
+                }
+            )
+
+            // Sub-toggles (only visible when master is on)
+            if (keepAliveMaster) {
+                // WorkManager periodic check
+                var keepAliveWorkManager by remember { mutableStateOf(ConfigStore.isKeepAliveWorkManagerEnabled(context)) }
+                ListItem(
+                    headlineContent = { Text(i18n("keep_alive_workmanager"), fontSize = 14.sp) },
+                    supportingContent = { Text(i18n("keep_alive_workmanager_hint"), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.padding(start = 16.dp),
+                    trailingContent = {
+                        Switch(
+                            checked = keepAliveWorkManager,
+                            onCheckedChange = {
+                                keepAliveWorkManager = it
+                                ConfigStore.setKeepAliveWorkManagerEnabled(context, it)
+                                if (it) KeepAliveWorker.enqueue(context) else KeepAliveWorker.cancel(context)
+                            }
+                        )
+                    }
+                )
+
+                // Restart on task removed
+                var keepAliveTaskRemoved by remember { mutableStateOf(ConfigStore.isKeepAliveTaskRemovedEnabled(context)) }
+                ListItem(
+                    headlineContent = { Text(i18n("keep_alive_task_removed"), fontSize = 14.sp) },
+                    supportingContent = { Text(i18n("keep_alive_task_removed_hint"), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.padding(start = 16.dp),
+                    trailingContent = {
+                        Switch(
+                            checked = keepAliveTaskRemoved,
+                            onCheckedChange = {
+                                keepAliveTaskRemoved = it
+                                ConfigStore.setKeepAliveTaskRemovedEnabled(context, it)
+                            }
+                        )
+                    }
+                )
+
+                // Auto-restart service
+                var keepAliveServiceRestart by remember { mutableStateOf(ConfigStore.isKeepAliveServiceRestartEnabled(context)) }
+                ListItem(
+                    headlineContent = { Text(i18n("keep_alive_service_restart"), fontSize = 14.sp) },
+                    supportingContent = { Text(i18n("keep_alive_service_restart_hint"), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.padding(start = 16.dp),
+                    trailingContent = {
+                        Switch(
+                            checked = keepAliveServiceRestart,
+                            onCheckedChange = {
+                                keepAliveServiceRestart = it
+                                ConfigStore.setKeepAliveServiceRestartEnabled(context, it)
+                            }
+                        )
+                    }
+                )
+
+                // Boot auto-start
+                var keepAliveBoot by remember { mutableStateOf(ConfigStore.isKeepAliveBootEnabled(context)) }
+                ListItem(
+                    headlineContent = { Text(i18n("keep_alive_boot"), fontSize = 14.sp) },
+                    supportingContent = { Text(i18n("keep_alive_boot_hint"), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.padding(start = 16.dp),
+                    trailingContent = {
+                        Switch(
+                            checked = keepAliveBoot,
+                            onCheckedChange = {
+                                keepAliveBoot = it
+                                ConfigStore.setKeepAliveBootEnabled(context, it)
+                            }
+                        )
+                    }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+                // Battery optimization status
+                val batteryOk = KeepAliveHelper.isIgnoringBatteryOptimizations(context)
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            if (batteryOk) i18n("keep_alive_battery_enabled") else i18n("keep_alive_battery_disabled"),
+                            fontSize = 14.sp,
+                            color = if (batteryOk) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
+                        )
+                    },
+                    supportingContent = { Text(i18n("keep_alive_battery_hint"), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    leadingContent = {
+                        Icon(Icons.Default.BatteryChargingFull, contentDescription = null,
+                            tint = if (batteryOk) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp))
+                    },
+                    trailingContent = {
+                        if (!batteryOk) {
+                            TextButton(onClick = { KeepAliveHelper.openBatteryOptimizationSettings(context) }) {
+                                Text(i18n("keep_alive_battery_action"), fontSize = 12.sp)
+                            }
+                        }
+                    },
+                    modifier = Modifier.padding(start = 16.dp)
+                )
+
+                // Auto-start permission (for Chinese ROMs)
+                if (KeepAliveHelper.isChineseRom()) {
+                    ListItem(
+                        headlineContent = { Text(i18n("keep_alive_autostart"), fontSize = 14.sp) },
+                        supportingContent = { Text(i18n("keep_alive_autostart_hint"), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        leadingContent = {
+                            Icon(Icons.Default.FlashOn, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp))
+                        },
+                        trailingContent = {
+                            TextButton(onClick = {
+                                if (!KeepAliveHelper.openAutoStartSettings(context)) {
+                                    KeepAliveHelper.openAppNotificationSettings(context)
+                                }
+                            }) {
+                                Text(i18n("keep_alive_autostart_action"), fontSize = 12.sp)
+                            }
+                        },
+                        modifier = Modifier.padding(start = 16.dp)
+                    )
                 }
             }
 

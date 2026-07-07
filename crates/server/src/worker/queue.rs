@@ -100,9 +100,9 @@ async fn process_batch(pool: &SqlitePool, config: &Config, push_state: &PushStat
                         .execute(pool)
                         .await?;
 
-                    // Create push messages for connected clients
+                    // Create push messages for connected clients + send FCM
                     if channel_type == ChannelType::Push {
-                        create_push_messages(pool, push_state, &id, user_id_val, &to_address, subject.as_deref(), &body_str, &tags, &url, &attachment, &format, &topic_id).await;
+                        create_push_messages(pool, push_state, config, &id, user_id_val, &to_address, subject.as_deref(), &body_str, &tags, &url, &attachment, &format, &topic_id).await;
                     }
 
                     // Check if user has "don't keep messages" policy (-1)
@@ -173,6 +173,7 @@ async fn handle_failure(pool: &SqlitePool, id: &str, error: Option<&str>, now: i
 async fn create_push_messages(
     pool: &SqlitePool,
     push_state: &PushState,
+    config: &Config,
     source_message_id: &str,
     user_id: i64,
     to_address: &str,
@@ -184,17 +185,15 @@ async fn create_push_messages(
     format: &str,
     topic_id: &Option<String>,
 ) {
-    // Find clients to deliver to
-    let clients: Vec<(String,)> = if to_address == "*" || to_address.is_empty() || to_address == "__broadcast__" {
-        // Broadcast to all user's clients
-        sqlx::query_as("SELECT uuid FROM push_clients WHERE user_id = ?")
+    // Find clients to deliver to (uuid + fcm_token)
+    let clients: Vec<(String, Option<String>)> = if to_address == "*" || to_address.is_empty() || to_address == "__broadcast__" {
+        sqlx::query_as("SELECT uuid, fcm_token FROM push_clients WHERE user_id = ?")
             .bind(user_id)
             .fetch_all(pool)
             .await
             .unwrap_or_default()
     } else {
-        // Target specific client by UUID
-        sqlx::query_as("SELECT uuid FROM push_clients WHERE uuid = ? AND user_id = ?")
+        sqlx::query_as("SELECT uuid, fcm_token FROM push_clients WHERE uuid = ? AND user_id = ?")
             .bind(to_address)
             .bind(user_id)
             .fetch_all(pool)
@@ -205,8 +204,6 @@ async fn create_push_messages(
     let title = subject.unwrap_or("Notification");
     let now = chrono::Utc::now().timestamp();
     let tags_str = tags.as_deref().unwrap_or("[]");
-    let attachment_json = attachment.as_ref()
-        .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok());
 
     // Look up topic info if topic_id is present
     let (topic_name, topic_display_name, topic_icon): (Option<String>, Option<String>, Option<String>) = if let Some(ref tid) = topic_id {
@@ -228,11 +225,19 @@ async fn create_push_messages(
 
     tracing::info!("[worker] Creating push_messages for source={source_message_id}, user_id={user_id}, clients={}", clients.len());
 
+    // Check if FCM is configured
+    let fcm_json = channels::get_fcm_config(config);
+    if fcm_json.is_some() {
+        tracing::info!("[worker] FCM is configured, will attempt push delivery");
+    } else {
+        tracing::debug!("[worker] FCM not configured, skipping FCM delivery");
+    }
+
     // Generate push IDs upfront to avoid borrow issues
     let push_ids: Vec<String> = clients.iter().map(|_| uuid::Uuid::new_v4().to_string()).collect();
 
     // Insert push messages one by one (more reliable than batch for SQLite)
-    for (i, (client_uuid,)) in clients.iter().enumerate() {
+    for (i, (client_uuid, fcm_token)) in clients.iter().enumerate() {
         let result = sqlx::query(
             r#"INSERT INTO push_messages (id, user_id, client_uuid, source_message_id, title, body, level, delivered, created_at, tags, priority, url, attachment, format, topic_id)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
@@ -263,10 +268,34 @@ async fn create_push_messages(
                 tracing::error!("[worker] Failed to create push_message for client {client_uuid}: {e}");
             }
         }
+
+        // Send FCM data message if token is available
+        if let (Some(ref fcm_cfg), Some(token)) = (&fcm_json, fcm_token) {
+            if !token.is_empty() {
+                let mut data = std::collections::HashMap::new();
+                data.insert("id".to_string(), push_ids[i].clone());
+                data.insert("title".to_string(), title.to_string());
+                data.insert("body".to_string(), body.to_string());
+                data.insert("level".to_string(), "info".to_string());
+                data.insert("tags".to_string(), tags_str.to_string());
+                data.insert("url".to_string(), url.clone().unwrap_or_default());
+                data.insert("attachment".to_string(), attachment.clone().unwrap_or_default());
+                data.insert("format".to_string(), format.to_string());
+                data.insert("topicId".to_string(), topic_id.clone().unwrap_or_default());
+                data.insert("topicName".to_string(), topic_name.clone().unwrap_or_default());
+                data.insert("topicDisplayName".to_string(), topic_display_name.clone().unwrap_or_default());
+                data.insert("topicIcon".to_string(), topic_icon.clone().unwrap_or_default());
+
+                match channels::send_fcm(fcm_cfg, token, data).await {
+                    Ok(name) => tracing::info!("[worker] FCM sent to {}: {}", client_uuid, name),
+                    Err(e) => tracing::warn!("[worker] FCM failed for {}: {e}", client_uuid),
+                }
+            }
+        }
     }
 
-    // Notify connected clients in real-time
-    for (i, (client_uuid,)) in clients.iter().enumerate() {
+    // Notify connected clients in real-time via SSE/WS
+    for (i, (client_uuid, _)) in clients.iter().enumerate() {
         let msg = serde_json::json!({
             "id": push_ids[i],
             "clientUuid": client_uuid,
