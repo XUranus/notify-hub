@@ -1,5 +1,5 @@
 use axum::extract::{Path, Query, State};
-use axum::routing::{get, post};
+use axum::routing::{get, post, delete};
 use axum::{Json, Router};
 use serde::Deserialize;
 
@@ -13,14 +13,15 @@ use crate::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        // Public API (supports JWT + API token)
-        .route("/api/v1/messages", get(v1_list_messages))
-        .route("/api/v1/messages/{id}", get(v1_get_message))
-        // Admin API (JWT only, can see all messages)
-        .route("/api/admin/messages", get(admin_list_messages).delete(delete_all_messages))
+        // User API (JWT, user sees own messages)
+        .route("/api/user/messages", get(v1_list_messages))
+        .route("/api/user/messages/{id}", get(v1_get_message))
+        // Admin API (JWT, admin sees all, admin-only operations)
+        .route("/api/admin/messages", get(admin_list_messages))
         .route("/api/admin/messages/export", get(export_messages))
         .route("/api/admin/messages/{id}", get(admin_get_message).delete(delete_message))
         .route("/api/admin/messages/{id}/retry", post(retry_message))
+        .route("/api/admin/messages/all", delete(delete_all_messages))
 }
 
 #[derive(Deserialize)]

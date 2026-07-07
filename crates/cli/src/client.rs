@@ -67,7 +67,7 @@ impl NotifyClient {
 
     pub async fn get_message(&self, id: &str) -> anyhow::Result<ApiResponse<serde_json::Value>> {
         let resp = self.http
-            .get(format!("{}/api/v1/messages/{}", self.server, id))
+            .get(format!("{}/api/user/messages/{}", self.server, id))
             .header("Authorization", self.auth_header())
             .send()
             .await?;
@@ -104,7 +104,7 @@ impl NotifyClient {
     /// Register this CLI as a push client
     pub async fn register_client(&self, uuid: &str, name: &str, os: &str, arch: &str) -> anyhow::Result<()> {
         let resp = self.http
-            .post(format!("{}/api/v1/push/register", self.server))
+            .post(format!("{}/api/user/push/register", self.server))
             .header("Authorization", self.auth_header())
             .json(&serde_json::json!({
                 "uuid": uuid,
@@ -129,7 +129,7 @@ impl NotifyClient {
     /// Poll for undelivered messages
     pub async fn poll(&self, uuid: &str, limit: u32) -> anyhow::Result<(u16, Vec<PushMessage>)> {
         let resp = self.http
-            .get(format!("{}/api/v1/push/poll?uuid={}&limit={}", self.server, uuid, limit))
+            .get(format!("{}/api/user/push/poll?uuid={}&limit={}", self.server, uuid, limit))
             .header("Authorization", self.auth_header())
             .send()
             .await?;
@@ -152,7 +152,7 @@ impl NotifyClient {
     /// ACK message IDs to mark as delivered
     pub async fn ack(&self, uuid: &str, message_ids: &[String]) -> anyhow::Result<()> {
         let resp = self.http
-            .post(format!("{}/api/v1/push/ack", self.server))
+            .post(format!("{}/api/user/push/ack", self.server))
             .header("Authorization", self.auth_header())
             .json(&serde_json::json!({ "uuid": uuid, "messageIds": message_ids }))
             .send()

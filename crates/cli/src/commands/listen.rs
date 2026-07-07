@@ -216,7 +216,7 @@ async fn run_sse(
     loop {
         eprintln!("[sse] Connecting...");
         let url = format!(
-            "{}/api/v1/push/stream?uuid={}&token={}",
+            "{}/api/user/push/stream?uuid={}&token={}",
             client.server_url(),
             uuid,
             token
@@ -347,7 +347,7 @@ async fn run_ws(
             } else {
                 http_url.replacen("http", "ws", 1)
             };
-            format!("{ws_base}/api/v1/push/ws?uuid={uuid}&token={token}")
+            format!("{ws_base}/api/user/push/ws?uuid={uuid}&token={token}")
         };
 
         eprintln!("[ws] Connecting...");

@@ -14,18 +14,18 @@ The Messages API lets you query the status and details of notifications that hav
 ## Base URL
 
 ```text
-http://<your-host>:9527/api/v1/messages
+http://<your-host>:9527/api/user/messages
 ```
 
 ## Authentication
 
-All messages endpoints require a valid API token:
+All messages endpoints require a valid JWT token:
 
 ```text
-Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Authorization: Bearer <jwt-token>
 ```
 
-Unlike the [Send API](./send), the Messages API does not perform scope checking -- any valid, enabled token can read messages.
+Admin users see all messages; regular users see only their own.
 
 ---
 
@@ -69,7 +69,7 @@ stateDiagram-v2
 
 ## List Messages
 
-<span className="method-badge method-get">GET</span> `/api/v1/messages`
+<span className="method-badge method-get">GET</span> `/api/user/messages`
 
 Retrieve a paginated list of messages. Results are ordered by creation time (newest first).
 
@@ -166,15 +166,15 @@ Retrieve a paginated list of messages. Results are ordered by creation time (new
 
 ```bash
 # List the first page of messages
-curl http://localhost:9527/api/v1/messages \
+curl http://localhost:9527/api/user/messages \
   -H "Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # Filter by status
-curl "http://localhost:9527/api/v1/messages?status=failed&page=1&pageSize=50" \
+curl "http://localhost:9527/api/user/messages?status=failed&page=1&pageSize=50" \
   -H "Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # Filter by channel type
-curl "http://localhost:9527/api/v1/messages?channel=sms" \
+curl "http://localhost:9527/api/user/messages?channel=sms" \
   -H "Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
@@ -190,7 +190,7 @@ const params = new URLSearchParams({
 });
 
 const response = await fetch(
-  `http://localhost:9527/api/v1/messages?${params}`,
+  `http://localhost:9527/api/user/messages?${params}`,
   {
     headers: {
       Authorization: "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -209,7 +209,7 @@ console.log(`Showing ${result.data.items.length} of ${result.data.total} message
 import requests
 
 response = requests.get(
-    "http://localhost:9527/api/v1/messages",
+    "http://localhost:9527/api/user/messages",
     headers={"Authorization": "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},
     params={"page": 1, "pageSize": 20, "status": "failed", "channel": "email"},
 )
@@ -227,7 +227,7 @@ for msg in data["items"]:
 
 ## Get a Single Message
 
-<span className="method-badge method-get">GET</span> `/api/v1/messages/:id`
+<span className="method-badge method-get">GET</span> `/api/user/messages/:id`
 
 Retrieve the full details of a specific message by its ID.
 
@@ -286,7 +286,7 @@ Retrieve the full details of a specific message by its ID.
 <TabItem value="curl" label="curl">
 
 ```bash
-curl http://localhost:9527/api/v1/messages/42 \
+curl http://localhost:9527/api/user/messages/42 \
   -H "Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
@@ -296,7 +296,7 @@ curl http://localhost:9527/api/v1/messages/42 \
 ```javascript
 const messageId = 42;
 const response = await fetch(
-  `http://localhost:9527/api/v1/messages/${messageId}`,
+  `http://localhost:9527/api/user/messages/${messageId}`,
   {
     headers: {
       Authorization: "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -320,7 +320,7 @@ import requests
 
 message_id = 42
 response = requests.get(
-    f"http://localhost:9527/api/v1/messages/{message_id}",
+    f"http://localhost:9527/api/user/messages/{message_id}",
     headers={"Authorization": "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},
 )
 

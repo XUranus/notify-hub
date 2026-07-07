@@ -7,7 +7,7 @@ use notifyhub_common::error::AppError;
 use notifyhub_common::schemas::{CreateTopicRequest, UpdateTopicRequest};
 use notifyhub_common::types::{ApiResponse, Topic};
 
-use crate::auth::middleware::AuthUser;
+use crate::auth::middleware::{AuthUser, require_admin};
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -19,9 +19,12 @@ pub struct TopicQueryParams {
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        // v1 API: topic CRUD for authenticated users (with pagination & search)
-        .route("/api/v1/topics", get(list_topics_v2).post(create_topic))
-        .route("/api/v1/topics/{id}", get(get_topic).put(update_topic).delete(delete_topic))
+        // User API: topic CRUD (JWT, user manages own topics)
+        .route("/api/user/topics", get(list_topics_v2).post(create_topic))
+        .route("/api/user/topics/{id}", get(get_topic).put(update_topic).delete(delete_topic))
+        // Admin API: topic management (admin sees all, can delete any)
+        .route("/api/admin/topics", get(admin_list_topics))
+        .route("/api/admin/topics/{id}", get(admin_get_topic).delete(admin_delete_topic))
 }
 
 async fn get_topic(
@@ -204,6 +207,55 @@ async fn list_topics_v2(
     };
 
     Ok(Json(ApiResponse::ok(rows.into_iter().map(Topic::from).collect())))
+}
+
+// ── Admin handlers ──
+
+async fn admin_list_topics(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<ApiResponse<Vec<Topic>>>, AppError> {
+    require_admin(&auth)?;
+    let rows: Vec<TopicRow> = sqlx::query_as("SELECT * FROM topics ORDER BY created_at DESC")
+        .fetch_all(&state.pool)
+        .await?;
+    Ok(Json(ApiResponse::ok(rows.into_iter().map(Topic::from).collect())))
+}
+
+async fn admin_get_topic(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<Topic>>, AppError> {
+    require_admin(&auth)?;
+    let row: Option<TopicRow> = sqlx::query_as("SELECT * FROM topics WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await?;
+    match row {
+        Some(r) => Ok(Json(ApiResponse::ok(Topic::from(r)))),
+        None => Err(AppError::NotFound("topic not found".into())),
+    }
+}
+
+async fn admin_delete_topic(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    require_admin(&auth)?;
+    let result = sqlx::query("DELETE FROM topics WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound("topic not found".into()));
+    }
+    sqlx::query("UPDATE messages SET topic_id = NULL WHERE topic_id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await?;
+    Ok(Json(ApiResponse::success()))
 }
 
 #[derive(sqlx::FromRow)]

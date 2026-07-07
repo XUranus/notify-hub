@@ -12,7 +12,7 @@ use notifyhub_common::error::AppError;
 use notifyhub_common::schemas::{RegisterPushClientRequest, UpdatePushClientRequest, AckPushRequest};
 use notifyhub_common::types::ApiResponse;
 
-use crate::auth::middleware::AuthUser;
+use crate::auth::middleware::{AuthUser, require_admin};
 use crate::AppState;
 
 // ── PushState: in-memory broadcast channels for real-time delivery ──
@@ -95,15 +95,19 @@ pub async fn has_no_retention_policy(pool: &sqlx::SqlitePool, user_id: i64) -> b
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/push/register", post(register_client))
-        .route("/api/v1/push/client", patch(update_client))
-        .route("/api/v1/push/ack", post(ack_messages))
-        .route("/api/v1/push/poll", get(poll_messages))
-        .route("/api/v1/push/stream", get(stream_messages))
-        .route("/api/v1/push/ws", get(ws_handler))
-        // Admin push client management
-        .route("/api/admin/push/clients", get(list_push_clients))
-        .route("/api/admin/push/clients/{uuid}", delete(delete_push_client))
+        // User push endpoints (JWT, user-specific)
+        .route("/api/user/push/register", post(register_client))
+        .route("/api/user/push/client", patch(update_client))
+        .route("/api/user/push/ack", post(ack_messages))
+        .route("/api/user/push/poll", get(poll_messages))
+        .route("/api/user/push/stream", get(stream_messages))
+        .route("/api/user/push/ws", get(ws_handler))
+        // Admin push client management (admin sees all, can delete any)
+        .route("/api/admin/push/clients", get(admin_list_push_clients))
+        .route("/api/admin/push/clients/{uuid}", delete(admin_delete_push_client))
+        // User push client management (user sees own, can delete own)
+        .route("/api/user/push/clients", get(user_list_push_clients))
+        .route("/api/user/push/clients/{uuid}", delete(user_delete_push_client))
 }
 
 // ── Row type for push message queries ──
@@ -668,10 +672,68 @@ async fn handle_ws(mut socket: WebSocket, user_id: i64, client_uuid: String, sta
 
 // ── Admin: List all push clients ──
 
-async fn list_push_clients(
+/// Admin: list ALL push clients (requires admin)
+async fn admin_list_push_clients(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    require_admin(&auth)?;
+    list_push_clients_inner(&state).await
+}
+
+/// User: list own push clients
+async fn user_list_push_clients(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let user_id: i64 = auth.claims.sub.parse()
+        .map_err(|_| AppError::BadRequest("invalid user id".into()))?;
+
+    let rows: Vec<(String, String, i64, Option<String>, String, String, Option<String>, Option<String>, Option<String>, i64, i64)> =
+        sqlx::query_as(
+            "SELECT id, uuid, user_id, name, os, arch, desktop, app_version, connection_mode, last_seen_at, registered_at \
+             FROM push_clients WHERE user_id = ? ORDER BY last_seen_at DESC"
+        )
+        .bind(user_id)
+        .fetch_all(&state.pool)
+        .await?;
+
+    Ok(Json(ApiResponse::ok(push_clients_to_json(rows))))
+}
+
+/// Admin: delete ANY push client by UUID (requires admin)
+async fn admin_delete_push_client(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(uuid): Path<String>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    require_admin(&auth)?;
+    delete_push_client_inner(&state, &uuid).await
+}
+
+/// User: delete own push client by UUID
+async fn user_delete_push_client(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(uuid): Path<String>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let user_id: i64 = auth.claims.sub.parse()
+        .map_err(|_| AppError::BadRequest("invalid user id".into()))?;
+
+    let result = sqlx::query("DELETE FROM push_clients WHERE uuid = ? AND user_id = ?")
+        .bind(&uuid)
+        .bind(user_id)
+        .execute(&state.pool)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound("push client not found".into()));
+    }
+
+    Ok(Json(ApiResponse::success()))
+}
+
+async fn list_push_clients_inner(state: &AppState) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let rows: Vec<(String, String, i64, Option<String>, String, String, Option<String>, Option<String>, Option<String>, i64, i64)> =
         sqlx::query_as(
             "SELECT id, uuid, user_id, name, os, arch, desktop, app_version, connection_mode, last_seen_at, registered_at \
@@ -680,6 +742,23 @@ async fn list_push_clients(
         .fetch_all(&state.pool)
         .await?;
 
+    Ok(Json(ApiResponse::ok(push_clients_to_json(rows))))
+}
+
+async fn delete_push_client_inner(state: &AppState, uuid: &str) -> Result<Json<ApiResponse<()>>, AppError> {
+    let result = sqlx::query("DELETE FROM push_clients WHERE uuid = ?")
+        .bind(uuid)
+        .execute(&state.pool)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound("push client not found".into()));
+    }
+
+    Ok(Json(ApiResponse::success()))
+}
+
+fn push_clients_to_json(rows: Vec<(String, String, i64, Option<String>, String, String, Option<String>, Option<String>, Option<String>, i64, i64)>) -> serde_json::Value {
     let clients: Vec<serde_json::Value> = rows.into_iter().map(|r| {
         serde_json::json!({
             "id": r.0,
@@ -695,25 +774,5 @@ async fn list_push_clients(
             "registeredAt": r.10,
         })
     }).collect();
-
-    Ok(Json(ApiResponse::ok(serde_json::json!(clients))))
-}
-
-// ── Admin: Delete a push client by UUID ──
-
-async fn delete_push_client(
-    State(state): State<AppState>,
-    _auth: AuthUser,
-    Path(uuid): Path<String>,
-) -> Result<Json<ApiResponse<()>>, AppError> {
-    let result = sqlx::query("DELETE FROM push_clients WHERE uuid = ?")
-        .bind(&uuid)
-        .execute(&state.pool)
-        .await?;
-
-    if result.rows_affected() == 0 {
-        return Err(AppError::NotFound("push client not found".into()));
-    }
-
-    Ok(Json(ApiResponse::success()))
+    serde_json::json!(clients)
 }

@@ -11,10 +11,11 @@ use crate::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/admin/stats/overview", get(stats_overview))
-        .route("/api/admin/stats/daily", get(stats_daily))
-        .route("/api/admin/stats/channels", get(stats_channels))
-        .route("/api/admin/stats/recent", get(stats_recent))
+        // User API (JWT, admin sees all, user sees own)
+        .route("/api/user/stats/overview", get(stats_overview))
+        .route("/api/user/stats/daily", get(stats_daily))
+        .route("/api/user/stats/channels", get(stats_channels))
+        .route("/api/user/stats/recent", get(stats_recent))
 }
 
 async fn stats_overview(

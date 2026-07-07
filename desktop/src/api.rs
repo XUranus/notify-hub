@@ -113,7 +113,7 @@ impl ApiClient {
         app_version: &str,
     ) -> Result<bool, String> {
         info!("[api] Register: uuid={}", uuid);
-        let url = format!("{}/api/v1/push/register", self.base_url);
+        let url = format!("{}/api/user/push/register", self.base_url);
         let body = serde_json::json!({
             "uuid": uuid,
             "name": name,
@@ -196,7 +196,7 @@ impl ApiClient {
 
     pub async fn update_client(&self, uuid: &str, name: &str) -> Result<bool, String> {
         info!("[api] Update client name: uuid={}", uuid);
-        let url = format!("{}/api/v1/push/client", self.base_url);
+        let url = format!("{}/api/user/push/client", self.base_url);
         let body = serde_json::json!({
             "uuid": uuid,
             "name": name,
@@ -290,7 +290,7 @@ impl ApiClient {
     /// If status_code is 401, the JWT has expired.
     pub async fn poll_with_status(&self, uuid: &str) -> Result<(u16, Vec<PushMessage>), String> {
         debug!("[api] Polling: uuid={}", uuid);
-        let url = format!("{}/api/v1/push/poll?uuid={}", self.base_url, uuid);
+        let url = format!("{}/api/user/push/poll?uuid={}", self.base_url, uuid);
 
         let resp = self
             .client
@@ -329,7 +329,7 @@ impl ApiClient {
     /// Acknowledge received push messages so they won't be re-delivered.
     pub async fn ack(&self, uuid: &str, message_ids: &[String]) -> Result<(), String> {
         debug!("[api] ACK: uuid={}, count={}", uuid, message_ids.len());
-        let url = format!("{}/api/v1/push/ack", self.base_url);
+        let url = format!("{}/api/user/push/ack", self.base_url);
         let body = serde_json::json!({
             "uuid": uuid,
             "messageIds": message_ids,

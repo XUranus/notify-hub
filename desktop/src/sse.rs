@@ -40,7 +40,7 @@ pub fn start_sse(
             }
 
             let url = format!(
-                "{}/api/v1/push/stream?uuid={}",
+                "{}/api/user/push/stream?uuid={}",
                 server_url.trim_end_matches('/'),
                 uuid
             );

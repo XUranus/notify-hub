@@ -11,11 +11,12 @@ use crate::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/admin/attachments", get(list_attachments))
-        .route("/api/admin/attachments/stats", get(attachment_stats))
-        .route("/api/admin/attachments/batch-delete", post(batch_delete))
-        .route("/api/admin/attachments/{id}", delete(delete_attachment))
-        .route("/api/admin/attachments/{id}/download", get(download_attachment))
+        // User API (JWT, admin sees all, user sees own)
+        .route("/api/user/attachments", get(list_attachments))
+        .route("/api/user/attachments/stats", get(attachment_stats))
+        .route("/api/user/attachments/batch-delete", post(batch_delete))
+        .route("/api/user/attachments/{id}", delete(delete_attachment))
+        .route("/api/user/attachments/{id}/download", get(download_attachment))
 }
 
 #[derive(Deserialize)]

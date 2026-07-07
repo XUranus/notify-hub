@@ -13,10 +13,11 @@ use crate::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/admin/tokens", get(list_tokens).post(create_token))
-        .route("/api/admin/tokens/generate-client-token", post(generate_client_token))
-        .route("/api/admin/tokens/{id}", get(get_token).put(update_token).delete(delete_token))
-        .route("/api/admin/tokens/{id}/rotate", post(rotate_token))
+        // User API (JWT, user manages own tokens)
+        .route("/api/user/tokens", get(list_tokens).post(create_token))
+        .route("/api/user/tokens/generate-client-token", post(generate_client_token))
+        .route("/api/user/tokens/{id}", get(get_token).put(update_token).delete(delete_token))
+        .route("/api/user/tokens/{id}/rotate", post(rotate_token))
 }
 
 async fn list_tokens(

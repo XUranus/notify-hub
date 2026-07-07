@@ -16,10 +16,13 @@ use crate::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        // Auth: admin login (web panel)
         .route("/api/admin/login", post(admin_login))
-        .route("/api/admin/register", post(register))
+        // Auth: user registration and login (clients)
+        .route("/api/auth/register", post(register))
         .route("/api/auth/login", post(client_login))
-        .route("/api/admin/change-password", post(change_password))
+        // Auth: password change (JWT required)
+        .route("/api/auth/change-password", post(change_password))
 }
 
 /// Admin login with email + password

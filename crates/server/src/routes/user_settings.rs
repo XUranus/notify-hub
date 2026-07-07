@@ -11,7 +11,8 @@ use crate::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/admin/settings", get(get_settings).put(update_settings))
+        // User API (JWT, current user's settings)
+        .route("/api/user/settings", get(get_settings).put(update_settings))
 }
 
 async fn get_settings(

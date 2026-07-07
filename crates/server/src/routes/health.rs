@@ -6,7 +6,6 @@ use crate::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/health", get(health))
-        .route("/health", get(health))
 }
 
 async fn health() -> axum::Json<ApiResponse<serde_json::Value>> {

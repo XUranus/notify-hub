@@ -42,7 +42,7 @@ pub fn start_ws(
             }
 
             let ws_url = format!(
-                "{}/api/v1/push/ws?uuid={}&token={}",
+                "{}/api/user/push/ws?uuid={}&token={}",
                 server_url.trim_end_matches('/').replace("http://", "ws://").replace("https://", "wss://"),
                 uuid,
                 current_jwt

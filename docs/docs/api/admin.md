@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem';
 
 # Admin API
 
-The Admin API provides full management capabilities for your NotifyHub instance -- authentication, channels, API tokens, templates, messages, statistics, and user management.
+The Admin API provides management capabilities for admin-exclusive operations: channels, templates, users, system settings, and logs. All admin endpoints require the `admin` role.
 
 ## Base URL
 
@@ -19,7 +19,7 @@ http://<your-host>:9527/api/admin
 
 ## Authentication
 
-All Admin API endpoints (except login and registration) require a **JWT** token in the `Authorization` header:
+All Admin API endpoints (except login) require a **JWT** token in the `Authorization` header:
 
 ```text
 Authorization: Bearer <jwt-token>
@@ -39,7 +39,7 @@ JWTs are obtained through the [Login](#login) endpoint and contain the following
 - **Roles:** `admin` (full access) or `user` (limited access)
 
 :::note
-User management endpoints (`/api/admin/users`) require the `admin` role. All other admin endpoints are accessible to any authenticated user.
+For user-specific operations (messages, tokens, stats, attachments, topics, push clients), use the [User API](./user) at `/api/user/`.
 :::
 
 ---
@@ -141,7 +141,7 @@ if result["success"]:
 
 ### Register
 
-<span className="method-badge method-post">POST</span> `/api/admin/register`
+<span className="method-badge method-post">POST</span> `/api/auth/register`
 
 Create a new user account. Newly registered users are assigned the `user` role by default.
 
@@ -180,7 +180,7 @@ Create a new user account. Newly registered users are assigned the `user` role b
 
 ### Change Password
 
-<span className="method-badge method-post">POST</span> `/api/admin/change-password`
+<span className="method-badge method-post">POST</span> `/api/auth/change-password`
 
 Change the password of the currently authenticated user. Requires JWT authentication.
 
@@ -503,9 +503,13 @@ Each channel type requires a specific `config` object shape:
 
 API tokens are used by applications to authenticate with the [Send API](./send) and [Messages API](./messages). Each token has scopes, rate limits, and optional IP whitelisting.
 
+:::note
+Token management endpoints have moved to the [User API](./user#token-management) at `/api/user/tokens`.
+:::
+
 ### List Tokens
 
-<span className="method-badge method-get">GET</span> `/api/admin/tokens`
+<span className="method-badge method-get">GET</span> `/api/user/tokens`
 
 Retrieve all API tokens. Admin users see all tokens; regular users see only their own. Token values are masked in the list view.
 
@@ -549,7 +553,7 @@ Retrieve a single token with its **full value**. Regular users can only view the
 
 ### Create Token
 
-<span className="method-badge method-post">POST</span> `/api/admin/tokens`
+<span className="method-badge method-post">POST</span> `/api/user/tokens`
 
 Create a new API token. The full token value is returned **only on creation** -- it cannot be retrieved later.
 
@@ -894,7 +898,7 @@ The admin message endpoints provide the same query capabilities as the [Messages
 
 ### List Messages (Admin)
 
-<span className="method-badge method-get">GET</span> `/api/admin/messages`
+<span className="method-badge method-get">GET</span> `/api/user/messages`
 
 Retrieve a paginated list of messages. Same parameters and response format as [List Messages](./messages#list-messages).
 
@@ -1014,7 +1018,7 @@ Permanently delete a message.
 
 ### Overview Statistics
 
-<span className="method-badge method-get">GET</span> `/api/admin/stats/overview`
+<span className="method-badge method-get">GET</span> `/api/user/stats/overview`
 
 Get aggregate message statistics for the entire instance.
 
@@ -1049,7 +1053,7 @@ Get aggregate message statistics for the entire instance.
 
 ### Daily Statistics
 
-<span className="method-badge method-get">GET</span> `/api/admin/stats/daily`
+<span className="method-badge method-get">GET</span> `/api/user/stats/daily`
 
 Get per-day message counts for the last 7 days.
 

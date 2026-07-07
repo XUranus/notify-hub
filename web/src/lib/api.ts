@@ -96,10 +96,10 @@ export const authApi = {
     ),
   register: (email: string, password: string) =>
     request<{ token: string; user: CurrentUser }>(
-      'POST', '/admin/register', { email, password }
+      'POST', '/auth/register', { email, password }
     ),
   changePassword: (currentPassword: string, newPassword: string) =>
-    request<void>('POST', '/admin/change-password', { currentPassword, newPassword }),
+    request<void>('POST', '/auth/change-password', { currentPassword, newPassword }),
   deleteAccount: (email: string, password: string) =>
     request<{ deleted: boolean }>('DELETE', '/admin/account', { email, password }),
 }
@@ -107,17 +107,17 @@ export const authApi = {
 // ── Stats ──
 
 export const statsApi = {
-  overview: () => request<any>('GET', '/admin/stats/overview'),
-  daily: () => request<any[]>('GET', '/admin/stats/daily'),
-  channels: () => request<any[]>('GET', '/admin/stats/channels'),
-  recent: () => request<any[]>('GET', '/admin/stats/recent'),
+  overview: () => request<any>('GET', '/user/stats/overview'),
+  daily: () => request<any[]>('GET', '/user/stats/daily'),
+  channels: () => request<any[]>('GET', '/user/stats/channels'),
+  recent: () => request<any[]>('GET', '/user/stats/recent'),
 }
 
 // ── Push Clients ──
 
 export const pushApi = {
-  listClients: () => request<any[]>('GET', '/admin/push/clients'),
-  deleteClient: (uuid: string) => request<any>('DELETE', `/admin/push/clients/${uuid}`),
+  listClients: () => request<any[]>('GET', '/user/push/clients'),
+  deleteClient: (uuid: string) => request<any>('DELETE', `/user/push/clients/${uuid}`),
 }
 
 // ── Channels ──
@@ -137,13 +137,13 @@ export const channelsApi = {
 // ── Tokens ──
 
 export const tokensApi = {
-  list: () => request<any[]>('GET', '/admin/tokens'),
-  get: (id: number) => request<any>('GET', `/admin/tokens/${id}`),
-  create: (data: any) => request<any>('POST', '/admin/tokens', data),
-  update: (id: number, data: any) => request<any>('PUT', `/admin/tokens/${id}`, data),
-  delete: (id: number) => request<any>('DELETE', `/admin/tokens/${id}`),
-  rotate: (id: number) => request<{ token: string }>('POST', `/admin/tokens/${id}/rotate`),
-  generateClientToken: () => request<{ token: string }>('POST', '/admin/tokens/generate-client-token', {}),
+  list: () => request<any[]>('GET', '/user/tokens'),
+  get: (id: number) => request<any>('GET', `/user/tokens/${id}`),
+  create: (data: any) => request<any>('POST', '/user/tokens', data),
+  update: (id: number, data: any) => request<any>('PUT', `/user/tokens/${id}`, data),
+  delete: (id: number) => request<any>('DELETE', `/user/tokens/${id}`),
+  rotate: (id: number) => request<{ token: string }>('POST', `/user/tokens/${id}/rotate`),
+  generateClientToken: () => request<{ token: string }>('POST', '/user/tokens/generate-client-token', {}),
 }
 
 // ── Templates ──
@@ -160,11 +160,11 @@ export const templatesApi = {
 // ── Messages ──
 
 export const topicsApi = {
-  list: () => request<any[]>('GET', '/v1/topics'),
-  get: (id: string) => request<any>('GET', `/v1/topics/${id}`),
-  create: (data: any) => request<any>('POST', '/v1/topics', data),
-  update: (id: string, data: any) => request<any>('PUT', `/v1/topics/${id}`, data),
-  delete: (id: string) => request<any>('DELETE', `/v1/topics/${id}`),
+  list: () => request<any[]>('GET', '/user/topics'),
+  get: (id: string) => request<any>('GET', `/user/topics/${id}`),
+  create: (data: any) => request<any>('POST', '/user/topics', data),
+  update: (id: string, data: any) => request<any>('PUT', `/user/topics/${id}`, data),
+  delete: (id: string) => request<any>('DELETE', `/user/topics/${id}`),
 }
 
 export const messagesApi = {
@@ -175,7 +175,7 @@ export const messagesApi = {
     if (params?.status) query.set('status', params.status)
     if (params?.channel) query.set('channel', params.channel)
     const qs = query.toString()
-    return request<any>('GET', `/admin/messages${qs ? `?${qs}` : ''}`)
+    return request<any>('GET', `/user/messages${qs ? `?${qs}` : ''}`)
   },
   export: (params?: { status?: string; channel?: string }) => {
     const query = new URLSearchParams()
@@ -184,10 +184,10 @@ export const messagesApi = {
     const qs = query.toString()
     return request<any>('GET', `/admin/messages/export${qs ? `?${qs}` : ''}`)
   },
-  get: (id: string) => request<any>('GET', `/admin/messages/${id}`),
+  get: (id: string) => request<any>('GET', `/user/messages/${id}`),
   retry: (id: string) => request<any>('POST', `/admin/messages/${id}/retry`),
   delete: (id: string) => request<any>('DELETE', `/admin/messages/${id}`),
-  deleteAll: () => request<{ deleted_messages: number; deleted_push_messages: number }>('DELETE', '/admin/messages'),
+  deleteAll: () => request<{ deleted_messages: number; deleted_push_messages: number }>('DELETE', '/admin/messages/all'),
 }
 
 // ── Users (admin only) ──
@@ -207,20 +207,20 @@ export const usersApi = {
 export const attachmentsApi = {
   list: (page = 1, pageSize = 20) =>
     request<{ items: any[]; total: number; page: number; pageSize: number }>(
-      'GET', `/admin/attachments?page=${page}&pageSize=${pageSize}`
+      'GET', `/user/attachments?page=${page}&pageSize=${pageSize}`
     ),
-  delete: (id: string) => request<void>('DELETE', `/admin/attachments/${id}`),
-  batchDelete: (ids: string[]) => request<{ deleted: number }>('POST', '/admin/attachments/batch-delete', { ids }),
-  clearAll: () => request<{ deleted: number }>('POST', '/admin/attachments/batch-delete', { all: true }),
+  delete: (id: string) => request<void>('DELETE', `/user/attachments/${id}`),
+  batchDelete: (ids: string[]) => request<{ deleted: number }>('POST', '/user/attachments/batch-delete', { ids }),
+  clearAll: () => request<{ deleted: number }>('POST', '/user/attachments/batch-delete', { all: true }),
   stats: () => request<{ usedBytes: number; maxBytes: number | null; fileCount: number; isAdmin: boolean }>(
-    'GET', '/admin/attachments/stats'
+    'GET', '/user/attachments/stats'
   ),
   upload: async (file: File) => {
     const token = getToken()
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await fetch(`${BASE_URL}/admin/attachments/upload`, {
+    const response = await fetch(`${BASE_URL}/v1/upload`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
@@ -240,13 +240,13 @@ export const attachmentsApi = {
 
 export const userSettingsApi = {
   get: () =>
-    request<{ attachmentExpiryDays: number; messageExpiryDays: number }>('GET', '/admin/settings'),
+    request<{ attachmentExpiryDays: number; messageExpiryDays: number }>('GET', '/user/settings'),
   update: (data: { attachmentExpiryDays?: number; messageExpiryDays?: number }) =>
-    request<void>('PUT', '/admin/settings', data),
+    request<void>('PUT', '/user/settings', data),
   getAttachment: () =>
-    request<{ attachmentExpiration: number }>('GET', '/admin/settings/attachment'),
+    request<{ attachmentExpiration: number }>('GET', '/user/settings/attachment'),
   updateAttachment: (attachmentExpiration: number) =>
-    request<void>('PUT', '/admin/settings/attachment', { attachmentExpiration }),
+    request<void>('PUT', '/user/settings/attachment', { attachmentExpiration }),
 }
 
 // ── System Settings (admin only) ──
