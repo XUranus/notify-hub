@@ -113,7 +113,7 @@
     #viewConnect.active { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 36px); }
     #viewConnect .header { width: 100%; max-width: 420px; }
     #viewConnect .card { width: 100%; max-width: 420px; }
-    #viewDashboard.active { display: flex; flex-direction: column; height: calc(100vh - 36px); padding: 16px 20px; overflow: hidden; }
+    #viewDashboard.active { display: flex; flex-direction: column; height: calc(100vh - 36px); padding: 10px 12px; overflow: hidden; }
     #viewDashboard .card { flex: 1; display: flex; flex-direction: column; min-height: 0; margin-bottom: 0; }
     #viewDashboard .card-body-scroll { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
     .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-shrink: 0; }
@@ -279,12 +279,12 @@
     .msg-del-btn:active { transform: scale(0.85); }
 
     /* ── Cards View ── */
-    .cards-container { display: flex; flex-direction: column; gap: 10px; padding: 10px 14px; }
-    .msg-full-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; transition: all 0.15s; cursor: pointer; }
-    .msg-full-card:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .cards-container { display: flex; flex-direction: column; padding: 0; }
+    .msg-full-card { padding: 12px 14px; transition: all 0.15s; cursor: pointer; border-bottom: 1px solid var(--border); }
+    .msg-full-card:hover { background: var(--hover); }
     .msg-full-card:hover .msg-del-btn { opacity: 1; }
     .msg-full-card.unread { border-left: 3px solid var(--accent); background: var(--accent-soft); }
-    .msg-full-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+    .msg-full-card.selected { background: var(--accent-soft); }
     .msg-full-card.msg-new { animation: msgFadeIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards; }
     .msg-full-card-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
     .msg-full-card-title-area { flex: 1; min-width: 0; }

@@ -790,12 +790,11 @@ fn dock_window_to_right(win: &tauri::WebviewWindow, animate: bool) {
         return;
     };
 
-    let monitor_position = monitor.position();
-    let monitor_size = monitor.size();
+    let work_area = monitor.work_area();
     let width = SIDEBAR_WIDTH;
-    let height = monitor_size.height;
-    let pos_y = monitor_position.y;
-    let target_x = monitor_position.x + monitor_size.width as i32 - width as i32;
+    let height = work_area.size.height;
+    let pos_y = work_area.position.y;
+    let target_x = work_area.position.x + work_area.size.width as i32 - width as i32;
 
     if let Err(e) = win.set_size(tauri::PhysicalSize::new(width, height)) {
         log::warn!("[window] Failed to set sidebar size: {}", e);
@@ -816,7 +815,7 @@ fn dock_window_to_right(win: &tauri::WebviewWindow, animate: bool) {
         return;
     }
 
-    let start_x = monitor_position.x + monitor_size.width as i32;
+    let start_x = work_area.position.x + work_area.size.width as i32;
     if let Err(e) = win.set_position(tauri::PhysicalPosition::new(start_x, pos_y)) {
         log::warn!("[window] Failed to set sidebar start position: {}", e);
     }
