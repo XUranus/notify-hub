@@ -31,8 +31,8 @@ async fn list_attachments(
     auth: AuthUser,
     Query(params): Query<ListParams>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
-    let is_admin = auth.claims.role == "admin";
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let is_admin = auth.is_admin();
+    let user_id = auth.user_id()?;
 
     let page = params.page.unwrap_or(1).max(1);
     let page_size = params.page_size.unwrap_or(50).min(500);
@@ -78,8 +78,8 @@ async fn attachment_stats(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let is_admin = auth.claims.role == "admin";
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let is_admin = auth.is_admin();
+    let user_id = auth.user_id()?;
 
     let (file_count, used_bytes) = if is_admin {
         let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM attachments")
@@ -123,44 +123,77 @@ async fn batch_delete(
     auth: AuthUser,
     Json(req): Json<BatchDeleteRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let is_admin = auth.claims.role == "admin";
-    let auth_user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let is_admin = auth.is_admin();
+    let auth_user_id = auth.user_id()?;
 
-    // If all=true, get all IDs for this user first
-    let ids = if req.all.unwrap_or(false) {
-        let rows: Vec<(String,)> = if is_admin {
-            sqlx::query_as("SELECT id FROM attachments")
+    if req.all.unwrap_or(false) {
+        // all=true: single DELETE query with ownership filter, then remove files
+        let files: Vec<(String, String)> = if is_admin {
+            sqlx::query_as("SELECT id, filename FROM attachments")
                 .fetch_all(&state.pool).await?
         } else {
-            sqlx::query_as("SELECT id FROM attachments WHERE user_id = ?")
+            sqlx::query_as("SELECT id, filename FROM attachments WHERE user_id = ?")
                 .bind(auth_user_id)
                 .fetch_all(&state.pool).await?
         };
-        rows.into_iter().map(|(id,)| id).collect()
-    } else {
-        req.ids.unwrap_or_default()
-    };
 
-    let mut deleted = 0i64;
-    for id in &ids {
-        let row: Option<(String, Option<i64>)> = sqlx::query_as("SELECT filename, user_id FROM attachments WHERE id = ?")
-            .bind(id).fetch_optional(&state.pool).await?;
-
-        if let Some((filename, owner_id)) = row {
-            if !is_admin && owner_id != Some(auth_user_id) {
-                continue;
+        // Remove files from disk (ignore missing files)
+        for (_id, filename) in &files {
+            let file_path = state.config.upload_dir.join(auth_user_id.to_string()).join(filename);
+            if let Err(e) = tokio::fs::remove_file(&file_path).await {
+                tracing::warn!("failed to remove file {}: {e}", file_path.display());
             }
-
-            let file_path = state.config.upload_dir.join(owner_id.unwrap_or(0).to_string()).join(&filename);
-            let _ = std::fs::remove_file(file_path);
-
-            let result = sqlx::query("DELETE FROM attachments WHERE id = ?")
-                .bind(id).execute(&state.pool).await?;
-            deleted += result.rows_affected() as i64;
         }
-    }
 
-    Ok(Json(ApiResponse::ok(serde_json::json!({ "deleted": deleted }))))
+        // Single DELETE query
+        let result = if is_admin {
+            sqlx::query("DELETE FROM attachments")
+                .execute(&state.pool).await?
+        } else {
+            sqlx::query("DELETE FROM attachments WHERE user_id = ?")
+                .bind(auth_user_id)
+                .execute(&state.pool).await?
+        };
+
+        let deleted = result.rows_affected() as i64;
+        Ok(Json(ApiResponse::ok(serde_json::json!({ "deleted": deleted, "skipped": 0 }))))
+    } else {
+        let ids = req.ids.unwrap_or_default();
+
+        // Batch SELECT: fetch all matching attachments in one query
+        let placeholders: String = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "SELECT id, filename, user_id FROM attachments WHERE id IN ({placeholders})"
+        );
+        let mut query = sqlx::query_as::<_, (String, String, Option<i64>)>(&sql);
+        for id in &ids {
+            query = query.bind(id);
+        }
+        let rows: Vec<(String, String, Option<i64>)> = query.fetch_all(&state.pool).await?;
+
+        let matched_ids: Vec<String> = rows.iter().map(|(id, _, _)| id.clone()).collect();
+        let skipped = ids.len() - matched_ids.len();
+
+        // Remove files from disk (ignore missing files)
+        for (_id, filename, owner_id) in &rows {
+            let file_path = state.config.upload_dir.join(owner_id.unwrap_or(0).to_string()).join(filename);
+            if let Err(e) = tokio::fs::remove_file(&file_path).await {
+                tracing::warn!("failed to remove file {}: {e}", file_path.display());
+            }
+        }
+
+        // Batch DELETE
+        let del_placeholders: String = matched_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let del_sql = format!("DELETE FROM attachments WHERE id IN ({del_placeholders})");
+        let mut del_query = sqlx::query(&del_sql);
+        for id in &matched_ids {
+            del_query = del_query.bind(id);
+        }
+        let result = del_query.execute(&state.pool).await?;
+        let deleted = result.rows_affected() as i64;
+
+        Ok(Json(ApiResponse::ok(serde_json::json!({ "deleted": deleted, "skipped": skipped }))))
+    }
 }
 
 async fn delete_attachment(
@@ -168,8 +201,8 @@ async fn delete_attachment(
     auth: AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let is_admin = auth.claims.role == "admin";
-    let auth_user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let is_admin = auth.is_admin();
+    let auth_user_id = auth.user_id()?;
 
     let row: Option<(String, Option<i64>)> = sqlx::query_as("SELECT filename, user_id FROM attachments WHERE id = ?")
         .bind(&id).fetch_optional(&state.pool).await?;
@@ -182,7 +215,15 @@ async fn delete_attachment(
     }
 
     let file_path = state.config.upload_dir.join(owner_id.unwrap_or(0).to_string()).join(&filename);
-    let _ = std::fs::remove_file(file_path);
+
+    // Defense-in-depth path traversal check
+    if !file_path.starts_with(&state.config.upload_dir) {
+        return Err(AppError::BadRequest("invalid file path".into()));
+    }
+
+    if let Err(e) = tokio::fs::remove_file(&file_path).await {
+        tracing::warn!("failed to remove file {}: {e}", file_path.display());
+    }
 
     sqlx::query("DELETE FROM attachments WHERE id = ?")
         .bind(&id).execute(&state.pool).await?;
@@ -192,35 +233,56 @@ async fn delete_attachment(
 
 async fn download_attachment(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<String>,
 ) -> Result<impl axum::response::IntoResponse, AppError> {
-    let row: Option<(String, String, Option<i64>, i64)> = sqlx::query_as(
-        "SELECT filename, mime_type, user_id, size FROM attachments WHERE id = ?"
+    let is_admin = auth.is_admin();
+    let auth_user_id = auth.user_id()?;
+
+    let row: Option<(String, String, String, Option<i64>, i64)> = sqlx::query_as(
+        "SELECT filename, original_name, mime_type, user_id, size FROM attachments WHERE id = ?"
     )
     .bind(&id)
     .fetch_optional(&state.pool)
     .await?;
 
-    let (filename, mime_type, user_id, _size) = row.ok_or_else(|| AppError::NotFound("attachment not found".into()))?;
+    let (filename, original_name, mime_type, owner_id, _size) =
+        row.ok_or_else(|| AppError::NotFound("attachment not found".into()))?;
 
-    let file_path = state.config.upload_dir.join(user_id.unwrap_or(0).to_string()).join(&filename);
+    // Ownership check (Fix #2)
+    if !is_admin && owner_id != Some(auth_user_id) {
+        return Err(AppError::Forbidden("not your attachment".into()));
+    }
+
+    let file_path = state.config.upload_dir.join(owner_id.unwrap_or(0).to_string()).join(&filename);
+
+    // Defense-in-depth path traversal check (Fix #4)
+    if !file_path.starts_with(&state.config.upload_dir) {
+        return Err(AppError::BadRequest("invalid file path".into()));
+    }
 
     if !file_path.exists() {
         return Err(AppError::NotFound("file not found on disk".into()));
     }
 
-    // Increment download count
-    sqlx::query("UPDATE attachments SET download_count = download_count + 1 WHERE id = ?")
-        .bind(&id).execute(&state.pool).await.ok();
+    // Increment download count — log warning on error instead of silently ignoring (Fix #11)
+    if let Err(e) = sqlx::query("UPDATE attachments SET download_count = download_count + 1 WHERE id = ?")
+        .bind(&id).execute(&state.pool).await
+    {
+        tracing::warn!("failed to increment download count for attachment {id}: {e}");
+    }
 
-    let data = std::fs::read(file_path)?;
+    let data = tokio::fs::read(file_path).await?; // Fix #7: async I/O
+
+    // Use original filename in Content-Disposition, sanitized (Fix #9)
+    let safe_name = original_name
+        .replace(['/', '\\', '\0'], "_");
 
     Ok((
         axum::http::StatusCode::OK,
         [
             (axum::http::header::CONTENT_TYPE, mime_type),
-            (axum::http::header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", id)),
+            (axum::http::header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", safe_name)),
         ],
         data,
     ))

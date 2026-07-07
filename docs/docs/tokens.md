@@ -1,14 +1,14 @@
 ---
 sidebar_position: 6
-title: API Tokens
-description: Manage API tokens for authenticating with the NotifyHub API.
+title: API Keys
+description: Manage API keys for authenticating with the NotifyHub API.
 ---
 
-# API Tokens
+# API Keys
 
-Every request to the NotifyHub public API requires a bearer token. Tokens control who can send notifications, which channels they can use, and how fast they can send.
+Every request to the NotifyHub public API requires a bearer token. Keys control who can send notifications, which channels they can use, and how fast they can send.
 
-## Token Structure
+## Key Structure
 
 ```text
 nh_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
@@ -16,32 +16,32 @@ nh_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
 
 | Part | Description |
 |---|---|
-| `nh_` | Fixed prefix identifying it as a NotifyHub token |
+| `nh_` | Fixed prefix identifying it as a NotifyHub key |
 | `a1b2c3...o5p6` | 32-character nanoid string (URL-safe, cryptographically random) |
 
-Each token carries the following metadata:
+Each key carries the following metadata:
 
 | Field | Type | Description |
 |---|---|---|
 | `id` | number | Internal token ID |
 | `name` | string | Human-readable label |
-| `token` | string | The full bearer token (shown only once at creation) |
-| `scopes` | string[] | Channel types this token may use: `email`, `sms`, `push` |
+| `token` | string | The full bearer key (shown only once at creation) |
+| `scopes` | string[] | Channel types this key may use: `email`, `sms`, `push` |
 | `rateLimit` | number | Max requests per minute (sliding window) |
 | `ipWhitelist` | string[] | Allowed source IPs; empty means no restriction |
-| `enabled` | boolean | Whether the token is active |
-| `userId` | number | Owner of this token |
+| `enabled` | boolean | Whether the key is active |
+| `userId` | number | Owner of this key |
 | `lastUsedAt` | string \| null | ISO timestamp of last API call |
 
-## Creating Tokens
+## Creating Keys
 
 ### Via Admin UI
 
 1. Log in to the NotifyHub dashboard.
-2. Go to **API Tokens** in the sidebar.
-3. Click **Create Token**.
+2. Go to **API Keys** in the sidebar.
+3. Click **Create Key**.
 4. Configure name, scopes, and rate limit.
-5. **Copy the token immediately** — it is shown only once.
+5. **Copy the key immediately** — it is shown only once.
 
 ### Via API
 
@@ -72,12 +72,12 @@ Response:
 ```
 
 :::warning
-The `token` field is returned only once, at creation time. Store it securely. If lost, create a new token and revoke the old one.
+The `token` field is returned only once, at creation time. Store it securely. If lost, create a new key and revoke the old one.
 :::
 
-## Token Scopes
+## Key Scopes
 
-Scopes control which channel types a token can send through.
+Scopes control which channel types a key can send through.
 
 | Scope | Allowed channels |
 |---|---|
@@ -91,11 +91,11 @@ Combine scopes as needed:
 { "scopes": ["email", "push"] }
 ```
 
-If a request tries to send through a channel not in the token's scopes, the API returns `403 Forbidden`.
+If a request tries to send through a channel not in the key's scopes, the API returns `403 Forbidden`.
 
 ## Rate Limiting
 
-Each token has a per-minute rate limit enforced with a sliding window algorithm. When exceeded, the API returns `429 Too Many Requests` with a `Retry-After` header.
+Each key has a per-minute rate limit enforced with a sliding window algorithm. When exceeded, the API returns `429 Too Many Requests` with a `Retry-After` header.
 
 ```text
 Rate Limit: 60 requests/minute
@@ -130,19 +130,19 @@ An empty array means no IP restriction.
 Use IP whitelisting for production backend services with static IPs. For development, leave it empty.
 :::
 
-## Per-User Token Isolation
+## Per-User Key Isolation
 
-Tokens are scoped to the user who created them:
+Keys are scoped to the user who created them:
 
-- **Regular users** see and manage only their own tokens.
-- **Admin users** see all tokens across all users.
+- **Regular users** see and manage only their own keys.
+- **Admin users** see all keys across all users.
 
 ```mermaid
 graph LR
     subgraph Admin View
-        A[Admin] --> T1[Token: Web App]
-        A --> T2[Token: Mobile Backend]
-        A --> T3[Token: CI Pipeline]
+        A[Admin] --> T1[Key: Web App]
+        A --> T2[Key: Mobile Backend]
+        A --> T3[Key: CI Pipeline]
     end
     subgraph User View
         U1[User: web-team] --> T1
@@ -152,15 +152,15 @@ graph LR
 
 ## Security Best Practices
 
-1. **Never expose tokens in client-side code.** Keep them on your backend.
-2. **Use environment variables** to store tokens.
-3. **Create one token per service** for easy revocation.
+1. **Never expose keys in client-side code.** Keep them on your backend.
+2. **Use environment variables** to store keys.
+3. **Create one key per service** for easy revocation.
 4. **Set tight rate limits** — start low, increase as needed.
-5. **Enable IP whitelisting** for production tokens.
-6. **Rotate tokens periodically.**
+5. **Enable IP whitelisting** for production keys.
+6. **Rotate keys periodically.**
 7. **Monitor `lastUsedAt`** for unexpected activity.
 
-## Using Tokens in API Requests
+## Using Keys in API Requests
 
 ### curl
 
@@ -219,13 +219,13 @@ def send_notification(to: str, subject: str, body: str) -> dict:
     return resp.json()
 ```
 
-## Managing Tokens
+## Managing Keys
 
 | Action | Method | Endpoint | Auth |
 |---|---|---|---|
-| List tokens | GET | `/api/admin/tokens` | JWT (admin sees all, user sees own) |
-| Create token | POST | `/api/admin/tokens` | JWT |
-| Update token | PUT | `/api/admin/tokens/:id` | JWT (owner or admin) |
-| Delete token | DELETE | `/api/admin/tokens/:id` | JWT (owner or admin) |
+| List keys | GET | `/api/user/tokens` | JWT (admin sees all, user sees own) |
+| Create key | POST | `/api/user/tokens` | JWT |
+| Update key | PUT | `/api/user/tokens/:id` | JWT (owner or admin) |
+| Delete key | DELETE | `/api/user/tokens/:id` | JWT (owner or admin) |
 
-A disabled token (`enabled: false`) rejects all requests with `401 Unauthorized`. Re-enable by setting `enabled` back to `true`.
+A disabled key (`enabled: false`) rejects all requests with `401 Unauthorized`. Re-enable by setting `enabled` back to `true`.

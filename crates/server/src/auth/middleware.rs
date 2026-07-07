@@ -16,6 +16,20 @@ pub struct AuthUser {
     pub claims: Claims,
 }
 
+impl AuthUser {
+    /// Parse the user ID from JWT claims, returning Unauthorized on failure.
+    pub fn user_id(&self) -> Result<i64, AppError> {
+        self.claims.sub.parse::<i64>().map_err(|_| {
+            AppError::Unauthorized("invalid user id in token".into())
+        })
+    }
+
+    /// Check if the authenticated user has the admin role.
+    pub fn is_admin(&self) -> bool {
+        self.claims.role == "admin"
+    }
+}
+
 impl<S: Send + Sync> FromRequestParts<S> for AuthUser {
     type Rejection = AppError;
 

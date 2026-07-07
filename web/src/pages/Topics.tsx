@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { topicsApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { Plus, Trash2, Pencil, Tags, Upload, X } from 'lucide-react'
@@ -26,6 +27,7 @@ interface Topic {
 
 export default function Topics() {
   const { t } = useTranslation()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [topics, setTopics] = useState<Topic[]>([])
   const [showDialog, setShowDialog] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -34,12 +36,17 @@ export default function Topics() {
   const [iconPreview, setIconPreview] = useState<string | null>(null)
   const [iconBase64, setIconBase64] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = () => {
     setLoading(true)
+    setLoadError('')
     topicsApi.list().then((res) => {
       if (res.success) setTopics(res.data || [])
+      else setLoadError(res.error || 'Failed to load topics')
+    }).catch((err) => {
+      setLoadError(err.message || 'Network error')
     }).finally(() => setLoading(false))
   }
 
@@ -127,7 +134,7 @@ export default function Topics() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t('topics.deleteConfirm'))) return
+    if (!await confirm({ description: t('topics.deleteConfirm'), variant: 'destructive', confirmLabel: t('topics.delete') })) return
     const result = await topicsApi.delete(id)
     if (result.success) load()
   }
@@ -136,7 +143,7 @@ export default function Topics() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t('topics.title')}</h1>
+          <h2 className="text-3xl font-bold tracking-tight">{t('topics.title')}</h2>
           <p className="text-sm text-muted-foreground mt-1">
             {t('topics.subtitle')}
           </p>
@@ -146,6 +153,13 @@ export default function Topics() {
           {t('topics.new')}
         </Button>
       </div>
+
+      {/* Error banner */}
+      {loadError && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      )}
 
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -211,6 +225,7 @@ export default function Topics() {
                     size="icon"
                     className="h-8 w-8 rounded-full"
                     onClick={() => openEdit(topic)}
+                    aria-label="Edit"
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -219,6 +234,7 @@ export default function Topics() {
                     size="icon"
                     className="h-8 w-8 rounded-full text-destructive"
                     onClick={() => handleDelete(topic.id)}
+                    aria-label="Delete"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -333,6 +349,8 @@ export default function Topics() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {ConfirmDialog}
     </div>
   )
 }

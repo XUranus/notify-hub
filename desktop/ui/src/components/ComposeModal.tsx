@@ -103,7 +103,7 @@ export function ComposeModal({ app }: Props) {
         const apiKey = cfg.server.jwt
 
         // Check quota
-        const quotaResp = await fetch(serverUrl + '/api/v1/upload/quota', {
+        const quotaResp = await fetch(serverUrl + '/api/user/upload/quota', {
           headers: { 'Authorization': 'Bearer ' + apiKey }
         })
         const quotaData = await quotaResp.json()
@@ -120,7 +120,7 @@ export function ComposeModal({ app }: Props) {
         const formData = new FormData()
         formData.append('file', file)
 
-        const resp = await fetch(serverUrl + '/api/v1/upload', {
+        const resp = await fetch(serverUrl + '/api/user/upload', {
           method: 'POST',
           headers: { 'Authorization': 'Bearer ' + apiKey },
           body: formData

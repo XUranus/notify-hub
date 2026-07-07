@@ -13,9 +13,9 @@ sidebar_position: 1
 - **File attachments** -- Upload files via the API, attach them to messages. Clients can preview and download images, PDFs, and other files.
 - **Template engine** -- Define message templates with `{{variable}}` syntax and default values. Reuse templates across channels.
 - **Reliable queue** -- SQLite-backed message queue with atomic claiming, exponential backoff retry (1s, 5s, 30s, 5min, 30min), and dead letter support.
-- **Secure by default** -- AES-256-GCM encryption for channel credentials, argon2/bcrypt password hashing, JWT authentication, and per-token rate limiting.
+- **Secure by default** -- AES-256-GCM encryption for channel credentials, argon2/bcrypt password hashing, JWT authentication, and per-key rate limiting.
 - **Multi-user** -- Role-based access control with admin and user roles. Email-based login with JWT sessions.
-- **API token management** -- Create scoped tokens with configurable rate limits and IP whitelists for the public API.
+- **API key management** -- Create scoped keys with configurable rate limits and IP whitelists for the public API.
 - **Self-hosted** -- SQLite database with WAL mode. No external dependencies beyond your chosen channel providers.
 - **Modern web UI** -- React-based admin dashboard with dark mode, built on Tailwind CSS and shadcn/ui.
 

@@ -19,7 +19,7 @@ async fn get_settings(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<ApiResponse<UserSettings>>, AppError> {
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let user_id = auth.user_id()?;
 
     let row: Option<(i64, i64, i64)> = sqlx::query_as(
         "SELECT attachment_expiration, message_expiration, 0 FROM user_settings WHERE user_id = ?",
@@ -54,7 +54,7 @@ async fn update_settings(
     auth: AuthUser,
     Json(req): Json<UpdateUserSettingsRequest>,
 ) -> Result<Json<ApiResponse<UserSettings>>, AppError> {
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let user_id = auth.user_id()?;
     let now = chrono::Utc::now().timestamp();
 
     // Upsert

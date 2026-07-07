@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { templatesApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { Plus, Trash2, FileText, Pencil } from 'lucide-react'
@@ -26,6 +27,7 @@ interface Template {
 
 export default function Templates() {
   const { t } = useTranslation()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [templates, setTemplates] = useState<Template[]>([])
   const [showDialog, setShowDialog] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -86,7 +88,7 @@ export default function Templates() {
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm(t('templates.deleteConfirm'))) {
+    if (await confirm({ description: t('templates.deleteConfirm'), variant: 'destructive', confirmLabel: t('templates.delete') })) {
       await templatesApi.delete(id)
       load()
     }
@@ -199,6 +201,8 @@ export default function Templates() {
           </Card>
         )}
       </div>
+
+      {ConfirmDialog}
     </div>
   )
 }

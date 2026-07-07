@@ -32,9 +32,9 @@ async fn get_topic(
     auth: AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<Topic>>, AppError> {
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let user_id = auth.user_id()?;
 
-    let row: Option<TopicRow> = if auth.claims.role == "admin" {
+    let row: Option<TopicRow> = if auth.is_admin() {
         sqlx::query_as("SELECT * FROM topics WHERE id = ?")
             .bind(&id)
             .fetch_optional(&state.pool)
@@ -58,7 +58,7 @@ async fn create_topic(
     auth: AuthUser,
     Json(req): Json<CreateTopicRequest>,
 ) -> Result<Json<ApiResponse<Topic>>, AppError> {
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let user_id = auth.user_id()?;
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
 
@@ -97,7 +97,7 @@ async fn update_topic(
     Path(id): Path<String>,
     Json(req): Json<UpdateTopicRequest>,
 ) -> Result<Json<ApiResponse<Topic>>, AppError> {
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let user_id = auth.user_id()?;
     let now = chrono::Utc::now().timestamp();
 
     // Check existence (admin can update any, user can only update own)
@@ -146,9 +146,9 @@ async fn delete_topic(
     auth: AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let user_id = auth.user_id()?;
 
-    let result = if auth.claims.role == "admin" {
+    let result = if auth.is_admin() {
         sqlx::query("DELETE FROM topics WHERE id = ?")
             .bind(&id)
             .execute(&state.pool)
@@ -179,12 +179,11 @@ async fn list_topics_v2(
     auth: AuthUser,
     Query(params): Query<TopicQueryParams>,
 ) -> Result<Json<ApiResponse<Vec<Topic>>>, AppError> {
-    let user_id: i64 = auth.claims.sub.parse()
-        .map_err(|_| AppError::BadRequest("invalid user id".into()))?;
+    let user_id = auth.user_id()?;
     let limit = params.limit.unwrap_or(50).min(200);
     let offset = params.offset.unwrap_or(0);
 
-    let rows: Vec<TopicRow> = if auth.claims.role == "admin" {
+    let rows: Vec<TopicRow> = if auth.is_admin() {
         if let Some(ref search) = params.search {
             let pattern = format!("%{search}%");
             sqlx::query_as("SELECT * FROM topics WHERE (name LIKE ? OR display_name LIKE ?) ORDER BY created_at DESC LIMIT ? OFFSET ?")

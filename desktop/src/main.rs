@@ -222,6 +222,44 @@ fn read_image_data_url(path: String) -> Result<String, String> {
     Ok(format!("data:{};base64,{}", mime, b64))
 }
 
+/// Fetch an image from a URL and return it as a data URL (base64-encoded).
+/// Used for inline image preview in the message detail view.
+#[tauri::command]
+async fn fetch_image_data_url(url: String) -> Result<String, String> {
+    use base64::Engine;
+    const MAX_SIZE: u64 = 10 * 1024 * 1024; // 10MB
+
+    let resp = reqwest::get(&url).await.map_err(|e| format!("Fetch failed: {}", e))?;
+    if let Some(content_length) = resp.content_length() {
+        if content_length > MAX_SIZE {
+            return Err(format!("Image too large ({:.1} MB, max 10 MB)", content_length as f64 / 1024.0 / 1024.0));
+        }
+    }
+    let bytes = resp.bytes().await.map_err(|e| format!("Read failed: {}", e))?;
+    if bytes.len() as u64 > MAX_SIZE {
+        return Err(format!("Image too large ({:.1} MB, max 10 MB)", bytes.len() as f64 / 1024.0 / 1024.0));
+    }
+
+    // Detect MIME from URL extension
+    let url_path = url.split('?').next().unwrap_or("");
+    let ext = std::path::Path::new(url_path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    let mime = match ext.to_lowercase().as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
+        _ => "image/png",
+    };
+
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{};base64,{}", mime, b64))
+}
+
 // ── Tray menu item handles for dynamic updates ──
 
 struct TrayMenuItems {
@@ -952,6 +990,7 @@ fn main() {
             open_url,
             download_file,
             read_image_data_url,
+            fetch_image_data_url,
             reconnect,
             send_message,
             get_clients,

@@ -24,9 +24,9 @@ async fn list_tokens(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<ApiResponse<Vec<ApiToken>>>, AppError> {
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let user_id = auth.user_id()?;
 
-    let rows: Vec<TokenRow> = if auth.claims.role == "admin" {
+    let rows: Vec<TokenRow> = if auth.is_admin() {
         sqlx::query_as("SELECT * FROM api_tokens ORDER BY created_at DESC")
             .fetch_all(&state.pool).await?
     } else {
@@ -43,9 +43,9 @@ async fn get_token(
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<ApiToken>>, AppError> {
     let id_num: i64 = id.parse().map_err(|_| AppError::BadRequest("invalid token id".into()))?;
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let user_id = auth.user_id()?;
 
-    let row: Option<TokenRow> = if auth.claims.role == "admin" {
+    let row: Option<TokenRow> = if auth.is_admin() {
         sqlx::query_as("SELECT * FROM api_tokens WHERE id = ?")
             .bind(id_num).fetch_optional(&state.pool).await?
     } else {
@@ -68,7 +68,7 @@ async fn create_token(
     auth: AuthUser,
     Json(req): Json<CreateTokenRequest>,
 ) -> Result<Json<ApiResponse<TokenCreatedResponse>>, AppError> {
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let user_id = auth.user_id()?;
 
     // Check limit (5 per user)
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM api_tokens WHERE user_id = ?")
@@ -123,8 +123,8 @@ async fn update_token(
         .bind(id_num).fetch_optional(&state.pool).await?;
     let existing = existing.ok_or_else(|| AppError::NotFound("token not found".into()))?;
 
-    if auth.claims.role != "admin" {
-        let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    if !auth.is_admin() {
+        let user_id = auth.user_id()?;
         if existing.user_id != Some(user_id) {
             return Err(AppError::Forbidden("not your token".into()));
         }
@@ -162,8 +162,8 @@ async fn delete_token(
         .bind(id_num).fetch_optional(&state.pool).await?;
     let existing = existing.ok_or_else(|| AppError::NotFound("token not found".into()))?;
 
-    if auth.claims.role != "admin" {
-        let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    if !auth.is_admin() {
+        let user_id = auth.user_id()?;
         if existing.user_id != Some(user_id) {
             return Err(AppError::Forbidden("not your token".into()));
         }
@@ -189,8 +189,8 @@ async fn rotate_token(
         .bind(id_num).fetch_optional(&state.pool).await?;
     let token = row.ok_or_else(|| AppError::NotFound("token not found".into()))?;
 
-    if auth.claims.role != "admin" {
-        let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    if !auth.is_admin() {
+        let user_id = auth.user_id()?;
         if token.user_id != Some(user_id) {
             return Err(AppError::Forbidden("not your token".into()));
         }
@@ -215,9 +215,9 @@ async fn rotate_token(
 async fn generate_client_token(
     State(state): State<AppState>,
     auth: AuthUser,
-    req: Option<Json<GenerateClientTokenRequest>>,
+    _req: Option<Json<GenerateClientTokenRequest>>,
 ) -> Result<Json<ApiResponse<TokenCreatedResponse>>, AppError> {
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let user_id = auth.user_id()?;
 
     let token = jwt::create_client_token(
         user_id, &auth.claims.email, &auth.claims.username, &auth.claims.role, &state.config.jwt_secret,

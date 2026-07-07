@@ -551,11 +551,11 @@ Retrieve a single token with its **full value**. Regular users can only view the
 
 ---
 
-### Create Token
+### Create Key
 
 <span className="method-badge method-post">POST</span> `/api/user/tokens`
 
-Create a new API token. The full token value is returned **only on creation** -- it cannot be retrieved later.
+Create a new API key. The full key value is returned **only on creation** -- it cannot be retrieved later.
 
 **Request Body:**
 

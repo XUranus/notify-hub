@@ -41,7 +41,7 @@ impl ReconnectState {
 pub struct NotificationDebounce {
     pending: Mutex<Vec<LocalMessage>>,
     debounce_handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
-    msg_store: Arc<MessageStore>,
+    _msg_store: Arc<MessageStore>,
 }
 
 impl NotificationDebounce {
@@ -49,7 +49,7 @@ impl NotificationDebounce {
         Arc::new(Self {
             pending: Mutex::new(Vec::new()),
             debounce_handle: Mutex::new(None),
-            msg_store,
+            _msg_store: msg_store,
         })
     }
 

@@ -22,8 +22,8 @@ async fn stats_overview(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<ApiResponse<StatsOverview>>, AppError> {
-    let is_admin = auth.claims.role == "admin";
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let is_admin = auth.is_admin();
+    let user_id = auth.user_id()?;
 
     let (total, sent, failed, queued, last_24h, last_7d) = if is_admin {
         let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM messages")
@@ -82,11 +82,11 @@ async fn stats_daily(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<ApiResponse<Vec<DailyStats>>>, AppError> {
-    let is_admin = auth.claims.role == "admin";
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let is_admin = auth.is_admin();
+    let user_id = auth.user_id()?;
 
-    let now = chrono::Utc::now().timestamp();
-    let week_ago = now - 604800;
+    let now = chrono::Utc::now();
+    let week_ago = now - chrono::Duration::days(7);
 
     #[derive(sqlx::FromRow)]
     struct DailyRow {
@@ -104,7 +104,7 @@ async fn stats_daily(
                     SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed \
              FROM messages WHERE created_at >= ? GROUP BY day ORDER BY day"
         )
-        .bind(week_ago)
+        .bind(week_ago.timestamp())
         .fetch_all(&state.pool).await?
     } else {
         sqlx::query_as(
@@ -114,17 +114,30 @@ async fn stats_daily(
                     SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed \
              FROM messages WHERE created_at >= ? AND user_id = ? GROUP BY day ORDER BY day"
         )
-        .bind(week_ago)
+        .bind(week_ago.timestamp())
         .bind(user_id)
         .fetch_all(&state.pool).await?
     };
 
-    let stats = rows.into_iter().map(|r| DailyStats {
-        date: r.day,
-        total: r.total,
-        sent: r.sent,
-        failed: r.failed,
-    }).collect();
+    // Build a map of existing data
+    let mut data_map: std::collections::HashMap<String, (i64, i64, i64)> = std::collections::HashMap::new();
+    for r in &rows {
+        data_map.insert(r.day.clone(), (r.total, r.sent, r.failed));
+    }
+
+    // Fill in all 7 days
+    let mut stats = Vec::new();
+    for i in 0..7 {
+        let date = (now - chrono::Duration::days(6 - i)).format("%Y-%m-%d").to_string();
+        let (total, sent, failed) = data_map.get(&date).copied().unwrap_or((0, 0, 0));
+        stats.push(DailyStats {
+            date,
+            total,
+            sent,
+            failed,
+        });
+    }
+
     Ok(Json(ApiResponse::ok(stats)))
 }
 
@@ -132,8 +145,8 @@ async fn stats_channels(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<ApiResponse<Vec<ChannelStats>>>, AppError> {
-    let is_admin = auth.claims.role == "admin";
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let is_admin = auth.is_admin();
+    let user_id = auth.user_id()?;
 
     let rows: Vec<(String, i64)> = if is_admin {
         sqlx::query_as(
@@ -160,8 +173,8 @@ async fn stats_recent(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
-    let is_admin = auth.claims.role == "admin";
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let is_admin = auth.is_admin();
+    let user_id = auth.user_id()?;
 
     let rows: Vec<(String, String, Option<String>, String, String, Option<String>, Option<String>, i64)> = if is_admin {
         sqlx::query_as(

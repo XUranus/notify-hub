@@ -38,8 +38,8 @@ flowchart TB
     end
 
     Web -->|JWT Auth| API
-    CLI -->|API Token| API
-    Ext -->|API Token| API
+    CLI -->|API Key| API
+    Ext -->|API Key| API
     API --> Auth
     Auth --> Queue
     Queue --> SQLite
@@ -66,9 +66,9 @@ sequenceDiagram
     participant Provider as External Provider
 
     Client->>API: POST /api/v1/send
-    API->>Auth: Validate API token
+    API->>Auth: Validate API key
     Auth->>Auth: Check scopes, rate limit, IP whitelist
-    Auth-->>API: Token valid
+    Auth-->>API: Key valid
     API->>Queue: enqueue(message)
     Queue->>DB: INSERT INTO messages
     Queue-->>API: { messageId, status: "queued" }

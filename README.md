@@ -11,9 +11,11 @@ Self-hosted notification push service. A unified API for email, SMS, and push no
 - 📲 **Android** — Native Android client with Firebase Cloud Messaging support
 - 🔄 **Retry** — Exponential backoff with dead letter queue
 - 📊 **Admin Panel** — React-based web UI for management
-- ⌨️ **CLI** — Rust CLI for quick sending and status checks
-- 🔐 **Secure** — AES-256 encrypted credential storage, JWT auth, bcrypt passwords
+- ⌨️ **CLI** — Rust CLI for quick sending and listening
+- 🔐 **Secure** — AES-256 encrypted credential storage, JWT auth, bcrypt passwords, dual auth (JWT + API Key)
 - 🐳 **Docker** — One-command deployment
+- 📎 **Attachments** — File upload/download with image preview
+- 🌐 **i18n** — English, Chinese, Japanese, Korean
 
 ## Architecture
 
@@ -182,13 +184,19 @@ notify-hub status 1
 - Desktop notifications with sound
 - Auto-download image attachments
 - Auto-reconnect with JWT refresh on expiry
+- Image attachment preview with lightbox zoom
+- Debounced notification batching (3s silence window)
+- Backup & restore messages
 
 **Android:**
 - Supports SSE, WebSocket, and long-polling
 - Firebase Cloud Messaging (FCM) for background delivery
 - Material Design 3 UI with dark mode
-- i18n support (English, Chinese)
+- i18n support (English, Chinese, Japanese, Korean)
 - Auto-download image attachments
+- Notification debouncing and grouping
+- Keep-alive strategies (WorkManager, boot receiver, task removed)
+- Configurable connection mode and FCM settings
 
 ## Project Structure
 
@@ -301,6 +309,46 @@ JWT_SECRET=your-secret-key
 CORS_ORIGIN=*
 FCM_SERVICE_ACCOUNT_PATH=./firebase-service-account.json
 ```
+
+## What's New in v0.2.0
+
+### 🔐 DualAuth — API Key + JWT
+All `/api/v1/*` endpoints now accept both JWT and API Key (`nh_...` prefix) in the `Authorization: Bearer` header. External integrations can use long-lived API keys without JWT refresh.
+
+### 📎 Attachments & Image Preview
+- File upload/download support with quota management
+- Desktop: inline image preview in message detail with lightbox zoom
+- Batch delete with ownership validation
+
+### 🛡️ Security Hardening
+- `/uploads/*` routes now support token-based authentication
+- Download endpoints enforce ownership checks
+- Defense-in-depth path traversal protection
+- Error messages no longer leak internal details
+- CORS respects configured `CORS_ORIGIN`
+
+### 📲 Android Improvements
+- FCM data message push with keep-alive strategies
+- Notification debouncing and grouping
+- Configurable connection mode (SSE/WS/Poll)
+- 4-language i18n (EN, ZH, JA, KO)
+
+### 🖥️ Desktop Improvements
+- Image attachment preview with full-screen lightbox
+- Skeleton loading states for all tables
+- Responsive table layouts
+- Notification debounce batching
+
+### 📊 Web Admin
+- Responsive tables with horizontal scroll
+- Skeleton loading states
+- Extracted shared components (PushClients, ChannelForm, QR dialog)
+- Accessibility improvements (aria-labels, keyboard navigation)
+
+### 📚 Documentation
+- Push channel architecture documentation (EN/ZH)
+- Multi-language API examples (curl, JS, Python, Go, PHP, Rust)
+- Complete `/api/v1` conventions and error codes
 
 ## License
 

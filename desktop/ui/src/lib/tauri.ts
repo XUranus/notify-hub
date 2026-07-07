@@ -109,6 +109,7 @@ export const api = {
   sendMessage: (msg: Record<string, unknown>) => invoke('send_message', { msg }),
   downloadFile: (url: string, filename: string) => invoke('download_file', { url, filename }),
   readImageDataUrl: (path: string) => invoke<string>('read_image_data_url', { path }),
+  fetchImageDataUrl: (url: string) => invoke<string>('fetch_image_data_url', { url }),
 
   // Window
   windowMinimize: () => invoke('window_minimize'),

@@ -1,7 +1,7 @@
 ---
 title: 发送 API
 sidebar_position: 1
-description: 通过 NotifyHub 发送 API 发送单条或批量通知。
+description: "通过 NotifyHub 发送 API 发送单条或批量通知。"
 ---
 
 import Tabs from '@theme/Tabs';
@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem';
 
 # 发送 API
 
-发送 API 让你通过任何已配置的渠道（邮件、短信或推送）向一个或多个接收者发送通知。所有发送端点都需要一个具有相应渠道权限的 **API 令牌**。
+发送 API 让你通过任何已配置的通道（邮件、短信或推送）向一个或多个接收者发送通知。所有发送端点支持 **DualAuth**：JWT 令牌或具有相应通道权限的 API Key。
 
 ## 基础 URL
 
@@ -19,27 +19,21 @@ http://<your-host>:9527/api/v1/send
 
 ## 认证
 
-每个请求都必须在 `Authorization` 头中包含有效的 API 令牌：
+每个请求必须在 `Authorization` Header 中包含有效的令牌。支持两种认证方式：
 
-```text
-Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
+| 方式 | Header 值 | 说明 |
+|------|----------|------|
+| **API Key** | `Bearer nh_xxxxxxxx` | 长期有效的密钥，具有通道权限、速率限制和 IP 白名单。通过 [Admin API](./admin#token-management) 创建。 |
+| **JWT** | `Bearer eyJxxxxx.xxxx.xxxx` | 通过[登录](./user#login)获取的短期令牌。无权限范围限制。 |
 
-令牌通过[管理 API](./admin#令牌管理) 创建，并带有一个或多个**权限范围**，用于确定该令牌允许通过哪些渠道类型发送消息。可用的权限范围如下：
+API Key 携带一个或多个**权限范围**，决定 Key 可以通过哪些通道类型发送：
 
-| 范围   | 描述                      |
-| ------ | ------------------------- |
-| `email` | 通过邮件渠道发送消息 |
-| `sms`   | 通过短信渠道发送消息   |
-| `push`  | 通过推送渠道发送消息  |
-| `*`     | 通配符 — 所有渠道类型    |
-
-如果令牌的权限范围不包含请求体中指定的渠道类型，API 将返回 `403 Forbidden` 响应。
-
-令牌还可以配置以下内容：
-
-- **速率限制** — 每分钟最大请求数（默认：100）
-- **IP 白名单** — 仅允许来自特定 IP 地址的请求
+| 权限 | 说明 |
+|------|------|
+| `email` | 通过邮件通道发送 |
+| `sms` | 通过短信通道发送 |
+| `push` | 通过推送通道发送 |
+| `*` | 通配符 — 所有通道类型 |
 
 ---
 
@@ -47,41 +41,66 @@ Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 <span className="method-badge method-post">POST</span> `/api/v1/send`
 
-将单条通知入队等待投递。
+入队一条通知进行投递。立即返回消息 ID — 投递是**异步**的。
 
 ### 请求体
 
-| 字段              | 类型              | 是否必填               | 描述                                                                                                              |
-| ----------------- | ----------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `channel`         | `string`          | 是                    | 渠道类型：`email`、`sms` 或 `push`。                                                                                 |
-| `to`              | `string`          | 是                    | 接收者地址。根据渠道不同，可以是邮箱地址、手机号或设备令牌。                             |
-| `subject`         | `string`          | 否                     | 消息主题（主要用于邮件）。如果未使用带主题的模板，则为必填项。                                     |
-| `body`            | `string`          | 视情况而定            | 消息正文。如果未提供 `template`，则为必填项。                                                               |
-| `template`        | `string`          | 否                     | 预配置模板的名称。提供后，`body` 为可选项（将使用模板正文）。                        |
-| `variables`       | `Record<string, string>` | 否            | 用于替换模板中占位符的键值对。参见[模板用法](#模板用法)。                                  |
-| `idempotencyKey`  | `string`          | 否                     | 用于防止重复发送的唯一键。参见[幂等键](#幂等键)。                                           |
-| `scheduledAt`     | `string`          | 否                     | ISO 8601 日期时间字符串。消息在此时间之前不会被投递。示例：`2025-07-01T09:00:00Z`。           |
-| `channelId`       | `number`          | 否                     | 要使用的特定渠道实例 ID。如果省略，将自动选择给定类型的默认渠道。       |
-| `tags`            | `string[]`        | 否                     | 消息的分类标签。默认为 `[]`。示例：`["deploy", "production"]`。                           |
-| `priority`        | `number`          | 否                     | 优先级，从 `0`（最低，默认）到 `99`（最高）。优先级高的消息先投递。               |
-| `url`             | `string`          | 否                     | 与消息关联的 URL。客户端可用于可点击链接或深度跳转。                             |
-| `delay`           | `string`          | 否                     | 相对延迟时间。覆盖 `scheduledAt`。参见[延迟语法](#延迟语法)。                              |
-| `attachment`      | `object`          | 否                     | 文件附件。参见[附件](#附件)。                                                                        |
-| `format`          | `string`          | 否                     | 正文格式：`text`（默认）、`markdown`、`html` 或 `json`。客户端据此渲染富文本内容。              |
+所有字段名使用 **camelCase**。
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `channel` | `string` | **是** | — | 通道类型：`email`、`sms` 或 `push`。 |
+| `to` | `string` | **是** | — | 接收地址：邮箱、手机号或推送客户端 UUID（`*` 为广播）。 |
+| `subject` | `string` | 否 | `null` | 消息主题（主要用于邮件）。 |
+| `body` | `string` | 否* | `null` | 消息正文。*`body` 和 `template` 至少提供一个。 |
+| `template` | `string` | 否 | `null` | 模板名称，从模板表中查找。 |
+| `variables` | `object` | 否 | `null` | 模板变量键值对，用于 `{{var}}` / `{{var \| default:"value"}}` 替换。 |
+| `idempotencyKey` | `string` | 否 | `null` | 幂等键，用于去重。见[幂等性](#幂等性)。 |
+| `topic` | `string` | 否 | `null` | 主题名称（解析为当前用户下的主题 ID）。 |
+| `tags` | `string[]` | 否 | `[]` | 标签数组。 |
+| `priority` | `number` | 否 | `0` | 优先级（越高越先投递）。 |
+| `url` | `string` | 否 | `null` | 关联 URL。 |
+| `format` | `string` | 否 | `"text"` | 正文格式：`text`、`markdown`、`html` 或 `json`。 |
+| `scheduledAt` | `string` | 否 | `null` | 定时投递：`"YYYY-MM-DD HH:MM:SS"` 或 ISO 8601。 |
+| `delay` | `string` | 否 | `null` | 延迟投递：`30s`、`5m`、`1h`、`2d`、`1w`。或绝对时间。 |
+| `attachment` | `object` | 否 | `null` | 文件附件。见[附件](#附件)。 |
+
+#### 附件对象
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | `string` | **是** | 文件名（如 `report.pdf`）。 |
+| `url` | `string` | 否 | 文件下载 URL。 |
+| `data` | `string` | 否 | Base64 编码的文件内容。 |
+
+`url` 和 `data` 至少提供一个。
+
+### 校验规则
+
+1. `body` 和 `template` 至少一个非空 → `400 "either body or template is required"`
+2. `channel` 必须是 `email`、`sms` 或 `push` → `400 "invalid channel type: <value>"`
+3. 指定的模板不存在 → `404 "template '<name>' not found"`
+4. `scheduledAt` 格式无效 → `400 "invalid datetime format: <value>"`
+5. `delay` 格式无效 → `400 "invalid delay format: <value>"`
 
 ### 响应
 
-**成功 -- 201 Created**
+**200 OK**
 
 ```json
 {
   "success": true,
   "data": {
-    "messageId": 42,
+    "messageId": "550e8400-e29b-41d4-a716-446655440000",
     "status": "queued"
   }
 }
 ```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `messageId` | `string` | 消息 UUID。 |
+| `status` | `string` | 成功时固定为 `"queued"`。 |
 
 ### 示例
 
@@ -93,10 +112,14 @@ curl -X POST http://localhost:9527/api/v1/send \
   -H "Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
   -d '{
-    "channel": "email",
-    "to": "user@example.com",
-    "subject": "Welcome to NotifyHub",
-    "body": "Your account has been created successfully."
+    "channel": "push",
+    "to": "device-uuid-1234",
+    "subject": "部署完成",
+    "body": "**Build #1234** 已部署到生产环境。",
+    "tags": ["deploy", "production"],
+    "priority": 80,
+    "url": "https://dashboard.example.com/deployments/1234",
+    "format": "markdown"
   }'
 ```
 
@@ -111,16 +134,20 @@ const response = await fetch("http://localhost:9527/api/v1/send", {
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    channel: "email",
-    to: "user@example.com",
-    subject: "Welcome to NotifyHub",
-    body: "Your account has been created successfully.",
+    channel: "push",
+    to: "device-uuid-1234",
+    subject: "部署完成",
+    body: "**Build #1234** 已部署到生产环境。",
+    tags: ["deploy", "production"],
+    priority: 80,
+    url: "https://dashboard.example.com/deployments/1234",
+    format: "markdown",
   }),
 });
 
 const result = await response.json();
 console.log(result);
-// { success: true, data: { messageId: 42, status: "queued" } }
+// { success: true, data: { messageId: "550e8400-...", status: "queued" } }
 ```
 
 </TabItem>
@@ -136,15 +163,123 @@ response = requests.post(
         "Content-Type": "application/json",
     },
     json={
-        "channel": "email",
-        "to": "user@example.com",
-        "subject": "Welcome to NotifyHub",
-        "body": "Your account has been created successfully.",
+        "channel": "push",
+        "to": "device-uuid-1234",
+        "subject": "部署完成",
+        "body": "**Build #1234** 已部署到生产环境。",
+        "tags": ["deploy", "production"],
+        "priority": 80,
+        "url": "https://dashboard.example.com/deployments/1234",
+        "format": "markdown",
     },
 )
 
 print(response.json())
-# {"success": True, "data": {"messageId": 42, "status": "queued"}}
+# {"success": True, "data": {"messageId": "550e8400-...", "status": "queued"}}
+```
+
+</TabItem>
+<TabItem value="go" label="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+)
+
+func main() {
+	payload := map[string]interface{}{
+		"channel":  "push",
+		"to":       "device-uuid-1234",
+		"subject":  "部署完成",
+		"body":     "**Build #1234** 已部署到生产环境。",
+		"tags":     []string{"deploy", "production"},
+		"priority": 80,
+		"url":      "https://dashboard.example.com/deployments/1234",
+		"format":   "markdown",
+	}
+
+	body, _ := json.Marshal(payload)
+	req, _ := http.NewRequest("POST", "http://localhost:9527/api/v1/send", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	fmt.Println(result)
+}
+```
+
+</TabItem>
+<TabItem value="php" label="PHP">
+
+```php
+<?php
+$ch = curl_init('http://localhost:9527/api/v1/send');
+curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+        'Content-Type: application/json',
+    ],
+    CURLOPT_POSTFIELDS => json_encode([
+        'channel'  => 'push',
+        'to'       => 'device-uuid-1234',
+        'subject'  => '部署完成',
+        'body'     => '**Build #1234** 已部署到生产环境。',
+        'tags'     => ['deploy', 'production'],
+        'priority' => 80,
+        'url'      => 'https://dashboard.example.com/deployments/1234',
+        'format'   => 'markdown',
+    ]),
+    CURLOPT_RETURNTRANSFER => true,
+]);
+
+$response = json_decode(curl_exec($ch), true);
+curl_close($ch);
+print_r($response);
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
+```rust
+use reqwest::Client;
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::new();
+    let resp = client
+        .post("http://localhost:9527/api/v1/send")
+        .header("Authorization", "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+        .json(&json!({
+            "channel": "push",
+            "to": "device-uuid-1234",
+            "subject": "部署完成",
+            "body": "**Build #1234** 已部署到生产环境。",
+            "tags": ["deploy", "production"],
+            "priority": 80,
+            "url": "https://dashboard.example.com/deployments/1234",
+            "format": "markdown"
+        }))
+        .send()
+        .await?;
+
+    let result: serde_json::Value = resp.json().await?;
+    println!("{:#?}", result);
+    Ok(())
+}
 ```
 
 </TabItem>
@@ -152,34 +287,37 @@ print(response.json())
 
 ---
 
-## 批量发送消息
+## 批量发送
 
 <span className="method-badge method-post">POST</span> `/api/v1/send/batch`
 
-在单个请求中最多入队 **100 条消息**。批量中的每条消息独立处理 — 如果某条消息未通过权限范围或模板验证，批量中其余消息仍会被处理。
+单次请求最多入队 **100 条消息**。每条消息独立处理 — 单条失败不影响其他。
 
 ### 请求体
 
-| 字段       | 类型         | 是否必填 | 描述                                          |
-| ---------- | ----------- | -------- | ---------------------------------------------------- |
-| `messages` | `Message[]` | 是      | 消息对象数组（1--100）。每条消息使用与[单条发送](#请求体)端点相同的 schema。 |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `messages` | `SendMessageRequest[]` | **是** | 1–100 条消息数组，每条与[单条发送](#请求体)格式相同。 |
 
 ### 响应
 
-**成功 -- 200 OK**
-
-`data` 数组包含批量中每条消息的一个条目。每个条目要么是成功对象，要么是错误对象。
+**200 OK** — 即使个别消息失败也返回 200。检查每条的 `status`。
 
 ```json
 {
   "success": true,
   "data": [
-    { "messageId": 42, "status": "queued" },
-    { "messageId": 43, "status": "queued" },
-    { "error": "Token does not have 'sms' scope" }
+    { "messageId": "550e8400-...", "status": "queued" },
+    { "messageId": "660e8400-...", "status": "queued" },
+    { "messageId": "", "status": "error: template 'xyz' not found" }
   ]
 }
 ```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `messageId` | `string` | 成功时为 UUID，失败时为空字符串 `""`。 |
+| `status` | `string` | 成功为 `"queued"`，失败为 `"error: <message>"`。 |
 
 ### 示例
 
@@ -192,23 +330,9 @@ curl -X POST http://localhost:9527/api/v1/send/batch \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [
-      {
-        "channel": "email",
-        "to": "alice@example.com",
-        "subject": "Batch Notification",
-        "body": "Hello Alice!"
-      },
-      {
-        "channel": "email",
-        "to": "bob@example.com",
-        "subject": "Batch Notification",
-        "body": "Hello Bob!"
-      },
-      {
-        "channel": "sms",
-        "to": "+1234567890",
-        "body": "SMS alert"
-      }
+      { "channel": "email", "to": "alice@example.com", "subject": "批量通知", "body": "你好 Alice！" },
+      { "channel": "email", "to": "bob@example.com", "subject": "批量通知", "body": "你好 Bob！" },
+      { "channel": "sms", "to": "+1234567890", "body": "短信通知" }
     ]
   }'
 ```
@@ -225,34 +349,21 @@ const response = await fetch("http://localhost:9527/api/v1/send/batch", {
   },
   body: JSON.stringify({
     messages: [
-      {
-        channel: "email",
-        to: "alice@example.com",
-        subject: "Batch Notification",
-        body: "Hello Alice!",
-      },
-      {
-        channel: "email",
-        to: "bob@example.com",
-        subject: "Batch Notification",
-        body: "Hello Bob!",
-      },
-      {
-        channel: "sms",
-        to: "+1234567890",
-        body: "SMS alert",
-      },
+      { channel: "email", to: "alice@example.com", subject: "批量通知", body: "你好 Alice！" },
+      { channel: "email", to: "bob@example.com", subject: "批量通知", body: "你好 Bob！" },
+      { channel: "sms", to: "+1234567890", body: "短信通知" },
     ],
   }),
 });
 
 const result = await response.json();
-console.log(result.data);
-// [
-//   { messageId: 42, status: "queued" },
-//   { messageId: 43, status: "queued" },
-//   { messageId: 44, status: "queued" }
-// ]
+for (const entry of result.data) {
+  if (entry.status === "queued") {
+    console.log(`✓ ${entry.messageId}`);
+  } else {
+    console.error(`✗ ${entry.status}`);
+  }
+}
 ```
 
 </TabItem>
@@ -269,29 +380,112 @@ response = requests.post(
     },
     json={
         "messages": [
-            {
-                "channel": "email",
-                "to": "alice@example.com",
-                "subject": "Batch Notification",
-                "body": "Hello Alice!",
-            },
-            {
-                "channel": "email",
-                "to": "bob@example.com",
-                "subject": "Batch Notification",
-                "body": "Hello Bob!",
-            },
-            {
-                "channel": "sms",
-                "to": "+1234567890",
-                "body": "SMS alert",
-            },
+            {"channel": "email", "to": "alice@example.com", "subject": "批量通知", "body": "你好 Alice！"},
+            {"channel": "email", "to": "bob@example.com", "subject": "批量通知", "body": "你好 Bob！"},
+            {"channel": "sms", "to": "+1234567890", "body": "短信通知"},
         ],
     },
 )
 
-print(response.json()["data"])
-# [{"messageId": 42, "status": "queued"}, {"messageId": 43, "status": "queued"}, ...]
+for entry in response.json()["data"]:
+    if entry["status"] == "queued":
+        print(f"✓ {entry['messageId']}")
+    else:
+        print(f"✗ {entry['status']}")
+```
+
+</TabItem>
+<TabItem value="go" label="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+)
+
+func main() {
+	payload := map[string]interface{}{
+		"messages": []map[string]interface{}{
+			{"channel": "email", "to": "alice@example.com", "subject": "批量通知", "body": "你好 Alice！"},
+			{"channel": "email", "to": "bob@example.com", "subject": "批量通知", "body": "你好 Bob！"},
+			{"channel": "sms", "to": "+1234567890", "body": "短信通知"},
+		},
+	}
+
+	body, _ := json.Marshal(payload)
+	req, _ := http.NewRequest("POST", "http://localhost:9527/api/v1/send/batch", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, _ := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	fmt.Println(result)
+}
+```
+
+</TabItem>
+<TabItem value="php" label="PHP">
+
+```php
+<?php
+$ch = curl_init('http://localhost:9527/api/v1/send/batch');
+curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+        'Content-Type: application/json',
+    ],
+    CURLOPT_POSTFIELDS => json_encode([
+        'messages' => [
+            ['channel' => 'email', 'to' => 'alice@example.com', 'subject' => '批量通知', 'body' => '你好 Alice！'],
+            ['channel' => 'email', 'to' => 'bob@example.com', 'subject' => '批量通知', 'body' => '你好 Bob！'],
+            ['channel' => 'sms', 'to' => '+1234567890', 'body' => '短信通知'],
+        ],
+    ]),
+    CURLOPT_RETURNTRANSFER => true,
+]);
+
+$response = json_decode(curl_exec($ch), true);
+curl_close($ch);
+foreach ($response['data'] as $entry) {
+    echo $entry['status'] === 'queued' ? "✓ {$entry['messageId']}\n" : "✗ {$entry['status']}\n";
+}
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
+```rust
+use reqwest::Client;
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::new();
+    let resp = client
+        .post("http://localhost:9527/api/v1/send/batch")
+        .header("Authorization", "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+        .json(&json!({
+            "messages": [
+                {"channel": "email", "to": "alice@example.com", "subject": "批量通知", "body": "你好 Alice！"},
+                {"channel": "email", "to": "bob@example.com", "subject": "批量通知", "body": "你好 Bob！"},
+                {"channel": "sms", "to": "+1234567890", "body": "短信通知"}
+            ]
+        }))
+        .send()
+        .await?;
+
+    let result: serde_json::Value = resp.json().await?;
+    println!("{:#?}", result);
+    Ok(())
+}
 ```
 
 </TabItem>
@@ -299,320 +493,174 @@ print(response.json()["data"])
 
 ---
 
-## 模板用法
+## 模板使用
 
-你可以通过名称引用**模板**，而不是为每条消息提供原始 `body`（以及可选的 `subject`）。模板通过[管理 API](./admin#模板管理) 创建和管理。
-
-### 工作原理
-
-1. 通过管理 API 创建模板，包含名称、渠道类型以及含有 `{{variable}}` 占位符的正文。
-2. 发送消息时，将 `template` 字段设置为模板名称，并传入 `variables` 作为替换值。
+可以通过 `template` 字段引用预配置的模板。
 
 ### 模板语法
 
-模板使用 `{{variableName}}` 占位符。你还可以使用管道语法提供默认值：
+使用 `{{variableName}}` 占位符，支持默认值：
 
 ```text
-Hello {{userName | default:"there"}}, your order #{{orderId}} is ready.
+你好 {{userName | default:"用户"}}，订单 #{{orderId}} 已就绪。
 ```
 
-- 如果 `variables.userName` 为 `"Alice"`，结果为 `Hello Alice, your order #12345 is ready.`
-- 如果未提供 `userName`，结果为 `Hello there, your order #12345 is ready.`
-- 如果变量没有值也没有默认值，占位符将保持原样（`{{variableName}}`）。
-
-### 示例
-
-假设你有一个名为 `welcome-email` 的 `email` 渠道模板：
-
-**模板定义：**
-- **name:** `welcome-email`
-- **channelType:** `email`
-- **subject:** `Welcome, {{userName}}!`
-- **body:** `Hi {{userName}},\n\nYour account ({{userEmail}}) is ready. Start exploring at {{appUrl | default:"https://app.example.com"}}.`
-
-**发送请求：**
-
-```json
-{
-  "channel": "email",
-  "to": "newuser@example.com",
-  "template": "welcome-email",
-  "variables": {
-    "userName": "Alice",
-    "userEmail": "newuser@example.com"
-  }
-}
-```
-
-**最终消息：**
-- **subject:** `Welcome, Alice!`
-- **body:** `Hi Alice,\n\nYour account (newuser@example.com) is ready. Start exploring at https://app.example.com.`
+- `variables.userName = "Alice"` → `你好 Alice，订单 #12345 已就绪。`
+- 未提供 `userName` → `你好 用户，订单 #12345 已就绪。`
 
 :::note
-如果同时提供了 `body` 和 `template`，正文内容将以 `template` 为准。模板的 subject（如果已定义）同样会覆盖 `subject` 字段。
+`body` 和 `template` 同时提供时，模板优先。模板的 subject（如有）也会覆盖请求中的 `subject` 字段。
 :::
 
 :::tip
-模板解析发生在**入队时**，而非投递时。如果你在消息入队后更新了模板，已入队的消息将使用原始模板内容。
+模板在**入队时**解析，非投递时。更新模板不影响已入队的消息。
 :::
 
 ---
 
-## 幂等键
+## 幂等性
 
-幂等键确保即使请求被重试（例如由于网络超时），同一条通知也不会被多次发送。
-
-在 `idempotencyKey` 字段中传入一个唯一字符串：
+传入唯一的 `idempotencyKey` 防止重复发送：
 
 ```json
 {
   "channel": "email",
   "to": "user@example.com",
-  "subject": "Order Confirmation",
-  "body": "Your order #12345 has been confirmed.",
+  "subject": "订单确认",
+  "body": "订单 #12345 已确认。",
   "idempotencyKey": "order-12345-confirmation"
 }
 ```
 
-**行为：**
-
-- 如果系统中已存在具有相同 `idempotencyKey` 的消息（无论状态如何），API 将返回已有消息的 ID，而不是创建新消息。
-- 响应与正常发送完全相同 — 你无法区分消息是新创建的还是已存在的。
-- 幂等键在整个系统中是唯一的，而非按令牌或按渠道唯一。
-
-:::caution
-幂等键在模板解析**之前**检查。如果你需要向同一接收者使用不同变量发送同一模板，请为每次使用不同的幂等键。
-:::
+- 相同 key 已存在时返回已有消息 ID。
+- Key 全局唯一，非按 token 或通道隔离。
+- 在模板解析**之前**检查。
 
 ---
 
 ## 定时发送
 
-要延迟消息投递，请在 `scheduledAt` 字段中包含 ISO 8601 日期时间：
+### 绝对时间（`scheduledAt`）
 
 ```json
-{
-  "channel": "email",
-  "to": "user@example.com",
-  "subject": "Scheduled Report",
-  "body": "Your weekly report is attached.",
-  "scheduledAt": "2025-07-01T09:00:00Z"
-}
+{ "scheduledAt": "2025-07-01T09:00:00Z" }
 ```
 
-**行为：**
+UTC 时间。若为过去时间则立即可投递。
 
-- 消息会立即入队，状态为 `queued`，但 Worker 在预定时间到达之前不会处理它。
-- 如果 `scheduledAt` 在过去，消息将被视为可立即投递。
-- 时间以 UTC 解释。
+### 相对延迟（`delay`）
 
-也可以使用 `delay` 字段进行相对延迟。参见[延迟语法](#延迟语法)。
-
----
-
-## 延迟语法
-
-`delay` 字段提供了一种便捷的方式，使用相对时间或绝对日期时间来调度消息。当同时提供 `delay` 和 `scheduledAt` 时，`delay` 优先。
-
-### 相对时间
-
-格式：`<数字><单位>`，单位如下：
-
-| 单位 | 含义 |
-| ---- | ---- |
-| `s`  | 秒   |
-| `m`  | 分钟 |
-| `h`  | 小时 |
-| `d`  | 天   |
-| `w`  | 周   |
-
-示例：`30s`、`5m`、`1h`、`2d`、`1w`
+| 单位 | 含义 | 示例 |
+|------|------|------|
+| `s` | 秒 | `30s` |
+| `m` | 分钟 | `5m` |
+| `h` | 小时 | `1h` |
+| `d` | 天 | `2d` |
+| `w` | 周 | `1w` |
 
 ```json
-{
-  "channel": "push",
-  "to": "device-uuid",
-  "subject": "提醒",
-  "body": "会议将在 30 分钟后开始。",
-  "delay": "30m"
-}
-```
-
-### 绝对日期时间
-
-格式：`yyyy-mm-dd hh:mm:ss`（按服务器本地时区解释）。
-
-```json
-{
-  "channel": "push",
-  "to": "device-uuid",
-  "subject": "维护窗口",
-  "body": "计划维护现在开始。",
-  "delay": "2025-12-31 23:59:59"
-}
+{ "delay": "30m" }
 ```
 
 :::caution
-如果 `delay` 格式无效，API 将返回 `400 Bad Request` 并附带验证错误信息。
+`scheduledAt` 和 `delay` 同时提供时，`scheduledAt` 优先。
 :::
 
 ---
 
 ## 附件
 
-可以使用 `attachment` 字段为消息附加文件。附件支持两种模式：**基于 URL**（客户端从 URL 下载文件）和 **Base64 编码**（文件数据直接嵌入）。
+### 上传文件（可选）
 
-### 附件结构
-
-| 字段   | 类型     | 必填条件          | 描述                          |
-| ------ | -------- | ----------------- | ----------------------------- |
-| `name` | `string` | 是                | 文件名（如 `report.pdf`）。   |
-| `url`  | `string` | url/data 二选一   | 下载文件的 URL。              |
-| `data` | `string` | url/data 二选一   | Base64 编码的文件内容。       |
-
-### 基于 URL 的附件
-
-```json
-{
-  "channel": "push",
-  "to": "device-uuid",
-  "subject": "构建产物",
-  "body": "最新的构建产物已附加。",
-  "attachment": {
-    "name": "build-output.zip",
-    "url": "https://ci.example.com/builds/1234/artifacts.zip"
-  }
-}
+```bash
+curl -X POST http://localhost:9527/api/user/upload \
+  -H "Authorization: Bearer nh_your_token_here" \
+  -F "file=@report.pdf"
 ```
 
-### Base64 附件
+返回 `{ "data": { "url": "/uploads/<uuid>.pdf", ... } }`。
+
+### URL 方式
 
 ```json
-{
-  "channel": "push",
-  "to": "device-uuid",
-  "subject": "配置导出",
-  "body": "您的配置导出已附加。",
-  "attachment": {
-    "name": "config.json",
-    "data": "eyJoZWxsbyI6IndvcmxkIn0="
-  }
-}
+{ "attachment": { "name": "build.zip", "url": "https://ci.example.com/builds/1234/artifacts.zip" } }
 ```
 
-:::note
-必须提供 `url` 或 `data` 之一。如果两者都缺失，API 将返回 `400 Bad Request`。
-:::
+### Base64 方式
+
+```json
+{ "attachment": { "name": "config.json", "data": "eyJoZWxsbyI6IndvcmxkIn0=" } }
+```
 
 ---
 
 ## 消息格式
 
-`format` 字段告诉客户端如何渲染 `body` 内容。这纯粹是信息性的——服务器按原样存储和投递正文。
+`format` 字段告诉客户端如何渲染 `body`：
 
-| 值         | 描述                                                      |
-| ---------- | --------------------------------------------------------- |
-| `text`     | 纯文本（默认）。无渲染。                                  |
-| `markdown` | Markdown 内容。客户端可渲染加粗、链接、列表等。           |
-| `html`     | HTML 内容。客户端可渲染内联 HTML。                        |
-| `json`     | 结构化 JSON 数据。客户端可渲染为键值对。                  |
-
-```json
-{
-  "channel": "push",
-  "to": "device-uuid",
-  "subject": "告警摘要",
-  "body": "<h2>状态</h2><p>所有系统<b>运行正常</b>。</p>",
-  "format": "html"
-}
-```
+| 值 | 说明 |
+|----|------|
+| `text` | 纯文本（默认）。 |
+| `markdown` | Markdown — 客户端可渲染加粗、链接、列表。 |
+| `html` | HTML — 客户端可渲染内联 HTML。 |
+| `json` | 结构化 JSON — 客户端可渲染为键值对。 |
 
 ---
 
 ## 标签与优先级
 
-### 标签
-
-标签是用于分类和筛选消息的字符串标签。它们以 JSON 数组的形式存储在消息记录上。
+**标签** — 分类过滤用：
 
 ```json
-{
-  "channel": "push",
-  "to": "device-uuid",
-  "subject": "告警",
-  "body": "CPU 使用率超过 95%。",
-  "tags": ["alert", "cpu", "production"]
-}
+{ "tags": ["alert", "cpu", "production"] }
 ```
 
-### 优先级
+**优先级** — 整数 `0`（最低，默认）到 `99`（最高）：
 
-优先级是从 `0`（最低，默认）到 `99`（最高）的整数。消息队列优先处理高优先级消息。
-
-```json
-{
-  "channel": "push",
-  "to": "device-uuid",
-  "subject": "严重告警",
-  "body": "数据库连接池已耗尽。",
-  "priority": 90,
-  "tags": ["critical", "database"]
-}
-```
-
-建议的优先级范围：
-
-| 范围   | 级别   | 用途                              |
-| ------ | ------ | --------------------------------- |
-| `0`    | 普通   | 大多数消息的默认值。              |
-| `1-33` | 低     | 信息性，非紧急。                  |
-| `34-66`| 中     | 警告，需要注意。                  |
-| `67-99`| 高     | 严重告警，需立即处理。            |
+| 范围 | 级别 | 场景 |
+|------|------|------|
+| `0` | 普通 | 默认。 |
+| `1–33` | 低 | 信息性通知。 |
+| `34–66` | 中 | 警告。 |
+| `67–99` | 高 | 紧急告警。 |
 
 ---
 
 ## 错误码
 
-| HTTP 状态码 | 错误                              | 描述                                                             |
-| ----------- | ---------------------------------- | ----------------------------------------------------------------------- |
-| `400`       | 验证错误                   | 请求体未通过 schema 验证。请检查 `error` 字段。     |
-| `400`       | `Invalid delay format`             | `delay` 字段不符合相对时间（`30m`、`1h`）或绝对日期时间（`yyyy-mm-dd hh:mm:ss`）格式。 |
-| `400`       | `Either body or template is required` | 未提供 `body` 或 `template`。                           |
-| `401`       | `Missing or invalid authorization header` | `Authorization` 头缺失或格式错误。              |
-| `401`       | `Invalid API token`                | 令牌在数据库中不存在。                               |
-| `403`       | `API token is disabled`            | 令牌已被管理员禁用。                                |
-| `403`       | `IP address not allowed`           | 请求 IP 不在令牌的 IP 白名单中。                   |
-| `403`       | `Token does not have '<channel>' scope` | 令牌的权限范围不包含请求的渠道类型。    |
-| `404`       | `Template '<name>' not found for channel '<type>'` | 指定的模板在给定渠道中不存在。 |
-| `429`       | `Rate limit exceeded`              | 令牌已超出其每分钟请求限制。                    |
-| `500`       | `Failed to enqueue`                | 消息入队时发生内部错误。                   |
+| HTTP | 错误 | 说明 |
+|------|------|------|
+| `400` | `either body or template is required` | `body` 和 `template` 均未提供。 |
+| `400` | `invalid channel type: <value>` | `channel` 不是 `email`、`sms` 或 `push`。 |
+| `400` | `invalid datetime format: <value>` | `scheduledAt` 格式无效。 |
+| `400` | `invalid delay format: <value>` | `delay` 格式无效。 |
+| `400` | `invalid json: <detail>` | 请求体非合法 JSON。 |
+| `401` | `missing Authorization header` | 缺少 `Authorization` Header。 |
+| `401` | `invalid API token` | Token 不存在。 |
+| `401` | `token has expired` | JWT 已过期。 |
+| `403` | `token is disabled` | Token 已被管理员禁用。 |
+| `403` | `Token does not have '<channel>' scope` | Key 缺少该通道权限。 |
+| `404` | `template '<name>' not found` | 模板不存在。 |
+| `429` | `Rate limit exceeded` | 超出速率限制。检查 `Retry-After` Header。 |
+| `500` | `database error: <detail>` | 内部数据库错误。 |
 
 ---
 
 ## 速率限制
 
-速率限制**按 API 令牌**强制执行，使用滑动窗口算法，窗口为 1 分钟。
+按 **API Key** 限流，滑动窗口（1 分钟，默认 100 次/分钟）。
 
-- 每个令牌有可配置的速率限制（默认：每分钟 100 次请求）。
-- 超出限制时，API 返回 `429 Too Many Requests`，并附带 `Retry-After` 头，指示需要等待多少秒。
-- 速率限制计数器在单条发送和批量发送端点之间共享。
-
-**429 响应示例：**
-
-```json
-{
-  "success": false,
-  "error": "Rate limit exceeded"
-}
-```
-
-**响应头：**
+超限时返回 `429 Too Many Requests` + `Retry-After` Header：
 
 ```http
 HTTP/1.1 429 Too Many Requests
 Retry-After: 34
 ```
 
+```json
+{ "success": false, "error": "Rate limit exceeded" }
+```
+
 :::tip
-使用 `Retry-After` 头的值在客户端代码中实现自动退避。
+在客户端代码中使用 `Retry-After` Header 值实现自动退避。
 :::

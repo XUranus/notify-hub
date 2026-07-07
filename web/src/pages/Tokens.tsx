@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { tokensApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { Plus, Copy, Check, Trash2, Key, Code2, RotateCw, Timer } from 'lucide-react'
@@ -246,6 +247,7 @@ function ExpirationBadge({ expiresAt, t }: { expiresAt: string | null; t: (k: st
 
 export default function Tokens() {
   const { t } = useTranslation()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [tokens, setTokens] = useState<Token[]>([])
   const [showForm, setShowForm] = useState(false)
   const [formData, setFormData] = useState({
@@ -256,11 +258,16 @@ export default function Tokens() {
   })
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   const load = () => {
     setLoading(true)
+    setError('')
     tokensApi.list().then((res) => {
       if (res.success) setTokens(res.data || [])
+      else setError(res.error || 'Failed to load tokens')
+    }).catch((err) => {
+      setError(err.message || 'Network error')
     }).finally(() => setLoading(false))
   }
 
@@ -282,14 +289,14 @@ export default function Tokens() {
   }
 
   const handleDelete = async (id: number) => {
-    if (confirm(t('tokens.revokeConfirm'))) {
+    if (await confirm({ description: t('tokens.revokeConfirm'), variant: 'destructive', confirmLabel: t('tokens.revoke') })) {
       await tokensApi.delete(id)
       load()
     }
   }
 
   const handleRotate = async (id: number) => {
-    if (!confirm(t('tokens.rotateConfirm'))) return
+    if (!await confirm({ description: t('tokens.rotateConfirm'), confirmLabel: t('tokens.rotate') })) return
     const result = await tokensApi.rotate(id)
     if (result.success) {
       load()
@@ -316,6 +323,13 @@ export default function Tokens() {
           {t('tokens.create')}
         </Button>
       </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive mb-4">
+          {error}
+        </div>
+      )}
 
       {showForm && (
         <Card className="mb-6">
@@ -433,6 +447,7 @@ export default function Tokens() {
                             className="h-6 w-6 p-0 shrink-0"
                             onClick={() => copyToken(tok.id, tok.token)}
                             title={t('tokens.copy')}
+                            aria-label="Copy to clipboard"
                           >
                             {copiedId === tok.id ? (
                               <Check className="h-3 w-3 text-green-500" />
@@ -450,6 +465,7 @@ export default function Tokens() {
                             className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
                             onClick={() => handleRotate(tok.id)}
                             title={t('tokens.rotate')}
+                            aria-label="Rotate key"
                           >
                             <RotateCw className="h-3.5 w-3.5" />
                           </Button>
@@ -459,13 +475,16 @@ export default function Tokens() {
                             className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             onClick={() => handleDelete(tok.id)}
                             title={t('tokens.revokeConfirm')}
+                            aria-label="Delete"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </td>
                       <td className="px-3 py-1.5">
-                        <ExpirationBadge expiresAt={tok.expiresAt} t={t} />
+                        <Badge variant={tok.enabled ? 'success' : 'secondary'} className="text-xs">
+                          {tok.enabled ? t('channels.active') : t('channels.disabled')}
+                        </Badge>
                       </td>
                       <td className="px-3 py-1.5">
                         <div className="flex gap-1">
@@ -474,8 +493,8 @@ export default function Tokens() {
                           ))}
                         </div>
                       </td>
-                      <td className="px-3 py-1.5 text-xs text-muted-foreground">
-                        {tok.expiresAt ? formatDate(tok.expiresAt) : '—'}
+                      <td className="px-3 py-1.5">
+                        <ExpirationBadge expiresAt={tok.expiresAt} t={t} />
                       </td>
                       <td className="px-3 py-1.5 text-xs text-muted-foreground">
                         {tok.lastUsedAt ? formatDate(tok.lastUsedAt) : '—'}
@@ -498,6 +517,8 @@ export default function Tokens() {
 
       {/* API Examples */}
       {exampleToken && <ApiExamples token={exampleToken} />}
+
+      {ConfirmDialog}
     </div>
   )
 }

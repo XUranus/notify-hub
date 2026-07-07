@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS attachments (
 );
 CREATE INDEX IF NOT EXISTS idx_attachments_expires_at ON attachments (expires_at);
 CREATE INDEX IF NOT EXISTS idx_attachments_user_id ON attachments (user_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_created_at ON attachments (created_at);
 
 -- User settings
 CREATE TABLE IF NOT EXISTS user_settings (

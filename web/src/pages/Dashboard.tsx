@@ -89,12 +89,25 @@ const CHANNEL_ICONS: Record<string, React.ElementType> = {
 
 // ── Custom Tooltip ──
 
-function ChartTooltip({ active, payload, label }: any) {
+interface TooltipEntry {
+  dataKey: string
+  name: string
+  value: number
+  color: string
+}
+
+interface ChartTooltipProps {
+  active?: boolean
+  payload?: TooltipEntry[]
+  label?: string
+}
+
+function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
   if (!active || !payload?.length) return null
   return (
     <div className="bg-popover border rounded-md shadow-sm px-3 py-2 text-xs">
       <p className="font-medium mb-1">{label}</p>
-      {payload.map((entry: any) => (
+      {payload.map((entry) => (
         <div key={entry.dataKey} className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ background: entry.color }} />
           <span className="text-muted-foreground">{entry.name}:</span>
@@ -114,12 +127,17 @@ export default function Dashboard() {
   const [recentMessages, setRecentMessages] = useState<RecentMessage[]>([])
   const [failedMessages, setFailedMessages] = useState<RecentMessage[]>([])
   const [failedTotal, setFailedTotal] = useState(0)
+  const [error, setError] = useState('')
   const { t } = useTranslation()
   const navigate = useNavigate()
 
   const load = () => {
+    setError('')
     statsApi.overview().then((res) => {
       if (res.success) setStats(res.data)
+      else setError(res.error || 'Failed to load stats')
+    }).catch((err) => {
+      setError(err.message || 'Network error')
     })
     statsApi.daily().then((res) => {
       if (res.success && res.data) {
@@ -128,19 +146,19 @@ export default function Dashboard() {
           date: d.date.slice(5),
         })))
       }
-    })
+    }).catch(() => {})
     statsApi.channels().then((res) => {
       if (res.success && res.data) setChannelData(res.data)
-    })
+    }).catch(() => {})
     statsApi.recent().then((res) => {
       if (res.success && res.data) setRecentMessages(res.data)
-    })
+    }).catch(() => {})
     messagesApi.list({ page: 1, pageSize: 10, status: 'failed' }).then((res) => {
       if (res.success && res.data) {
         setFailedMessages(res.data.items || [])
         setFailedTotal(res.data.total || 0)
       }
-    })
+    }).catch(() => {})
   }
 
   useEffect(() => { load() }, [])
@@ -163,6 +181,13 @@ export default function Dashboard() {
   return (
     <div>
       <h2 className="text-3xl font-bold tracking-tight mb-6">{t('dashboard.title')}</h2>
+
+      {/* Error banner */}
+      {error && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive mb-4">
+          {error}
+        </div>
+      )}
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">

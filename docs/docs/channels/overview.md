@@ -110,6 +110,11 @@ Mark your most reliable provider as the default. You can always override the cho
 | SMS | Twilio | Stable | `sms:twilio` |
 | SMS | Aliyun SMS | Stable | `sms:aliyun` |
 | SMS | Tencent Cloud SMS | Stable | `sms:tencent` |
+| Push | Self-hosted (SSE/WS/Poll) + FCM | Stable | `push` |
+
+:::info Push channel works differently
+Unlike Email and SMS which go through external provider APIs, the Push channel delivers messages directly through the NotifyHub server via SSE, WebSocket, or Poll connections. On Android, FCM provides an additional parallel delivery path. See [Push Channel](/channels/push) for the complete delivery architecture.
+:::
 
 ## Database Schema
 

@@ -6,11 +6,12 @@ mod routes;
 mod worker;
 
 use axum::extract::Request;
+use axum::http::{header, Method};
 use axum::middleware::{self, Next};
 use axum::Router;
 use sqlx::SqlitePool;
 use std::sync::Arc;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::prelude::*;
 
@@ -86,10 +87,13 @@ async fn main() -> anyhow::Result<()> {
         .merge(routes::cleanup_logs::router())
         .merge(routes::logs::router())
         .merge(routes::health::router())
-        // Serve uploaded files
+        // Serve uploaded files — accepts ?token=<jwt> for authentication
         .route("/uploads/{*path}", axum::routing::get({
             let upload_dir = upload_dir.clone();
-            move |path: axum::extract::Path<String>| serve_upload(upload_dir.clone(), path.0)
+            let config_for_static = state.config.clone();
+            move |path: axum::extract::Path<String>,
+                  axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>|
+                serve_upload(upload_dir.clone(), path.0, params.get("token").cloned(), config_for_static.clone())
         }))
         .layer(middleware::from_fn(move |mut req: Request, next: Next| {
             let cfg = config_arc.clone();
@@ -98,7 +102,21 @@ async fn main() -> anyhow::Result<()> {
                 next.run(req).await
             }
         }))
-        .layer(CorsLayer::permissive())
+        .layer({
+            let cors_layer = if let Some(ref origin) = state.config.cors_origin {
+                CorsLayer::new()
+                    .allow_origin(AllowOrigin::exact(origin.parse().unwrap_or_else(|_| {
+                        tracing::warn!("Invalid CORS_ORIGIN value '{}', falling back to permissive", origin);
+                        "*".parse().unwrap()
+                    })))
+                    .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::PATCH, Method::OPTIONS])
+                    .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION, header::ACCEPT])
+            } else {
+                tracing::warn!("CORS_ORIGIN not set, using permissive CORS — do not use in production");
+                CorsLayer::permissive()
+            };
+            cors_layer
+        })
         .layer(TraceLayer::new_for_http())
         .with_state(state.clone());
 
@@ -181,11 +199,21 @@ async fn seed_admin(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Serve uploaded files from the upload directory
+/// Serve uploaded files from the upload directory.
+/// Accepts an optional JWT token query parameter for authentication.
 async fn serve_upload(
     upload_dir: std::path::PathBuf,
     path: String,
+    token: Option<String>,
+    config: std::sync::Arc<Config>,
 ) -> Result<axum::response::Response, axum::http::StatusCode> {
+    // Validate token if provided; reject if invalid/expired.
+    // Missing token is allowed for backward compatibility (e.g. image URLs in message bodies).
+    if let Some(token) = token {
+        auth::jwt::validate_token(&token, &config.jwt_secret)
+            .map_err(|_| axum::http::StatusCode::UNAUTHORIZED)?;
+    }
+
     let file_path = upload_dir.join(&path);
 
     // Prevent directory traversal

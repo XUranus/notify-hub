@@ -19,7 +19,7 @@ async fn get_quota(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> Result<Json<ApiResponse<UploadQuota>>, AppError> {
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let user_id = auth.user_id()?;
 
     let used: (i64,) = sqlx::query_as("SELECT COALESCE(SUM(size), 0) FROM attachments WHERE user_id = ?")
         .bind(user_id)
@@ -43,11 +43,11 @@ async fn upload_file(
     auth: AuthUser,
     mut multipart: Multipart,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
+    let user_id = auth.user_id()?;
 
     // Ensure upload directory exists
     let upload_dir = state.config.upload_dir.join(user_id.to_string());
-    std::fs::create_dir_all(&upload_dir)?;
+    tokio::fs::create_dir_all(&upload_dir).await?;
 
     while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
         let file_name = field.file_name()
@@ -83,7 +83,7 @@ async fn upload_file(
         let file_path = upload_dir.join(&stored_name);
 
         // Write file
-        std::fs::write(&file_path, &data)?;
+        tokio::fs::write(&file_path, &data).await?;
 
         let id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().timestamp();

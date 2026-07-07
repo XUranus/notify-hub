@@ -33,6 +33,8 @@ impl Config {
 
         let upload_dir = data_dir.join("uploads");
 
+        // Dev convenience: a random secret is generated so developers can run without
+        // configuring JWT_SECRET. Tokens will be invalidated on restart.
         let jwt_secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| {
             use rand::Rng;
             let mut rng = rand::thread_rng();

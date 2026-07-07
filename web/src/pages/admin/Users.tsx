@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useTranslation } from '@/lib/i18n'
 import { usersApi } from '@/lib/api'
 import { Users, Plus, Trash2, Pencil } from 'lucide-react'
@@ -20,6 +21,7 @@ interface UserItem {
 
 export default function AdminUsers() {
   const { t } = useTranslation()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [users, setUsers] = useState<UserItem[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -86,7 +88,7 @@ export default function AdminUsers() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm(t('users.deleteConfirm'))) return
+    if (!await confirm({ description: t('users.deleteConfirm'), variant: 'destructive', confirmLabel: t('users.delete') })) return
     setError('')
     const result = await usersApi.delete(id)
     if (result.success) {
@@ -105,6 +107,7 @@ export default function AdminUsers() {
   }
 
   return (
+    <>
     <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -254,5 +257,8 @@ export default function AdminUsers() {
           )}
         </CardContent>
       </Card>
+
+      {ConfirmDialog}
+    </>
   )
 }

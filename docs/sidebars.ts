@@ -13,6 +13,7 @@ const sidebars: SidebarsConfig = {
         'channels/overview',
         'channels/email',
         'channels/sms',
+        'channels/push',
       ],
     },
     {

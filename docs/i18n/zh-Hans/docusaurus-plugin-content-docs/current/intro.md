@@ -6,7 +6,7 @@ description: NotifyHub — 自托管通知推送服务
 
 # NotifyHub 文档
 
-**NotifyHub** 是一套自托管的通知推送服务。部署在自己的 VPS 上，配置 SMTP/SMS 凭证，生成 API Token，通过统一的 API 发送邮件、短信等通知。
+**NotifyHub** 是一套自托管的通知推送服务。部署在自己的 VPS 上，配置 SMTP/SMS 凭证，生成 API Key，通过统一的 API 发送邮件、短信等通知。
 
 ## 核心特性
 
@@ -15,7 +15,7 @@ description: NotifyHub — 自托管通知推送服务
 - **消息队列** — SQLite 原子队列，指数退避重试，死信队列
 - **安全** — AES-256-GCM 加密存储凭证，bcrypt 密码哈希，JWT 认证
 - **多用户** — 管理员 / 普通用户角色，基于邮箱注册登录
-- **API 令牌** — 按用户隔离，支持作用域、速率限制、IP 白名单
+- **API Key** — 按用户隔离，支持作用域、速率限制、IP 白名单
 - **自托管** — Docker 一键部署，数据完全在自己服务器上
 
 ## 系统架构

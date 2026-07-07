@@ -42,8 +42,8 @@ flowchart TB
     end
 
     Web -->|JWT Auth| API
-    CLI -->|API Token / JWT| API
-    Ext -->|API Token| API
+    CLI -->|API Key / JWT| API
+    Ext -->|API Key| API
     Android -->|SSE/WS/Poll + JWT| API
     Tauri -->|SSE/WS/Poll + JWT| API
     API --> Auth
@@ -76,9 +76,9 @@ sequenceDiagram
     participant Provider as External Provider
 
     Client->>API: POST /api/v1/send
-    API->>Auth: Validate API token
+    API->>Auth: Validate API key
     Auth->>Auth: Check scopes, rate limit, IP whitelist
-    Auth-->>API: Token valid
+    Auth-->>API: Key valid
     API->>Queue: enqueue(message)
     Queue->>DB: INSERT INTO messages
     Queue-->>API: { messageId, status: "queued" }
@@ -104,7 +104,7 @@ sequenceDiagram
 
 ## Push Delivery Flow
 
-When a message is sent to the `push` channel, the worker creates push messages and broadcasts them to connected clients in real-time:
+When a message is sent to the `push` channel, the worker creates push messages and broadcasts them to connected clients in real-time. On Android, FCM provides an additional parallel delivery path.
 
 ```mermaid
 sequenceDiagram
@@ -113,39 +113,43 @@ sequenceDiagram
     participant DB as SQLite
     participant Worker as Queue Worker
     participant PushState as PushState (broadcast)
-    participant Client as Push Client (SSE/WS)
+    participant FCM as Firebase FCM
+    participant Client as Push Client (SSE/WS/Poll)
 
     Sender->>API: POST /api/v1/send (channel: push)
-    API->>DB: INSERT INTO messages
+    API->>DB: INSERT INTO messages (status="queued")
 
-    Worker->>DB: Claim message
+    Worker->>DB: Claim message (batch)
     Worker->>DB: Find target push_clients
-    Worker->>DB: INSERT INTO push_messages
+    Worker->>DB: INSERT INTO push_messages (delivered=0)
+    Worker->>FCM: Send data message (if fcm_token)
     Worker->>PushState: broadcast(msg) per client
 
-    alt SSE
-        PushState-->>Client: data: {"data": [msg]}
-    else WebSocket
-        PushState-->>Client: {"data": [msg]}
-    else Long-Polling
-        Client->>API: GET /api/v1/push/poll
-        API->>DB: SELECT undelivered messages
-        API-->>Client: {"data": [msg1, msg2, ...]}
+    alt SSE/WS connected
+        PushState-->>Client: Real-time via broadcast
+    else Poll mode
+        Client->>API: GET /api/user/push/poll
+        API->>DB: SELECT undelivered push_messages
+        API-->>Client: Messages array (auto-ACK)
     end
 
-    Client->>API: POST /api/v1/push/ack
+    Client->>API: POST /api/user/push/ack
     API->>DB: UPDATE delivered = 1
 ```
 
 ### Connection Modes
 
-| Mode | Transport | Auth | Real-time | Notes |
-|------|-----------|------|-----------|-------|
-| **SSE** | `GET /api/v1/push/stream?uuid=&token=` | Query param or header | Yes | Unidirectional, auto-reconnect |
-| **WebSocket** | `GET /api/v1/push/ws?uuid=&token=` | Query param | Yes | Bidirectional, ping/pong keepalive |
-| **Poll** | `GET /api/v1/push/poll?uuid=` | Header | No (5s interval) | Compatible fallback |
+| Mode | Endpoint | Auth | Real-time | Notes |
+|------|----------|------|-----------|-------|
+| **SSE** | `GET /api/user/push/stream?uuid=&token=` | Query param or header | Yes | Unidirectional, 30s keep-alive |
+| **WebSocket** | `GET /api/user/push/ws?uuid=&token=` | Query param | Yes | Bidirectional, ping/pong keepalive |
+| **Poll** | `GET /api/user/push/poll?uuid=` | Header | No (5s interval) | Auto-ACK, compatible fallback |
 
-JWT is validated at connection time. Once established, the stream stays open regardless of token expiry. On disconnect, clients re-authenticate automatically.
+JWT is validated at connection time. SSE/WS connections flush all undelivered messages on establishment before entering the real-time stream. On disconnect, clients reconnect with exponential backoff (5s → 120s).
+
+:::tip Detailed docs
+For the complete push delivery architecture including FCM integration, error handling, reconnection strategies, and client-specific behavior, see [Push Channel](/channels/push).
+:::
 
 ## Message Lifecycle
 

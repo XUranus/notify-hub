@@ -262,8 +262,7 @@ async fn test_email_channel(config_str: &str) -> Result<Json<ApiResponse<serde_j
     let secure = cfg.get("secure").and_then(|v| v.as_bool()).unwrap_or(true);
 
     use lettre::transport::smtp::authentication::Credentials;
-    use lettre::transport::smtp::client::Tls;
-    use lettre::{SmtpTransport, Transport};
+    use lettre::SmtpTransport;
 
     let creds = Credentials::new(username.to_string(), password.to_string());
 

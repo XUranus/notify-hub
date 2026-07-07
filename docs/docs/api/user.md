@@ -1,7 +1,7 @@
 ---
 title: User API
 sidebar_position: 2
-description: User-specific operations: messages, tokens, stats, attachments, topics, push clients.
+description: "User-specific operations: messages, tokens, stats, attachments, topics, push clients."
 ---
 
 import Tabs from '@theme/Tabs';
@@ -175,11 +175,11 @@ Retrieve your API tokens. Admin users see all tokens; regular users see only the
 }
 ```
 
-### Create Token
+### Create Key
 
 <span className="method-badge method-post">POST</span> `/api/user/tokens`
 
-Create a new API token. The full token value is returned **only on creation**.
+Create a new API key. The full key value is returned **only on creation**.
 
 **Request Body:**
 

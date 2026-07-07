@@ -275,10 +275,7 @@ class PollService : Service() {
             delay(delay)
             if (isActive) {
                 val freshConfig = ConfigStore.load(this@PollService)
-                val freshJwt = ConfigStore.getJwtToken(this@PollService).ifBlank {
-                    // Fall back to current JWT if fresh one is blank
-                    freshConfig.jwtToken
-                }
+                val freshJwt = freshConfig.jwtToken
                 val freshApi = ApiClient(freshConfig.serverUrl, freshJwt)
                 when (mode) {
                     "sse" -> startSseMode(freshConfig, freshJwt, freshApi)

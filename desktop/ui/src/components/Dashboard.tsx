@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { api } from '../lib/tauri'
 import type { Message, TopicGroup } from '../hooks/useApp'
 import { renderMarkdown, renderJsonSyntax } from '../lib/render'
 
@@ -41,6 +42,67 @@ function TopicAvatar({ icon, name, displayName }: {
       <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
       <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
     </svg>
+  )
+}
+
+// ── Image URL detection ──
+const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico']
+function isImageUrl(url: string): boolean {
+  const lower = url.split('?')[0].toLowerCase()
+  return IMAGE_EXTS.some(ext => lower.endsWith(ext))
+}
+
+// ── Image Attachment with inline preview ──
+function ImageAttachment({ att, T }: { att: { name: string; url: string }; T: any }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  const [lightbox, setLightbox] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true); setError(false); setDataUrl(null)
+    api.fetchImageDataUrl(att.url).then(url => {
+      if (!cancelled) { setDataUrl(url); setLoading(false) }
+    }).catch(() => {
+      if (!cancelled) { setError(true); setLoading(false) }
+    })
+    return () => { cancelled = true }
+  }, [att.url])
+
+  // Lightbox keyboard handler
+  useEffect(() => {
+    if (!lightbox) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(false) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [lightbox])
+
+  return (
+    <>
+      <div className="detail-att-card image-att">
+        {loading && <div className="att-image-loading">⏳ Loading preview…</div>}
+        {error && <div className="att-image-error">Failed to load image preview</div>}
+        {dataUrl && (
+          <>
+            <img className="att-image-preview" src={dataUrl} alt={att.name || 'image'} onClick={() => setLightbox(true)} />
+            <div className="att-image-footer">
+              <span className="att-image-name">{att.name || 'image'}</span>
+              <span style={{fontSize:'12px',color:'var(--accent)',cursor:'pointer'}} onClick={async e => { e.stopPropagation(); try { await api.downloadFile(att.url, att.name || 'image') } catch {} }}>{T.download} →</span>
+            </div>
+          </>
+        )}
+      </div>
+      {lightbox && dataUrl && (
+        <div className="image-lightbox" onClick={() => setLightbox(false)}>
+          <button className="image-lightbox-download" title={T.download} onClick={async e => { e.stopPropagation(); try { await api.downloadFile(att.url, att.name || 'image') } catch {} }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+          <button className="image-lightbox-close" title={T.close} onClick={e => { e.stopPropagation(); setLightbox(false) }}>×</button>
+          <img src={dataUrl} alt={att.name || 'image'} onClick={e => e.stopPropagation()} />
+        </div>
+      )}
+    </>
   )
 }
 
@@ -352,11 +414,14 @@ export function Dashboard({ app }: Props) {
           </div>
           {tags.length > 0 && <><div className="detail-section-title">{T.tags}</div><div className="detail-tags">{tags.map((t: string) => <span key={t} className="detail-tag">{t}</span>)}</div></>}
           {att && <><div className="detail-section-title">{T.attachment}</div>
-            <div className="detail-att-card" onClick={async () => { try { await invoke('download_file', { url: att.url, filename: att.name || 'file' }) } catch {} }}>
-              <span style={{fontSize:'20px'}}>📎</span>
-              <div className="detail-att-info"><div className="detail-att-name">{att.name || 'file'}</div></div>
-              <span style={{fontSize:'12px',color:'var(--accent)'}}>{T.download} →</span>
-            </div>
+            {att.url && isImageUrl(att.url)
+              ? <ImageAttachment att={att} T={T} />
+              : <div className="detail-att-card" onClick={async () => { try { await invoke('download_file', { url: att.url, filename: att.name || 'file' }) } catch {} }}>
+                  <span style={{fontSize:'20px'}}>📎</span>
+                  <div className="detail-att-info"><div className="detail-att-name">{att.name || 'file'}</div></div>
+                  <span style={{fontSize:'12px',color:'var(--accent)'}}>{T.download} →</span>
+                </div>
+            }
           </>}
         </div>
       </div>

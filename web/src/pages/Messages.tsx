@@ -5,9 +5,10 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { messagesApi, topicsApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
-import { RefreshCw, RotateCw, Trash2, Download, Link, Paperclip, ExternalLink, SlidersHorizontal, ChevronDown } from 'lucide-react'
+import { RefreshCw, RotateCw, Trash2, Download, Paperclip, ExternalLink, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { formatDate, toDate } from '@/lib/utils'
 
 interface Message {
@@ -80,14 +81,19 @@ function downloadFile(content: string, filename: string, mimeType: string) {
   URL.revokeObjectURL(url)
 }
 
+const EXPORT_FIELDS: (keyof Message)[] = ['id', 'channelType', 'channelName', 'toAddress', 'subject', 'body', 'status', 'retryCount', 'errorMessage', 'ipAddress', 'ipLocation', 'app', 'createdAt', 'sentAt', 'tags', 'priority', 'url', 'attachment', 'format', 'topicId']
+
+function getField(m: Message, key: keyof Message): unknown {
+  return m[key]
+}
+
 function toCsv(messages: Message[]): string {
-  const headers = ['id', 'channelType', 'channelName', 'toAddress', 'subject', 'body', 'status', 'retryCount', 'errorMessage', 'ipAddress', 'ipLocation', 'app', 'createdAt', 'sentAt', 'tags', 'priority', 'url', 'attachment', 'format', 'topicId']
   const escape = (v: unknown) => {
     const s = v == null ? '' : String(v)
     return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
   }
-  const rows = messages.map((m) => headers.map((h) => escape((m as unknown as Record<string, unknown>)[h])).join(','))
-  return [headers.join(','), ...rows].join('\n')
+  const rows = messages.map((m) => EXPORT_FIELDS.map((h) => escape(getField(m, h))).join(','))
+  return [EXPORT_FIELDS.join(','), ...rows].join('\n')
 }
 
 function toJson(messages: Message[]): string {
@@ -96,10 +102,9 @@ function toJson(messages: Message[]): string {
 
 function toXml(messages: Message[]): string {
   const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-  const fields = ['id', 'channelType', 'channelName', 'toAddress', 'subject', 'body', 'status', 'retryCount', 'errorMessage', 'ipAddress', 'ipLocation', 'app', 'createdAt', 'sentAt', 'tags', 'priority', 'url', 'attachment', 'format', 'topicId']
   const items = messages.map((m) => {
-    const inner = fields.map((f) => {
-      const v = (m as unknown as Record<string, unknown>)[f]
+    const inner = EXPORT_FIELDS.map((f) => {
+      const v = getField(m, f)
       return `    <${f}>${v != null ? escape(String(v)) : ''}</${f}>`
     }).join('\n')
     return `  <message>\n${inner}\n  </message>`
@@ -141,6 +146,7 @@ const COLUMN_I18N: Record<ColumnKey, string> = {
 
 export default function Messages() {
   const { t } = useTranslation()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [messages, setMessages] = useState<Message[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -151,19 +157,30 @@ export default function Messages() {
   const [exporting, setExporting] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [visibleCols, setVisibleCols] = useState<Set<ColumnKey>>(new Set(ALL_COLUMNS.filter((c) => c !== 'tags' && c !== 'priority' && c !== 'format')))
   const [showColPicker, setShowColPicker] = useState(false)
   const colPickerRef = useRef<HTMLDivElement>(null)
+  const pageRef = useRef(page)
+  const statusFilterRef = useRef(statusFilter)
 
-  // Click outside to close column picker
+  // Click outside or Escape to close column picker
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
+    if (!showColPicker) return
+    const handleClick = (e: MouseEvent) => {
       if (colPickerRef.current && !colPickerRef.current.contains(e.target as Node)) {
         setShowColPicker(false)
       }
     }
-    if (showColPicker) document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowColPicker(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
   }, [showColPicker])
 
   const toggleCol = (key: ColumnKey) => {
@@ -204,23 +221,32 @@ export default function Messages() {
 
   const col = (key: ColumnKey) => visibleCols.has(key)
 
+  // Keep refs in sync with state so load() always reads current values
+  useEffect(() => { pageRef.current = page }, [page])
+  useEffect(() => { statusFilterRef.current = statusFilter }, [statusFilter])
+
   const load = () => {
     setLoading(true)
-    messagesApi.list({ page, pageSize: 20, status: statusFilter || undefined }).then((res) => {
+    setError('')
+    messagesApi.list({ page: pageRef.current, pageSize: 20, status: statusFilterRef.current || undefined }).then((res) => {
       if (res.success && res.data) {
         setMessages(res.data.items || [])
         setTotal(res.data.total || 0)
+      } else {
+        setError(res.error || 'Failed to load messages')
       }
+    }).catch((err) => {
+      setError(err.message || 'Network error')
     }).finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [page, statusFilter])
 
-  // Auto-refresh every 30s
+  // Auto-refresh every 30s (load reads from refs, so no stale closure)
   useEffect(() => {
     const timer = setInterval(load, 30_000)
     return () => clearInterval(timer)
-  }, [page, statusFilter])
+  }, [])
 
   const handleRetry = async (id: string) => {
     await messagesApi.retry(id)
@@ -228,14 +254,14 @@ export default function Messages() {
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm(t('messages.deleteConfirm'))) {
+    if (await confirm({ description: t('messages.deleteConfirm'), variant: 'destructive', confirmLabel: t('messages.delete') })) {
       await messagesApi.delete(id)
       load()
     }
   }
 
   const handleClearAll = async () => {
-    if (confirm(t('messages.clearAllConfirm'))) {
+    if (await confirm({ description: t('messages.clearAllConfirm'), variant: 'destructive', confirmLabel: t('messages.clearAll') })) {
       setClearing(true)
       try {
         const res = await messagesApi.deleteAll()
@@ -299,6 +325,13 @@ export default function Messages() {
           </Button>
         </div>
       </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive mb-4">
+          {error}
+        </div>
+      )}
 
       <div className="flex gap-2 mb-4 flex-wrap items-center">
         {/* Status filter */}
@@ -416,7 +449,9 @@ export default function Messages() {
                 ))
               ) : (
                 <>
-                  {filteredMessages.map((msg) => (
+                  {filteredMessages.map((msg) => {
+                    const tags = parseTags(msg.tags)
+                    return (
                     <tr
                       key={msg.id}
                       className="border-b hover:bg-muted/50 cursor-pointer"
@@ -447,10 +482,10 @@ export default function Messages() {
                       {col('tags') && (
                         <td className="px-3 py-1.5">
                           <div className="flex gap-1 flex-wrap max-w-[140px]">
-                            {parseTags(msg.tags).map((tag, i) => (
+                            {tags.map((tag, i) => (
                               <Badge key={i} variant="outline" className="text-[10px] px-1 py-0">{tag}</Badge>
                             ))}
-                            {parseTags(msg.tags).length === 0 && <span className="text-muted-foreground text-xs">—</span>}
+                            {tags.length === 0 && <span className="text-muted-foreground text-xs">—</span>}
                           </div>
                         </td>
                       )}
@@ -493,18 +528,18 @@ export default function Messages() {
                         <td className="px-3 py-1.5 text-right whitespace-nowrap">
                           <div className="flex justify-end gap-1">
                             {(msg.status === 'failed' || msg.status === 'dead') && (
-                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" onClick={(e) => { e.stopPropagation(); handleRetry(msg.id) }}>
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" onClick={(e) => { e.stopPropagation(); handleRetry(msg.id) }} aria-label="Retry">
                                 <RotateCw className="h-3 w-3" />
                               </Button>
                             )}
-                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(msg.id) }}>
+                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(msg.id) }} aria-label="Delete">
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
                         </td>
                       )}
                     </tr>
-                  ))}
+                  )})}
                   {filteredMessages.length === 0 && (
                     <tr>
                       <td colSpan={visibleCols.size}>
@@ -666,6 +701,8 @@ export default function Messages() {
           )}
         </DialogContent>
       </Dialog>
+
+      {ConfirmDialog}
     </div>
   )
 }

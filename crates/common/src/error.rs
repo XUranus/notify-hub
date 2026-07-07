@@ -65,28 +65,28 @@ impl axum::response::IntoResponse for AppError {
                 tracing::error!("database error: {e}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("database error: {e}"),
+                    "internal server error".to_string(),
                 )
             }
             AppError::Json(e) => {
                 tracing::error!("json error: {e}");
                 (
                     axum::http::StatusCode::BAD_REQUEST,
-                    format!("invalid json: {e}"),
+                    "invalid json".to_string(),
                 )
             }
             AppError::Io(e) => {
                 tracing::error!("io error: {e}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("io error: {e}"),
+                    "internal server error".to_string(),
                 )
             }
             AppError::Anyhow(e) => {
                 tracing::error!("error: {e:?}");
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("{e}"),
+                    "internal server error".to_string(),
                 )
             }
         };

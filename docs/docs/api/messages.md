@@ -1,7 +1,7 @@
 ---
 title: Messages API
 sidebar_position: 2
-description: Query and inspect notification messages through the NotifyHub Messages API.
+description: "Query and inspect notification messages through the NotifyHub Messages API."
 ---
 
 import Tabs from '@theme/Tabs';
@@ -9,39 +9,28 @@ import TabItem from '@theme/TabItem';
 
 # Messages API
 
-The Messages API lets you query the status and details of notifications that have been sent through NotifyHub. Use it to track delivery, inspect failures, and build dashboards.
+The Messages API lets you query the status and details of notifications sent through NotifyHub. Use it to track delivery, inspect failures, and build dashboards.
 
-## Base URL
+## Base URLs
 
-```text
-http://<your-host>:9527/api/user/messages
-```
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `/api/v1/messages` | **DualAuth** (JWT or API Key) | Recommended — supports both auth methods. |
+| `/api/user/messages` | **JWT only** | Requires login token. |
+
+Both endpoints return the same response format. Non-admin users see only their own messages; admin users see all.
 
 ## Authentication
 
-All messages endpoints require a valid JWT token:
-
 ```text
-Authorization: Bearer <jwt-token>
+Authorization: Bearer <jwt-token-or-api-key>
 ```
-
-Admin users see all messages; regular users see only their own.
 
 ---
 
 ## Message Lifecycle
 
-Every message progresses through a series of statuses from the moment it is enqueued to its final state.
-
-```text
-queued  -->  sending  -->  sent  -->  delivered
-                  |
-                  v
-               failed  --(retry)-->  queued
-                  |
-                  v (max retries exceeded)
-                dead
-```
+Every message progresses through a state machine from creation to terminal state:
 
 ```mermaid
 stateDiagram-v2
@@ -56,35 +45,35 @@ stateDiagram-v2
 
 ### Status Descriptions
 
-| Status      | Description                                                                                                        |
-| ----------- | ------------------------------------------------------------------------------------------------------------------ |
-| `queued`    | The message has been enqueued and is waiting to be picked up by the worker. Scheduled messages stay in `queued` until their `scheduledAt` time. |
-| `sending`   | The worker has claimed the message and is actively delivering it to the channel provider.                           |
-| `sent`      | The message was successfully dispatched to the channel provider (e.g., the SMTP server accepted it).               |
-| `delivered` | The channel provider confirmed delivery (e.g., the recipient's mail server accepted the message). Not all providers support delivery confirmation. |
-| `failed`    | Delivery failed. The message will be automatically retried with exponential backoff if retries remain.             |
-| `dead`      | The message has exhausted all retry attempts (default: 5). It will not be retried automatically. Use the [Admin API](./admin#retry-a-message) to manually retry. |
+| Status | Description |
+|--------|-------------|
+| `queued` | Enqueued and waiting. Scheduled messages stay here until `scheduledAt`. |
+| `sending` | Worker is actively delivering to the channel provider. |
+| `sent` | Successfully dispatched (e.g., SMTP server accepted). |
+| `delivered` | Provider confirmed delivery (not all providers support this). |
+| `failed` | Delivery failed. Auto-retried with exponential backoff if retries remain. |
+| `dead` | All retries exhausted (default: 5). Requires [manual retry](./admin#retry-a-message). |
 
 ---
 
 ## List Messages
 
-<span className="method-badge method-get">GET</span> `/api/user/messages`
+<span className="method-badge method-get">GET</span> `/api/v1/messages`
 
-Retrieve a paginated list of messages. Results are ordered by creation time (newest first).
+Retrieve a paginated list of messages. Ordered by `createdAt DESC`.
 
 ### Query Parameters
 
-| Parameter   | Type     | Default | Description                                             |
-| ----------- | -------- | ------- | ------------------------------------------------------- |
-| `page`      | `number` | `1`     | Page number (1-based).                                  |
-| `pageSize`  | `number` | `20`    | Number of items per page. Maximum: `100`.               |
-| `status`    | `string` | --      | Filter by message status. See [Status Descriptions](#status-descriptions). |
-| `channel`   | `string` | --      | Filter by channel type: `email`, `sms`, or `push`.      |
+| Parameter | Type | Default | Max | Description |
+|-----------|------|---------|-----|-------------|
+| `page` | `number` | `1` | — | Page number (1-based). |
+| `pageSize` | `number` | `50` | `500` | Items per page. |
+| `status` | `string` | — | — | Filter by status: `queued`, `sending`, `sent`, `delivered`, `failed`, `dead`. |
+| `topic` | `string` | — | — | Filter by topic ID. |
 
 ### Response
 
-**Success -- 200 OK**
+**200 OK**
 
 ```json
 {
@@ -94,10 +83,10 @@ Retrieve a paginated list of messages. Results are ordered by creation time (new
       {
         "id": "550e8400-e29b-41d4-a716-446655440000",
         "channelType": "email",
-        "channelId": 1,
+        "channelId": "channel-uuid",
         "toAddress": "user@example.com",
         "subject": "Welcome to NotifyHub",
-        "body": "Your account has been created successfully.",
+        "body": "Your account has been created.",
         "templateId": null,
         "templateVars": null,
         "status": "sent",
@@ -106,10 +95,14 @@ Retrieve a paginated list of messages. Results are ordered by creation time (new
         "nextRetryAt": null,
         "errorMessage": null,
         "idempotencyKey": null,
+        "ipAddress": "192.168.1.1",
+        "ipLocation": "US",
+        "app": null,
+        "topicId": null,
         "scheduledAt": null,
-        "sentAt": 1719849600000,
-        "createdAt": 1719849595000,
-        "tags": "[\"onboarding\"]",
+        "sentAt": 1719849600,
+        "createdAt": 1719849595,
+        "tags": ["onboarding"],
         "priority": 0,
         "url": null,
         "attachment": null,
@@ -118,46 +111,41 @@ Retrieve a paginated list of messages. Results are ordered by creation time (new
     ],
     "total": 156,
     "page": 1,
-    "pageSize": 20
+    "pageSize": 50
   }
 }
 ```
 
-### Response Fields
+### Message Object
 
-| Field           | Type              | Description                                                                 |
-| --------------- | ----------------- | --------------------------------------------------------------------------- |
-| `items`         | `Message[]`       | Array of message objects for the current page.                              |
-| `total`         | `number`          | Total number of messages matching the filter criteria.                      |
-| `page`          | `number`          | Current page number.                                                        |
-| `pageSize`      | `number`          | Number of items per page.                                                   |
-
-#### Message Object
-
-| Field            | Type              | Description                                                               |
-| ---------------- | ----------------- | ------------------------------------------------------------------------- |
-| `id`             | `string`          | Unique message identifier (UUID).                                         |
-| `channelType`    | `string`          | Channel type: `email`, `sms`, or `push`.                                  |
-| `channelId`      | `number \| null`  | ID of the specific channel instance used (or `null` if default was used). |
-| `toAddress`      | `string`          | Recipient address.                                                        |
-| `subject`        | `string \| null`  | Message subject.                                                          |
-| `body`           | `string \| null`  | Message body.                                                             |
-| `templateId`     | `number \| null`  | ID of the template used (or `null` if sent with a raw body).             |
-| `templateVars`   | `object \| null`  | Template variables as a JSON object (or `null`).                          |
-| `status`         | `string`          | Current message status. See [Status Descriptions](#status-descriptions). |
-| `retryCount`     | `number`          | Number of delivery attempts made so far.                                  |
-| `maxRetries`     | `number`          | Maximum number of retries allowed (default: 5).                           |
-| `nextRetryAt`    | `number \| null`  | Unix timestamp (ms) of the next scheduled retry attempt (or `null`).     |
-| `errorMessage`   | `string \| null`  | Error message from the last failed delivery attempt (or `null`).          |
-| `idempotencyKey` | `string \| null`  | Idempotency key used when sending (or `null`).                            |
-| `scheduledAt`    | `number \| null`  | Unix timestamp (ms) of the scheduled delivery time (or `null`).          |
-| `sentAt`         | `number \| null`  | Unix timestamp (ms) when the message was sent (or `null`).               |
-| `createdAt`      | `number`          | Unix timestamp (ms) when the message was enqueued.                        |
-| `tags`           | `string \| null`  | JSON array of tag strings. Example: `"[\"deploy\",\"prod\"]"`.           |
-| `priority`       | `number`          | Priority level (0--99). Higher values are delivered first.                |
-| `url`            | `string \| null`  | Associated URL for client-side linking.                                   |
-| `attachment`     | `string \| null`  | JSON object `{name, url?, data?}` (or `null`).                           |
-| `format`         | `string`          | Body format: `text`, `markdown`, `html`, or `json`.                      |
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| `id` | `string` | No | UUID of the message. |
+| `channelType` | `string` | No | `email`, `sms`, or `push`. |
+| `channelId` | `string \| null` | Yes | UUID of the channel config used. |
+| `toAddress` | `string` | No | Recipient address. |
+| `subject` | `string \| null` | Yes | Message subject. |
+| `body` | `string \| null` | Yes | Message body. |
+| `templateId` | `string \| null` | Yes | UUID of the template used. |
+| `templateVars` | `object \| null` | Yes | Template variables as JSON object. |
+| `status` | `string` | No | Current status. See [Status Descriptions](#status-descriptions). |
+| `retryCount` | `number` | No | Delivery attempts so far. |
+| `maxRetries` | `number` | No | Max retries allowed (default: 5). |
+| `nextRetryAt` | `number \| null` | Yes | Unix timestamp of next retry. |
+| `errorMessage` | `string \| null` | Yes | Last error message on failure. |
+| `idempotencyKey` | `string \| null` | Yes | Idempotency key used at send time. |
+| `ipAddress` | `string \| null` | Yes | Client IP address. |
+| `ipLocation` | `string \| null` | Yes | GeoIP location. |
+| `app` | `string \| null` | Yes | Application identifier. |
+| `topicId` | `string \| null` | Yes | Associated topic UUID. |
+| `scheduledAt` | `number \| null` | Yes | Unix timestamp of scheduled delivery. |
+| `sentAt` | `number \| null` | Yes | Unix timestamp when sent. |
+| `createdAt` | `number` | No | Unix timestamp when enqueued. |
+| `tags` | `string[] \| null` | Yes | Tags array. |
+| `priority` | `number` | No | Priority level (0–99). |
+| `url` | `string \| null` | Yes | Associated URL. |
+| `attachment` | `object \| null` | Yes | `{ name, url?, data? }`. |
+| `format` | `string` | No | `text`, `markdown`, `html`, or `json`. |
 
 ### Examples
 
@@ -165,16 +153,12 @@ Retrieve a paginated list of messages. Results are ordered by creation time (new
 <TabItem value="curl" label="curl">
 
 ```bash
-# List the first page of messages
-curl http://localhost:9527/api/user/messages \
+# List first page
+curl "http://localhost:9527/api/v1/messages" \
   -H "Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
-# Filter by status
-curl "http://localhost:9527/api/user/messages?status=failed&page=1&pageSize=50" \
-  -H "Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-
-# Filter by channel type
-curl "http://localhost:9527/api/user/messages?channel=sms" \
+# Filter by status and pagination
+curl "http://localhost:9527/api/v1/messages?status=failed&page=1&pageSize=20" \
   -H "Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
@@ -186,11 +170,10 @@ const params = new URLSearchParams({
   page: "1",
   pageSize: "20",
   status: "failed",
-  channel: "email",
 });
 
 const response = await fetch(
-  `http://localhost:9527/api/user/messages?${params}`,
+  `http://localhost:9527/api/v1/messages?${params}`,
   {
     headers: {
       Authorization: "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -199,7 +182,10 @@ const response = await fetch(
 );
 
 const result = await response.json();
-console.log(`Showing ${result.data.items.length} of ${result.data.total} messages`);
+console.log(`Showing ${result.data.items.length} of ${result.data.total}`);
+for (const msg of result.data.items) {
+  console.log(`  ${msg.id} → ${msg.toAddress} [${msg.status}]`);
+}
 ```
 
 </TabItem>
@@ -209,15 +195,102 @@ console.log(`Showing ${result.data.items.length} of ${result.data.total} message
 import requests
 
 response = requests.get(
-    "http://localhost:9527/api/user/messages",
+    "http://localhost:9527/api/v1/messages",
     headers={"Authorization": "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},
-    params={"page": 1, "pageSize": 20, "status": "failed", "channel": "email"},
+    params={"page": 1, "pageSize": 20, "status": "failed"},
 )
 
 data = response.json()["data"]
-print(f"Showing {len(data['items'])} of {data['total']} messages")
+print(f"Showing {len(data['items'])} of {data['total']}")
 for msg in data["items"]:
-    print(f"  #{msg['id']} {msg['toAddress']} -- {msg['status']}")
+    print(f"  {msg['id']} → {msg['toAddress']} [{msg['status']}]")
+```
+
+</TabItem>
+<TabItem value="go" label="Go">
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+)
+
+func main() {
+	params := url.Values{}
+	params.Set("page", "1")
+	params.Set("pageSize", "20")
+	params.Set("status", "failed")
+
+	req, _ := http.NewRequest("GET", "http://localhost:9527/api/v1/messages?"+params.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+
+	resp, _ := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	data := result["data"].(map[string]interface{})
+	fmt.Printf("Total: %.0f\n", data["total"])
+}
+```
+
+</TabItem>
+<TabItem value="php" label="PHP">
+
+```php
+<?php
+$ch = curl_init('http://localhost:9527/api/v1/messages?' . http_build_query([
+    'page' => 1,
+    'pageSize' => 20,
+    'status' => 'failed',
+]));
+curl_setopt_array($ch, [
+    CURLOPT_HTTPHEADER => ['Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'],
+    CURLOPT_RETURNTRANSFER => true,
+]);
+
+$response = json_decode(curl_exec($ch), true);
+curl_close($ch);
+
+echo "Total: {$response['data']['total']}\n";
+foreach ($response['data']['items'] as $msg) {
+    echo "  {$msg['id']} → {$msg['toAddress']} [{$msg['status']}]\n";
+}
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
+```rust
+use reqwest::Client;
+use serde::Deserialize;
+use serde_json::Value;
+
+#[derive(Deserialize, Debug)]
+struct ApiResponse {
+    success: bool,
+    data: Option<Value>,
+    error: Option<String>,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::new();
+    let resp = client
+        .get("http://localhost:9527/api/v1/messages")
+        .header("Authorization", "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+        .query(&[("page", "1"), ("pageSize", "20"), ("status", "failed")])
+        .send()
+        .await?;
+
+    let result: ApiResponse = resp.json().await?;
+    println!("{:#?}", result.data);
+    Ok(())
+}
 ```
 
 </TabItem>
@@ -227,58 +300,32 @@ for msg in data["items"]:
 
 ## Get a Single Message
 
-<span className="method-badge method-get">GET</span> `/api/user/messages/:id`
+<span className="method-badge method-get">GET</span> `/api/v1/messages/{id}`
 
-Retrieve the full details of a specific message by its ID.
+Retrieve the full details of a specific message by UUID.
 
 ### Path Parameters
 
-| Parameter | Type     | Description              |
-| --------- | -------- | ------------------------ |
-| `id`      | `number` | The message ID to fetch. |
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | `string` | UUID of the message. |
 
 ### Response
 
-**Success -- 200 OK**
+**200 OK** — Returns the same [Message Object](#message-object) as the list endpoint.
 
-```json
-{
-  "success": true,
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "channelType": "push",
-    "channelId": null,
-    "toAddress": "device-uuid",
-    "subject": "Deployment Complete",
-    "body": "**Build #1234** deployed to production.",
-    "templateId": null,
-    "templateVars": null,
-    "status": "sent",
-    "retryCount": 0,
-    "maxRetries": 5,
-    "nextRetryAt": null,
-    "errorMessage": null,
-    "idempotencyKey": null,
-    "scheduledAt": null,
-    "sentAt": 1719849600000,
-    "createdAt": 1719849595000,
-    "tags": "[\"deploy\",\"production\"]",
-    "priority": 80,
-    "url": "https://dashboard.example.com/deployments/1234",
-    "attachment": "{\"name\":\"deploy-log.txt\",\"url\":\"https://logs.example.com/build-1234.txt\"}",
-    "format": "markdown"
-  }
-}
-```
-
-**Not Found -- 404**
+**404 Not Found**
 
 ```json
 {
   "success": false,
-  "error": "Message not found"
+  "error": "message not found"
 }
 ```
+
+:::info Access control
+Non-admin users can only retrieve their own messages. Requesting another user's message returns 404 (not 403) to avoid information leakage.
+:::
 
 ### Examples
 
@@ -286,7 +333,7 @@ Retrieve the full details of a specific message by its ID.
 <TabItem value="curl" label="curl">
 
 ```bash
-curl http://localhost:9527/api/user/messages/42 \
+curl "http://localhost:9527/api/v1/messages/550e8400-e29b-41d4-a716-446655440000" \
   -H "Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
@@ -294,9 +341,9 @@ curl http://localhost:9527/api/user/messages/42 \
 <TabItem value="javascript" label="JavaScript">
 
 ```javascript
-const messageId = 42;
+const messageId = "550e8400-e29b-41d4-a716-446655440000";
 const response = await fetch(
-  `http://localhost:9527/api/user/messages/${messageId}`,
+  `http://localhost:9527/api/v1/messages/${messageId}`,
   {
     headers: {
       Authorization: "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -306,7 +353,7 @@ const response = await fetch(
 
 const result = await response.json();
 if (result.success) {
-  console.log(`Message to ${result.data.toAddress}: ${result.data.status}`);
+  console.log(`${result.data.toAddress}: ${result.data.status}`);
 } else {
   console.error(result.error);
 }
@@ -318,18 +365,98 @@ if (result.success) {
 ```python
 import requests
 
-message_id = 42
+message_id = "550e8400-e29b-41d4-a716-446655440000"
 response = requests.get(
-    f"http://localhost:9527/api/user/messages/{message_id}",
+    f"http://localhost:9527/api/v1/messages/{message_id}",
     headers={"Authorization": "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},
 )
 
 result = response.json()
 if result["success"]:
     msg = result["data"]
-    print(f"Message to {msg['toAddress']}: {msg['status']}")
+    print(f"{msg['toAddress']}: {msg['status']}")
 else:
     print(f"Error: {result['error']}")
+```
+
+</TabItem>
+<TabItem value="go" label="Go">
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+)
+
+func main() {
+	id := "550e8400-e29b-41d4-a716-446655440000"
+	req, _ := http.NewRequest("GET", "http://localhost:9527/api/v1/messages/"+id, nil)
+	req.Header.Set("Authorization", "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+
+	resp, _ := http.DefaultClient.Do(req)
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["success"].(bool) {
+		data := result["data"].(map[string]interface{})
+		fmt.Printf("%s: %s\n", data["toAddress"], data["status"])
+	} else {
+		fmt.Println("Error:", result["error"])
+	}
+}
+```
+
+</TabItem>
+<TabItem value="php" label="PHP">
+
+```php
+<?php
+$id = "550e8400-e29b-41d4-a716-446655440000";
+$ch = curl_init("http://localhost:9527/api/v1/messages/{$id}");
+curl_setopt_array($ch, [
+    CURLOPT_HTTPHEADER => ['Authorization: Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'],
+    CURLOPT_RETURNTRANSFER => true,
+]);
+
+$result = json_decode(curl_exec($ch), true);
+curl_close($ch);
+
+if ($result['success']) {
+    echo "{$result['data']['toAddress']}: {$result['data']['status']}\n";
+} else {
+    echo "Error: {$result['error']}\n";
+}
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
+```rust
+use reqwest::Client;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::new();
+    let id = "550e8400-e29b-41d4-a716-446655440000";
+    let resp = client
+        .get(format!("http://localhost:9527/api/v1/messages/{}", id))
+        .header("Authorization", "Bearer nh_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+        .send()
+        .await?;
+
+    let result: serde_json::Value = resp.json().await?;
+    if result["success"].as_bool().unwrap_or(false) {
+        let msg = &result["data"];
+        println!("{}: {}", msg["toAddress"], msg["status"]);
+    } else {
+        println!("Error: {}", result["error"]);
+    }
+    Ok(())
+}
 ```
 
 </TabItem>
@@ -337,26 +464,34 @@ else:
 
 ---
 
+## Error Codes
+
+| HTTP | Error | Description |
+|------|-------|-------------|
+| `400` | `invalid user id` | Auth token contains invalid user ID. |
+| `401` | `missing Authorization header` | No `Authorization` header provided. |
+| `401` | `invalid API token` | Token does not exist in database. |
+| `401` | `token has expired` | JWT has expired. |
+| `403` | `token is disabled` | Token disabled by admin. |
+| `404` | `message not found` | Message does not exist or belongs to another user. |
+| `500` | `database error: <detail>` | Internal database error. |
+
+---
+
 ## Retry Behavior
 
-When a message fails to deliver, NotifyHub automatically retries with **exponential backoff**. The retry schedule is:
+When a message fails to deliver, NotifyHub automatically retries with **exponential backoff**:
 
-| Retry Attempt | Delay Before Retry |
-| ------------- | ------------------ |
-| 1             | 1 second           |
-| 2             | 5 seconds          |
-| 3             | 30 seconds         |
-| 4             | 5 minutes          |
-| 5             | 30 minutes         |
+| Retry # | Delay |
+|---------|-------|
+| 1 | 1 second |
+| 2 | 5 seconds |
+| 3 | 30 seconds |
+| 4 | 5 minutes |
+| 5 | 30 minutes |
 
-**How it works:**
-
-1. A message fails delivery and moves to `failed` status.
-2. The `retryCount` is incremented and `nextRetryAt` is set based on the delay table above.
-3. The worker polls for failed messages whose `nextRetryAt` has passed, and re-queues them.
-4. After the maximum number of retries (default: **5**), the message moves to `dead` status.
-5. Dead messages are **not** retried automatically. Use the [Admin API -- Retry a Message](./admin#retry-a-message) endpoint to manually retry them.
+After 5 retries, the message moves to `dead` status. Use the [Admin API](./admin#retry-a-message) to manually retry dead messages.
 
 :::info
-The `failed` status is a transient state. A message in `failed` status will be automatically picked up for retry by the worker when its `nextRetryAt` time arrives. Only `dead` messages require manual intervention.
+The `failed` status is transient — the worker automatically picks it up for retry when `nextRetryAt` arrives. Only `dead` messages require manual intervention.
 :::

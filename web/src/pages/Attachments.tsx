@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/ui/empty-state'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { attachmentsApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
-import { toDate, copyToClipboard } from '@/lib/utils'
+import { toDate, copyToClipboard, formatBytes } from '@/lib/utils'
 import {
   Upload, Trash2, Copy, Check, File, Image as ImageIcon, FileText, FileArchive,
   FileVideo, FileAudio, FileCode, ChevronLeft, ChevronRight,
@@ -22,14 +23,6 @@ interface Attachment {
   downloadCount: number
   expiresAt: string | null
   createdAt: string
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
 function getFileIcon(mimeType: string, size = 'w-4 h-4') {
@@ -65,6 +58,7 @@ function canPreview(mimeType: string): boolean {
 
 export default function Attachments() {
   const { t } = useTranslation()
+  const { confirm, ConfirmDialog } = useConfirm()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [total, setTotal] = useState(0)
@@ -77,18 +71,26 @@ export default function Attachments() {
   const [preview, setPreview] = useState<Attachment | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [error, setError] = useState('')
 
   const load = useCallback(async () => {
-    const [listRes, statsRes] = await Promise.all([
-      attachmentsApi.list(page, pageSize),
-      attachmentsApi.stats(),
-    ])
-    if (listRes.success && listRes.data) {
-      setAttachments(listRes.data.items)
-      setTotal(listRes.data.total)
-    }
-    if (statsRes.success && statsRes.data) {
-      setStats(statsRes.data)
+    setError('')
+    try {
+      const [listRes, statsRes] = await Promise.all([
+        attachmentsApi.list(page, pageSize),
+        attachmentsApi.stats(),
+      ])
+      if (listRes.success && listRes.data) {
+        setAttachments(listRes.data.items)
+        setTotal(listRes.data.total)
+      } else {
+        setError(listRes.error || 'Failed to load attachments')
+      }
+      if (statsRes.success && statsRes.data) {
+        setStats(statsRes.data)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error')
     }
   }, [page, pageSize])
 
@@ -109,7 +111,7 @@ export default function Attachments() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t('attachments_delete_confirm'))) return
+    if (!await confirm({ description: t('attachments_delete_confirm'), variant: 'destructive', confirmLabel: t('attachments_delete') })) return
     await attachmentsApi.delete(id)
     setSelected(prev => { const next = new Set(prev); next.delete(id); return next })
     await load()
@@ -118,14 +120,14 @@ export default function Attachments() {
   const handleBatchDelete = async () => {
     const ids = Array.from(selected)
     if (ids.length === 0) return
-    if (!confirm(t('attachments_batch_delete_confirm', { count: ids.length }))) return
+    if (!await confirm({ description: t('attachments_batch_delete_confirm', { count: ids.length }), variant: 'destructive', confirmLabel: t('attachments_delete') })) return
     await attachmentsApi.batchDelete(ids)
     setSelected(new Set())
     await load()
   }
 
   const handleClearAll = async () => {
-    if (!confirm(t('attachments_clear_confirm'))) return
+    if (!await confirm({ description: t('attachments_clear_confirm'), variant: 'destructive', confirmLabel: t('attachments_clear_all') })) return
     await attachmentsApi.clearAll()
     setSelected(new Set())
     setPage(1)
@@ -159,31 +161,41 @@ export default function Attachments() {
     })
   }
 
-  const toggleSelectAll = () => {
-    if (selected.size === attachments.length) {
-      setSelected(new Set())
-    } else {
-      setSelected(new Set(attachments.map(a => a.id)))
-    }
-  }
-
   const filteredAttachments = search
     ? attachments.filter(a => a.originalName.toLowerCase().includes(search.toLowerCase()))
     : attachments
 
+  const toggleSelectAll = () => {
+    const filteredIds = filteredAttachments.map(a => a.id)
+    const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selected.has(id))
+    if (allFilteredSelected) {
+      setSelected(prev => {
+        const next = new Set(prev)
+        filteredIds.forEach(id => next.delete(id))
+        return next
+      })
+    } else {
+      setSelected(prev => {
+        const next = new Set(prev)
+        filteredIds.forEach(id => next.add(id))
+        return next
+      })
+    }
+  }
+
   const totalPages = Math.ceil(total / pageSize)
-  const allSelected = attachments.length > 0 && selected.size === attachments.length
+  const allSelected = filteredAttachments.length > 0 && filteredAttachments.every(a => selected.has(a.id))
 
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t('attachments_title')}</h1>
+        <h2 className="text-3xl font-bold tracking-tight">{t('attachments_title')}</h2>
         <div className="flex items-center gap-2">
           {selected.size > 0 && (
             <Badge variant="secondary" className="gap-1">
               {t('attachments_selected', { count: selected.size })}
-              <X className="w-3 h-3 cursor-pointer" onClick={() => setSelected(new Set())} />
+              <X className="w-3 h-3 cursor-pointer" onClick={() => setSelected(new Set())} aria-label="Clear selection" />
             </Badge>
           )}
           <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
@@ -193,6 +205,13 @@ export default function Attachments() {
           <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleUpload(e.target.files)} />
         </div>
       </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       {/* Stats bar */}
       <Card>
@@ -261,12 +280,17 @@ export default function Attachments() {
             {t('attachments_clear_all')}
           </Button>
         </div>
-        <Input
-          placeholder={t('search')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-48 h-8 text-sm"
-        />
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder={t('search')}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-48 h-8 text-sm"
+          />
+          {search && (
+            <span className="text-xs text-muted-foreground whitespace-nowrap">(page only)</span>
+          )}
+        </div>
       </div>
 
       {/* Table */}
@@ -279,13 +303,13 @@ export default function Attachments() {
               <thead>
                 <tr className="border-b text-xs text-muted-foreground">
                   <th className="w-10 px-3 py-2.5 text-center">
-                    <button onClick={toggleSelectAll} className="hover:text-foreground">
+                    <button onClick={toggleSelectAll} className="hover:text-foreground" aria-label={allSelected ? 'Deselect all' : 'Select all'}>
                       {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                     </button>
                   </th>
                   <th className="px-3 py-2.5 text-left font-medium">{t('attachments_name')}</th>
-                  <th className="px-3 py-2.5 text-left font-medium w-20">{t('attachments_type')}</th>
-                  <th className="px-3 py-2.5 text-right font-medium w-20">{t('attachments_size')}</th>
+                  <th className="px-3 py-2.5 text-left font-medium w-36">{t('attachments_type')}</th>
+                  <th className="px-3 py-2.5 text-right font-medium w-28">{t('attachments_size')}</th>
                   <th className="px-3 py-2.5 text-left font-medium w-28">{t('attachments_date')}</th>
                   <th className="px-3 py-2.5 text-right font-medium w-36">{t('attachments_actions')}</th>
                 </tr>
@@ -299,7 +323,7 @@ export default function Attachments() {
                       className={`border-b last:border-0 hover:bg-muted/50 transition-colors ${isSelected ? 'bg-primary/5' : ''}`}
                     >
                       <td className="px-3 py-2.5 text-center">
-                        <button onClick={() => toggleSelect(att.id)} className="hover:text-foreground text-muted-foreground">
+                        <button onClick={() => toggleSelect(att.id)} className="hover:text-foreground text-muted-foreground" aria-label={isSelected ? 'Deselect' : 'Select'}>
                           {isSelected ? <CheckSquare className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
                         </button>
                       </td>
@@ -345,6 +369,7 @@ export default function Attachments() {
                               className="h-7 w-7 p-0"
                               onClick={() => setPreview(att)}
                               title={t('attachments_preview')}
+                              aria-label={t('attachments_preview')}
                             >
                               <Eye className="w-3.5 h-3.5" />
                             </Button>
@@ -355,6 +380,7 @@ export default function Attachments() {
                             className="h-7 w-7 p-0"
                             onClick={() => handleDownload(att)}
                             title={t('attachments_download')}
+                            aria-label={t('attachments_download')}
                           >
                             <Download className="w-3.5 h-3.5" />
                           </Button>
@@ -364,6 +390,7 @@ export default function Attachments() {
                             className="h-7 w-7 p-0"
                             onClick={() => handleCopyUrl(att.id, att.url)}
                             title={t('attachments_copy_url')}
+                            aria-label={t('attachments_copy_url')}
                           >
                             {copiedId === att.id ? (
                               <Check className="w-3.5 h-3.5 text-green-500" />
@@ -377,6 +404,7 @@ export default function Attachments() {
                             className="h-7 w-7 p-0"
                             onClick={() => handleDelete(att.id)}
                             title={t('delete')}
+                            aria-label={t('delete')}
                           >
                             <Trash2 className="w-3.5 h-3.5 text-destructive" />
                           </Button>
@@ -404,6 +432,7 @@ export default function Attachments() {
               className="h-8 w-8 p-0"
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page <= 1}
+              aria-label="Previous page"
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
@@ -416,6 +445,7 @@ export default function Attachments() {
               className="h-8 w-8 p-0"
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
+              aria-label="Next page"
             >
               <ChevronRight className="w-4 h-4" />
             </Button>
@@ -425,7 +455,14 @@ export default function Attachments() {
 
       {/* Preview Modal — portal-based, no focus trap so iframe works */}
       {preview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label={preview.originalName}
+          onKeyDown={(e) => { if (e.key === 'Escape') setPreview(null) }}
+          tabIndex={-1}
+        >
           <div className="fixed inset-0 bg-black/80" onClick={() => setPreview(null)} />
           <div className="relative z-50 w-full max-w-4xl max-h-[90vh] mx-4 bg-background border rounded-lg shadow-xl overflow-hidden flex flex-col animate-in fade-in-0 zoom-in-95">
             <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
@@ -434,7 +471,7 @@ export default function Attachments() {
                 <span className="text-sm font-semibold truncate">{preview.originalName}</span>
                 <span className="text-xs text-muted-foreground shrink-0">{formatBytes(preview.size)}</span>
               </div>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => setPreview(null)}>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => setPreview(null)} aria-label="Close">
                 <X className="w-4 h-4" />
               </Button>
             </div>
@@ -456,6 +493,8 @@ export default function Attachments() {
           </div>
         </div>
       )}
+
+      {ConfirmDialog}
     </div>
   )
 }

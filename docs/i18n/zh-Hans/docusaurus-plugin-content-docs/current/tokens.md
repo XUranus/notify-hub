@@ -1,14 +1,14 @@
 ---
 sidebar_position: 6
-title: API 令牌
-description: 管理用于 NotifyHub API 认证的 API 令牌。
+title: API Keys
+description: 管理用于 NotifyHub API 认证的 API Key。
 ---
 
-# API 令牌
+# API Keys
 
-每个对 NotifyHub 公共 API 的请求都需要一个 Bearer 令牌（bearer token）。令牌控制谁能发送通知、能使用哪些渠道以及发送速率。
+每个对 NotifyHub 公共 API 的请求都需要一个 Bearer Token。Key 控制谁能发送通知、能使用哪些渠道以及发送速率。
 
-## 令牌结构
+## Key 结构
 
 ```text
 nh_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
@@ -16,32 +16,32 @@ nh_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
 
 | 部分 | 说明 |
 |---|---|
-| `nh_` | 固定前缀，标识该令牌为 NotifyHub 令牌 |
+| `nh_` | 固定前缀，标识该 Key 为 NotifyHub Key |
 | `a1b2c3...o5p6` | 32 位 nanoid 字符串（URL 安全，密码学随机生成） |
 
-每个令牌携带以下元数据：
+每个 Key 携带以下元数据：
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `id` | number | 令牌内部 ID |
+| `id` | number | Key 内部 ID |
 | `name` | string | 人类可读的标签名称 |
-| `token` | string | 完整的 Bearer 令牌（仅在创建时显示一次） |
-| `scopes` | string[] | 该令牌可使用的渠道类型：`email`、`sms`、`push` |
+| `token` | string | 完整的 Bearer Token（仅在创建时显示一次） |
+| `scopes` | string[] | 该 Key 可使用的渠道类型：`email`、`sms`、`push` |
 | `rateLimit` | number | 每分钟最大请求数（滑动窗口） |
 | `ipWhitelist` | string[] | 允许的来源 IP；为空表示不限制 |
-| `enabled` | boolean | 令牌是否启用 |
-| `userId` | number | 该令牌的所有者 |
+| `enabled` | boolean | Key 是否启用 |
+| `userId` | number | 该 Key 的所有者 |
 | `lastUsedAt` | string \| null | 上次 API 调用的 ISO 时间戳 |
 
-## 创建令牌
+## 创建 Key
 
 ### 通过管理界面
 
 1. 登录 NotifyHub 管理面板。
-2. 在侧边栏中点击 **API Tokens**。
-3. 点击 **Create Token**。
+2. 在侧边栏中点击 **API Keys**。
+3. 点击 **Create Key**。
 4. 配置名称、作用域和速率限制。
-5. **立即复制令牌** -- 令牌仅显示一次。
+5. **立即复制 Key** -- Key 仅显示一次。
 
 ### 通过 API
 
@@ -72,12 +72,12 @@ curl -X POST http://localhost:9527/api/admin/tokens \
 ```
 
 :::warning
-`token` 字段仅在创建时返回一次。请安全存储。如果遗失，请创建新令牌并撤销旧令牌。
+`token` 字段仅在创建时返回一次。请安全存储。如果遗失，请创建新 Key 并撤销旧 Key。
 :::
 
-## 令牌作用域
+## Key 作用域
 
-作用域（scopes）控制令牌可以发送的渠道类型。
+作用域（scopes）控制 Key 可以发送的渠道类型。
 
 | 作用域 | 允许的渠道 |
 |---|---|
@@ -91,11 +91,11 @@ curl -X POST http://localhost:9527/api/admin/tokens \
 { "scopes": ["email", "push"] }
 ```
 
-如果请求尝试通过令牌作用域之外的渠道发送，API 将返回 `403 Forbidden`。
+如果请求尝试通过 Key 作用域之外的渠道发送，API 将返回 `403 Forbidden`。
 
 ## 速率限制
 
-每个令牌都有基于滑动窗口算法的每分钟速率限制。超出限制时，API 返回 `429 Too Many Requests` 并附带 `Retry-After` 头。
+每个 Key 都有基于滑动窗口算法的每分钟速率限制。超出限制时，API 返回 `429 Too Many Requests` 并附带 `Retry-After` 头。
 
 ```text
 Rate Limit: 60 requests/minute
@@ -130,19 +130,19 @@ Rate Limit: 60 requests/minute
 对于具有静态 IP 的生产环境后端服务，建议使用 IP 白名单。开发环境下可留空。
 :::
 
-## 按用户令牌隔离
+## 按用户 Key 隔离
 
-令牌归属于创建它的用户：
+Key 归属于创建它的用户：
 
-- **普通用户** 仅能看到和管理自己的令牌。
-- **管理员用户** 可以看到所有用户的令牌。
+- **普通用户** 仅能看到和管理自己的 Key。
+- **管理员用户** 可以看到所有用户的 Key。
 
 ```mermaid
 graph LR
     subgraph Admin View
-        A[Admin] --> T1[Token: Web App]
-        A --> T2[Token: Mobile Backend]
-        A --> T3[Token: CI Pipeline]
+        A[Admin] --> T1[Key: Web App]
+        A --> T2[Key: Mobile Backend]
+        A --> T3[Key: CI Pipeline]
     end
     subgraph User View
         U1[User: web-team] --> T1
@@ -152,15 +152,15 @@ graph LR
 
 ## 安全最佳实践
 
-1. **绝不要在客户端代码中暴露令牌。** 请将令牌保存在后端。
-2. **使用环境变量** 存储令牌。
-3. **为每个服务创建独立的令牌**，以便于撤销。
+1. **绝不要在客户端代码中暴露 Key。** 请将 Key 保存在后端。
+2. **使用环境变量** 存储 Key。
+3. **为每个服务创建独立的 Key**，以便于撤销。
 4. **设置严格的速率限制** -- 从低值开始，按需增加。
-5. **为生产环境令牌启用 IP 白名单。**
-6. **定期轮换令牌。**
+5. **为生产环境 Key 启用 IP 白名单。**
+6. **定期轮换 Key。**
 7. **监控 `lastUsedAt`**，留意异常活动。
 
-## 在 API 请求中使用令牌
+## 在 API 请求中使用 Key
 
 ### curl
 
@@ -219,13 +219,13 @@ def send_notification(to: str, subject: str, body: str) -> dict:
     return resp.json()
 ```
 
-## 管理令牌
+## 管理 Key
 
 | 操作 | 方法 | 端点 | 认证方式 |
 |---|---|---|---|
-| 列出令牌 | GET | `/api/admin/tokens` | JWT（管理员查看全部，普通用户查看自己的） |
-| 创建令牌 | POST | `/api/admin/tokens` | JWT |
-| 更新令牌 | PUT | `/api/admin/tokens/:id` | JWT（所有者或管理员） |
-| 删除令牌 | DELETE | `/api/admin/tokens/:id` | JWT（所有者或管理员） |
+| 列出 Key | GET | `/api/user/tokens` | JWT（管理员查看全部，普通用户查看自己的） |
+| 创建 Key | POST | `/api/user/tokens` | JWT |
+| 更新 Key | PUT | `/api/user/tokens/:id` | JWT（所有者或管理员） |
+| 删除 Key | DELETE | `/api/user/tokens/:id` | JWT（所有者或管理员） |
 
-已禁用的令牌（`enabled: false`）会拒绝所有请求并返回 `401 Unauthorized`。通过将 `enabled` 重新设置为 `true` 可重新启用。
+已禁用的 Key（`enabled: false`）会拒绝所有请求并返回 `401 Unauthorized`。通过将 `enabled` 重新设置为 `true` 可重新启用。

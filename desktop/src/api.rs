@@ -224,7 +224,7 @@ impl ApiClient {
 
     pub async fn list_clients(&self) -> Result<Vec<serde_json::Value>, String> {
         debug!("[api] Listing clients");
-        let url = format!("{}/api/v2/clients", self.base_url);
+        let url = format!("{}/api/user/clients", self.base_url);
         let resp = self
             .client
             .get(&url)
