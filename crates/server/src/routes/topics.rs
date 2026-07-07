@@ -24,9 +24,6 @@ pub fn router() -> Router<AppState> {
         // v1 API: topic CRUD for clients (with pagination & search)
         .route("/api/v1/topics", get(list_topics_v2).post(create_topic))
         .route("/api/v1/topics/{id}", get(get_topic))
-        // v2 API: topic management for clients
-        .route("/api/v2/topics", get(list_topics_v2).post(create_topic))
-        .route("/api/v2/topics/{id}", get(get_topic))
 }
 
 async fn list_topics(

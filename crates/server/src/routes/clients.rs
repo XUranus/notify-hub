@@ -9,7 +9,7 @@ use crate::auth::middleware::AuthUser;
 use crate::AppState;
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/api/v2/clients", get(list_clients))
+    Router::new().route("/api/v1/clients", get(list_clients))
 }
 
 async fn list_clients(
