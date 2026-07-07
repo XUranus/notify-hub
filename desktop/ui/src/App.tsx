@@ -19,7 +19,7 @@ export default function App() {
         invoke={app.invoke}
         connStatus={app.connStatus}
         onCompose={() => app.setComposeOpen(true)}
-        onViewToggle={() => app.setViewMode(app.viewMode === 'messages' ? 'topics' : 'messages')}
+        onViewToggle={app.toggleViewMode}
         viewMode={app.viewMode}
         onSettings={() => app.setSettingsOpen(true)}
         setErrorDetailOpen={app.setErrorDetailOpen}

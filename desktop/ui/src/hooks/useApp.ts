@@ -68,6 +68,14 @@ export function useApp() {
   const [viewMode, setViewMode] = useState<string>(() => localStorage.getItem('viewMode') || 'messages')
   const [offlineMode, setOfflineMode] = useState(false)
 
+  const toggleViewMode = useCallback(() => {
+    const modes = ['messages', 'topics', 'cards']
+    const currentIndex = modes.indexOf(viewMode)
+    const newMode = modes[(currentIndex + 1) % modes.length]
+    setViewMode(newMode)
+    localStorage.setItem('viewMode', newMode)
+  }, [viewMode, setViewMode])
+
   // ── Messages State ──
   const [allMessages, setAllMessages] = useState<Message[]>([])
   const allMessagesRef = useRef<Message[]>([])
@@ -322,7 +330,7 @@ export function useApp() {
     // Toast
     toast, showToast,
     // View
-    currentView, setCurrentView, viewMode, setViewMode, offlineMode,
+    currentView, setCurrentView, viewMode, setViewMode, toggleViewMode, offlineMode,
     // Messages
     allMessages, currentFilter, searchQuery, selectedIds, selectMode, lastDeleted, newMsgIds,
     detailMsg, topicDetailKey,

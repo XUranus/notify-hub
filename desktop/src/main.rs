@@ -803,6 +803,10 @@ fn dock_window_to_right(win: &tauri::WebviewWindow, animate: bool) {
     if let Err(e) = win.set_resizable(false) {
         log::warn!("[window] Failed to disable resize: {}", e);
     }
+    let _ = win.set_decorations(false);
+    let _ = win.set_always_on_top(true);
+    let _ = win.set_shadow(false);
+    let _ = win.set_skip_taskbar(true);
 
     if !animate {
         if let Err(e) = win.set_position(tauri::PhysicalPosition::new(target_x, pos_y)) {

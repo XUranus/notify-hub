@@ -44,9 +44,11 @@ export function TitleBar({ T, invoke, connStatus, onCompose, onViewToggle, viewM
         <button className="titlebar-btn" title={T.composeTitle} onClick={onCompose}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
         </button>
-        <button className={`titlebar-btn ${viewMode === 'topics' ? 'active' : ''}`} title={viewMode === 'messages' ? T.topicView : T.messageView} onClick={onViewToggle}>
+        <button className={`titlebar-btn ${viewMode !== 'messages' ? 'active' : ''}`} title={viewMode === 'messages' ? T.topicView : viewMode === 'topics' ? T.cardView : T.messageView} onClick={onViewToggle}>
           {viewMode === 'messages'
             ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" /></svg>
+            : viewMode === 'topics'
+            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
             : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16M4 9h16M4 14h16M4 19h16" /></svg>
           }
         </button>

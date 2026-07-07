@@ -198,6 +198,78 @@ function EmptyState({ searchQuery, T }: { searchQuery: string; T: any }) {
   )
 }
 
+// ── MessageFullCard component (card view with full content) ──
+function MessageFullCard({ m, isSelectMode, isSelected, isNew, T, formatRelativeTime, parseTags, parseAttachment, renderMarkdown, renderJsonSyntax, onMarkRead }: {
+  m: Message; isSelectMode: boolean; isSelected: boolean; isNew: boolean
+  T: any; formatRelativeTime: (d: string) => string
+  parseTags: (m: Message) => string[]; parseAttachment: (m: Message) => any
+  renderMarkdown: (s: string) => string; renderJsonSyntax: (s: string) => string
+  onMarkRead: (id: string) => void
+}) {
+  const tags = parseTags(m)
+  const att = parseAttachment(m)
+  const relTime = formatRelativeTime(m.received_at)
+
+  const formatLabel = m.format === 'json' ? 'JSON'
+    : m.format === 'markdown' || m.format === 'md' ? 'Markdown'
+    : m.format === 'html' ? 'HTML'
+    : m.format
+
+  let bodyHtml = ''
+  let bodyClass = ''
+  if (m.format === 'json') {
+    bodyHtml = renderJsonSyntax(m.body || '')
+    bodyClass = 'json'
+  } else if (m.format === 'markdown' || m.format === 'md') {
+    bodyHtml = renderMarkdown(m.body || '')
+    bodyClass = 'markdown'
+  } else if (m.format === 'html') {
+    bodyHtml = m.body || ''
+    bodyClass = 'html-content'
+  } else {
+    bodyHtml = (m.body || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+  }
+
+  return (
+    <div className={`msg-full-card ${!m.read ? 'unread' : ''} ${isSelected ? 'selected' : ''} ${isNew ? 'msg-new' : ''}`} data-id={m.id} onClick={() => { if (!m.read) onMarkRead(m.id) }}>
+      <div className="msg-full-card-header">
+        {isSelectMode && <input type="checkbox" className="msg-checkbox" data-id={m.id} checked={isSelected} readOnly />}
+        <div className={`msg-avatar ${m.level || ''}`}>
+          <Avatar icon={m.topic_icon} name={m.topic_name} displayName={m.topic_display_name} />
+        </div>
+        <div className="msg-full-card-title-area">
+          <span className="msg-full-card-title">{m.title || T.untitled}</span>
+          <div className="msg-full-card-meta">
+            <span className="msg-time">{relTime}</span>
+            {att && <span className="msg-att-icon">📎</span>}
+            {m.url && <span className="msg-att-icon">🔗</span>}
+          </div>
+        </div>
+        <div className="msg-full-card-actions">
+          <span className={`msg-flag-icon ${m.flagged ? 'flagged' : ''}`} data-action="flag" data-id={m.id} title={m.flagged ? T.unflag : T.flag}>⚑</span>
+          <button className="msg-del-btn" data-action="delete" data-id={m.id} title={T.delete}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          </button>
+        </div>
+      </div>
+      {tags.length > 0 && (
+        <div className="msg-full-card-tags">
+          {tags.map(t => <span key={t} className="msg-tag">{t}</span>)}
+          {m.format && m.format !== 'text' && <span className="msg-tag msg-format-tag" title={m.format}>{formatLabel}</span>}
+        </div>
+      )}
+      {m.body && (
+        <div className={`msg-full-card-body ${bodyClass}`} dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+      )}
+      {att && att.url && (
+        <div className="msg-full-card-attachment">
+          <span className="att-name">{att.name || 'attachment'}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function Dashboard({ app }: Props) {
   const { T, showToast, invoke, formatRelativeTime, parseTags, parseAttachment, getFilteredMessages, groupMessagesByTopic, MSG_HEIGHT, TOPIC_CARD_HEIGHT, newMsgIds } = app
 
@@ -332,13 +404,11 @@ export function Dashboard({ app }: Props) {
     app.setTopicDetailKey(null)
   }, [app])
 
-  // ── Toggle view mode ──
+  // ── Toggle view mode (using app.toggleViewMode) ──
   const toggleViewMode = useCallback(() => {
-    const newMode = app.viewMode === 'messages' ? 'topics' : 'messages'
-    app.setViewMode(newMode)
-    localStorage.setItem('viewMode', newMode)
+    app.toggleViewMode()
     app.setTopicDetailKey(null)
-  }, [app.viewMode, app.setViewMode, app])
+  }, [app.toggleViewMode, app.setTopicDetailKey])
 
   // ── Filtered count for badge ──
   const unreadCount = app.allMessages.filter((m: Message) => !m.read).length
@@ -486,34 +556,56 @@ export function Dashboard({ app }: Props) {
           )}
 
           <div className="msg-scroll" id="msgListBody" ref={listRef} onClick={handleViewportClick}>
-            <div className="msg-viewport" id="msgViewport" ref={viewportRef} style={{ height: isEmpty ? 'auto' : viewportHeight }}>
-              {isEmpty ? (
-                <EmptyState searchQuery={app.searchQuery} T={T} />
-              ) : app.viewMode === 'topics' && !app.topicDetailKey ? (
-                // Topic list view with virtual scrolling
-                topicGroups.slice(startIndex, endIndex).map((group: TopicGroup, i: number) => (
-                  <div key={group.key} style={{ position: 'absolute', top: (startIndex + i) * TOPIC_CARD_HEIGHT, left: 0, right: 0, height: TOPIC_CARD_HEIGHT }}>
-                    <TopicCard group={group} T={T} formatRelativeTime={formatRelativeTime} />
-                  </div>
-                ))
-              ) : (
-                // Message list view (or topic detail) with virtual scrolling
-                displayMessages.slice(startIndex, endIndex).map((m: Message, i: number) => (
-                  <div key={m.id} style={{ position: 'absolute', top: (startIndex + i) * MSG_HEIGHT, left: 0, right: 0, height: MSG_HEIGHT }}>
-                    <MessageCard
-                      m={m}
-                      isSelectMode={app.selectMode}
-                      isSelected={app.selectedIds.has(m.id)}
-                      isNew={newMsgIds.has(m.id)}
-                      T={T}
-                      formatRelativeTime={formatRelativeTime}
-                      parseTags={parseTags}
-                      parseAttachment={parseAttachment}
-                    />
-                  </div>
-                ))
-              )}
-            </div>
+            {app.viewMode === 'cards' ? (
+              // Card view - full content, no virtual scroll
+              <div className="cards-container">
+                {displayMessages.map((m: Message) => (
+                  <MessageFullCard
+                    key={m.id}
+                    m={m}
+                    isSelectMode={app.selectMode}
+                    isSelected={app.selectedIds.has(m.id)}
+                    isNew={newMsgIds.has(m.id)}
+                    T={T}
+                    formatRelativeTime={formatRelativeTime}
+                    parseTags={parseTags}
+                    parseAttachment={parseAttachment}
+                    renderMarkdown={renderMarkdown}
+                    renderJsonSyntax={renderJsonSyntax}
+                    onMarkRead={app.markAsRead}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="msg-viewport" id="msgViewport" ref={viewportRef} style={{ height: isEmpty ? 'auto' : viewportHeight }}>
+                {isEmpty ? (
+                  <EmptyState searchQuery={app.searchQuery} T={T} />
+                ) : app.viewMode === 'topics' && !app.topicDetailKey ? (
+                  // Topic list view with virtual scrolling
+                  topicGroups.slice(startIndex, endIndex).map((group: TopicGroup, i: number) => (
+                    <div key={group.key} style={{ position: 'absolute', top: (startIndex + i) * TOPIC_CARD_HEIGHT, left: 0, right: 0, height: TOPIC_CARD_HEIGHT }}>
+                      <TopicCard group={group} T={T} formatRelativeTime={formatRelativeTime} />
+                    </div>
+                  ))
+                ) : (
+                  // Message list view (or topic detail) with virtual scrolling
+                  displayMessages.slice(startIndex, endIndex).map((m: Message, i: number) => (
+                    <div key={m.id} style={{ position: 'absolute', top: (startIndex + i) * MSG_HEIGHT, left: 0, right: 0, height: MSG_HEIGHT }}>
+                      <MessageCard
+                        m={m}
+                        isSelectMode={app.selectMode}
+                        isSelected={app.selectedIds.has(m.id)}
+                        isNew={newMsgIds.has(m.id)}
+                        T={T}
+                        formatRelativeTime={formatRelativeTime}
+                        parseTags={parseTags}
+                        parseAttachment={parseAttachment}
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
