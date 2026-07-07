@@ -1568,6 +1568,7 @@ dependencies = [
  "hmac",
  "jsonwebtoken",
  "lettre",
+ "mime_guess",
  "nanoid",
  "notifyhub-common",
  "rand 0.8.6",

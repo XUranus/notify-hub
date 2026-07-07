@@ -66,6 +66,7 @@ async fn main() -> anyhow::Result<()> {
     // Middleware to inject Config into request extensions for auth extractors
     // Uses Arc clone (~8 bytes) instead of Config clone (~300 bytes with heap allocs)
     let config_arc = state.config.clone();
+    let upload_dir = state.config.upload_dir.clone();
     let app = Router::new()
         .merge(routes::admin::router())
         .merge(routes::send::router())
@@ -85,6 +86,11 @@ async fn main() -> anyhow::Result<()> {
         .merge(routes::cleanup_logs::router())
         .merge(routes::logs::router())
         .merge(routes::health::router())
+        // Serve uploaded files
+        .route("/uploads/{*path}", axum::routing::get({
+            let upload_dir = upload_dir.clone();
+            move |path: axum::extract::Path<String>| serve_upload(upload_dir.clone(), path.0)
+        }))
         .layer(middleware::from_fn(move |mut req: Request, next: Next| {
             let cfg = config_arc.clone();
             async move {
@@ -173,4 +179,36 @@ async fn seed_admin(pool: &SqlitePool) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Serve uploaded files from the upload directory
+async fn serve_upload(
+    upload_dir: std::path::PathBuf,
+    path: String,
+) -> Result<axum::response::Response, axum::http::StatusCode> {
+    let file_path = upload_dir.join(&path);
+
+    // Prevent directory traversal
+    if !file_path.starts_with(&upload_dir) {
+        return Err(axum::http::StatusCode::FORBIDDEN);
+    }
+
+    if !file_path.exists() {
+        return Err(axum::http::StatusCode::NOT_FOUND);
+    }
+
+    let data = tokio::fs::read(&file_path).await.map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mime = mime_guess::from_path(&file_path)
+        .first_or_octet_stream()
+        .to_string();
+
+    let response = axum::response::Response::builder()
+        .status(axum::http::StatusCode::OK)
+        .header(axum::http::header::CONTENT_TYPE, mime)
+        .header(axum::http::header::CACHE_CONTROL, "public, max-age=86400")
+        .body(axum::body::Body::from(data))
+        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(response)
 }
