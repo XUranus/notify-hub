@@ -373,8 +373,8 @@ export default function Messages() {
       </div>
 
       <Card>
-        <CardContent className="p-0">
-          <table className="w-full">
+        <CardContent className="p-0 overflow-x-auto">
+          <table className="w-full min-w-[800px]">
             <thead>
               <tr className="border-b">
                 {col('id') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colId')}</th>}

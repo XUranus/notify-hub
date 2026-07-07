@@ -386,8 +386,8 @@ export default function Tokens() {
       )}
 
       <Card>
-        <CardContent className="p-0">
-          <table className="w-full">
+        <CardContent className="p-0 overflow-x-auto">
+          <table className="w-full min-w-[700px]">
             <thead>
               <tr className="border-b">
                 <th className="text-left p-4 text-sm font-medium text-muted-foreground">{t('tokens.name')}</th>

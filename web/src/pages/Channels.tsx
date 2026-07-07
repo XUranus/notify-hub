@@ -519,8 +519,8 @@ export default function Channels() {
             <Plus className="h-4 w-4 mr-1" />{t('channels.add')}
           </Button>
         </CardHeader>
-        <CardContent className="p-0">
-          <table className="w-full">
+        <CardContent className="p-0 overflow-x-auto">
+          <table className="w-full min-w-[600px]">
             <thead>
               <tr className="border-b">
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('channels.name')}</th>
@@ -584,8 +584,8 @@ export default function Channels() {
             <Plus className="h-4 w-4 mr-1" />{t('channels.add')}
           </Button>
         </CardHeader>
-        <CardContent className="p-0">
-          <table className="w-full">
+        <CardContent className="p-0 overflow-x-auto">
+          <table className="w-full min-w-[600px]">
             <thead>
               <tr className="border-b">
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('channels.name')}</th>
@@ -650,8 +650,8 @@ export default function Channels() {
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
-          <table className="w-full">
+        <CardContent className="p-0 overflow-x-auto">
+          <table className="w-full min-w-[600px]">
             <thead>
               <tr className="border-b">
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colUuid')}</th>

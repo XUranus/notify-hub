@@ -262,7 +262,7 @@ export default function Dashboard() {
 
       {/* Recent Messages Table */}
       <Card className="mt-6">
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <div className="px-4 py-3 border-b flex items-center justify-between">
             <h3 className="text-sm font-medium flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
@@ -272,7 +272,7 @@ export default function Dashboard() {
               {t('dashboard.viewAll')} <ArrowRight className="h-3 w-3" />
             </Button>
           </div>
-          <table className="w-full">
+          <table className="w-full min-w-[600px]">
             <thead>
               <tr className="border-b">
                 <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">ID</th>
@@ -324,7 +324,7 @@ export default function Dashboard() {
       {/* Failed Messages Table */}
       {failedTotal > 0 && (
         <Card className="mt-4">
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <div className="px-4 py-3 border-b flex items-center justify-between">
               <h3 className="text-sm font-medium flex items-center gap-2">
                 <XCircle className="h-4 w-4 text-destructive" />
@@ -332,7 +332,7 @@ export default function Dashboard() {
                 <Badge variant="destructive" className="text-[10px] px-1.5 py-0">{failedTotal}</Badge>
               </h3>
             </div>
-            <table className="w-full">
+            <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b">
                   <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">ID</th>

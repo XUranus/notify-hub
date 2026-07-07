@@ -75,8 +75,8 @@ export default function PushClients() {
       </div>
 
       <Card>
-        <CardContent className="p-0">
-          <table className="w-full">
+        <CardContent className="p-0 overflow-x-auto">
+          <table className="w-full min-w-[900px]">
             <thead>
               <tr className="border-b">
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colUuid')}</th>

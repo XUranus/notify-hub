@@ -271,11 +271,11 @@ export default function Attachments() {
 
       {/* Table */}
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           {attachments.length === 0 ? (
             <EmptyState title={t('attachments_empty')} />
           ) : (
-            <table className="w-full">
+            <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b text-xs text-muted-foreground">
                   <th className="w-10 px-3 py-2.5 text-center">
