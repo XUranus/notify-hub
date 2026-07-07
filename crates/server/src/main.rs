@@ -23,6 +23,8 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub push_state: routes::push::PushState,
     pub log_broadcaster: log_broadcast::LogBroadcaster,
+    /// Limits concurrent SSE/WS connections to prevent OOM
+    pub connection_semaphore: Arc<tokio::sync::Semaphore>,
 }
 
 #[tokio::main]
@@ -57,10 +59,13 @@ async fn main() -> anyhow::Result<()> {
         config: Arc::new(config),
         push_state: routes::push::PushState::new(),
         log_broadcaster,
+        // Max 15,000 concurrent SSE/WS connections (~1.5 GB at 100KB each)
+        connection_semaphore: Arc::new(tokio::sync::Semaphore::const_new(15_000)),
     };
 
     // Middleware to inject Config into request extensions for auth extractors
-    let config_clone = state.config.clone();
+    // Uses Arc clone (~8 bytes) instead of Config clone (~300 bytes with heap allocs)
+    let config_arc = state.config.clone();
     let app = Router::new()
         .merge(routes::admin::router())
         .merge(routes::send::router())
@@ -81,9 +86,9 @@ async fn main() -> anyhow::Result<()> {
         .merge(routes::logs::router())
         .merge(routes::health::router())
         .layer(middleware::from_fn(move |mut req: Request, next: Next| {
-            let cfg = config_clone.clone();
+            let cfg = config_arc.clone();
             async move {
-                req.extensions_mut().insert(cfg.as_ref().clone());
+                req.extensions_mut().insert(cfg);
                 next.run(req).await
             }
         }))

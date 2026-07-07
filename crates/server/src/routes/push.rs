@@ -31,7 +31,8 @@ impl PushState {
         let mut channels = self.channels.write().await;
         let tx = channels.entry(client_uuid.to_string())
             .or_insert_with(|| {
-                let (tx, _) = broadcast::channel(256);
+                // 64 slots: enough for burst delivery, saves ~9KB per client vs 256
+                let (tx, _) = broadcast::channel(64);
                 tx
             });
         tx.subscribe()

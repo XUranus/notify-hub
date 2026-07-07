@@ -26,6 +26,12 @@ pub async fn init(config: &Config) -> anyhow::Result<SqlitePool> {
         .connect_with(options)
         .await?;
 
+    // Reduce per-connection page cache from default 2MB to 500KB
+    // Saves ~15MB with 10 connections
+    sqlx::raw_sql("PRAGMA cache_size = -500")
+        .execute(&pool)
+        .await?;
+
     // Run consolidated migrations
     tracing::info!("[db] Running migrations...");
     sqlx::raw_sql(migrations::INITIAL_SCHEMA)

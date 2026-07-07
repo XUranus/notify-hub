@@ -1,6 +1,7 @@
 use axum::extract::FromRequestParts;
 use axum::extract::FromRef;
 use axum::http::request::Parts;
+use std::sync::Arc;
 
 use notifyhub_common::error::AppError;
 
@@ -19,10 +20,10 @@ impl<S: Send + Sync> FromRequestParts<S> for AuthUser {
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        // Extract config from extensions (injected by AppState middleware)
+        // Extract config from extensions (injected by AppState middleware as Arc<Config>)
         let config = parts
             .extensions
-            .get::<Config>()
+            .get::<Arc<Config>>()
             .ok_or_else(|| AppError::Internal("config not found in request extensions".into()))?;
 
         let auth_header = parts
@@ -66,7 +67,7 @@ where
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         // Try JWT first (inline validation to avoid FromRef bound issues)
-        let config = parts.extensions.get::<Config>();
+        let config = parts.extensions.get::<Arc<Config>>();
         if let Some(config) = config {
             if let Some(auth_header) = parts.headers.get("authorization").and_then(|v| v.to_str().ok()) {
                 if let Some(token) = auth_header.strip_prefix("Bearer ").or_else(|| auth_header.strip_prefix("bearer ")) {
