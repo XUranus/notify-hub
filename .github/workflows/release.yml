@@ -247,26 +247,6 @@ jobs:
           distribution: zulu
           java-version: 17
 
-      - name: Setup google-services.json
-        env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: |
-          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
-            echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
-          else
-            echo "Warning: GOOGLE_SERVICES_JSON secret not set, using placeholder (FCM won't work)"
-            cat > android/app/google-services.json << 'EOF'
-          {
-            "project_info": { "project_number": "000000000000", "project_id": "placeholder-00000", "storage_bucket": "placeholder-00000.appspot.com" },
-            "client": [{ "client_info": { "mobilesdk_app_id": "1:000000000000:android:0000000000000000", "android_client_info": { "package_name": "com.xuranus.notifyhub" } },
-              "api_key": [{ "current_key": "placeholder" }],
-              "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
-            }],
-            "configuration_version": "1"
-          }
-          EOF
-          fi
-
       - name: Build APK
         working-directory: android
         env:

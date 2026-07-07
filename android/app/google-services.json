@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "47645961376",
+    "project_id": "notifyhub-bc0c4",
+    "storage_bucket": "notifyhub-bc0c4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:47645961376:android:9faf01e3da95654e1aedc5",
+        "android_client_info": {
+          "package_name": "com.xuranus.notifyhub"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCIyYPQbpbukptCxkHbviU472xbc_mGzV0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
