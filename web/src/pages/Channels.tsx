@@ -80,6 +80,10 @@ export default function Channels() {
 
   // Push clients state
   const [clients, setClients] = useState<PushClient[]>([])
+  const [clientPage, setClientPage] = useState(1)
+  const CLIENT_PAGE_SIZE = 5
+  const totalClientPages = Math.max(1, Math.ceil(clients.length / CLIENT_PAGE_SIZE))
+  const paginatedClients = clients.slice((clientPage - 1) * CLIENT_PAGE_SIZE, clientPage * CLIENT_PAGE_SIZE)
 
   // QR code modal state
   const [qrOpen, setQrOpen] = useState(false)
@@ -97,7 +101,7 @@ export default function Channels() {
   }), [])
 
   const loadClients = useCallback(() => pushApi.listClients().then((res) => {
-    if (res.success) setClients(res.data || [])
+    if (res.success) { setClients(res.data || []); setClientPage(1) }
   }).catch(() => {}), [])
 
   useEffect(() => {
@@ -473,7 +477,7 @@ export default function Channels() {
           <table className="w-full min-w-[600px]">
             <thead>
               <tr className="border-b">
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colUuid')}</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap min-w-[280px]">{t('push.colUuid')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colName')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colOs')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colArch')}</th>
@@ -487,12 +491,12 @@ export default function Channels() {
               </tr>
             </thead>
             <tbody>
-              {clients.map((client) => {
+              {paginatedClients.map((client) => {
                 const online = isOnline(client.lastSeenAt)
                 const Icon = osIcons[client.os] || Monitor
                 return (
                   <tr key={client.uuid} className="border-b hover:bg-muted/50">
-                    <td className="px-4 py-1.5 text-xs font-mono max-w-[180px] truncate">{client.uuid}</td>
+                    <td className="px-4 py-1.5 text-xs whitespace-nowrap"><Badge variant="secondary" className="text-[10px] font-mono">{client.uuid}</Badge></td>
                     <td className="px-4 py-1.5 text-xs">{client.name || '—'}</td>
                     <td className="px-4 py-1.5 text-xs">
                       <div className="flex items-center gap-1.5">
@@ -529,6 +533,21 @@ export default function Channels() {
               )}
             </tbody>
           </table>
+          {clients.length > CLIENT_PAGE_SIZE && (
+            <div className="flex items-center justify-between px-4 py-2 border-t">
+              <span className="text-xs text-muted-foreground">
+                {clientPage} / {totalClientPages}
+              </span>
+              <div className="flex gap-1">
+                <Button variant="outline" size="sm" disabled={clientPage <= 1} onClick={() => setClientPage(clientPage - 1)} className="h-7 text-xs">
+                  {t('messages.prev')}
+                </Button>
+                <Button variant="outline" size="sm" disabled={clientPage >= totalClientPages} onClick={() => setClientPage(clientPage + 1)} className="h-7 text-xs">
+                  {t('messages.next')}
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

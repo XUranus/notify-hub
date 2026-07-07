@@ -10,6 +10,7 @@ import { messagesApi, topicsApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { RefreshCw, RotateCw, Trash2, Download, Paperclip, ExternalLink, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { formatDate, toDate } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface Message {
   id: string
@@ -62,13 +63,17 @@ function priorityColor(p: number): string {
   return ''
 }
 
-const statusVariant: Record<string, 'default' | 'success' | 'destructive' | 'warning' | 'secondary'> = {
-  queued: 'warning',
-  sending: 'default',
-  sent: 'success',
-  delivered: 'success',
-  failed: 'destructive',
-  dead: 'destructive',
+const STATUS_COLORS: Record<string, string> = {
+  queued: 'bg-amber-100 text-amber-800 border-amber-200',
+  sending: 'bg-purple-100 text-purple-800 border-purple-200',
+  sent: 'bg-blue-100 text-blue-800 border-blue-200',
+  delivered: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  failed: 'bg-red-100 text-red-800 border-red-200',
+  dead: 'bg-gray-100 text-gray-600 border-gray-200',
+}
+
+function statusColor(status: string): string {
+  return STATUS_COLORS[status] || 'bg-gray-100 text-gray-600 border-gray-200'
 }
 
 function downloadFile(content: string, filename: string, mimeType: string) {
@@ -158,7 +163,7 @@ export default function Messages() {
   const [clearing, setClearing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [visibleCols, setVisibleCols] = useState<Set<ColumnKey>>(new Set(ALL_COLUMNS.filter((c) => c !== 'tags' && c !== 'priority' && c !== 'format')))
+  const [visibleCols, setVisibleCols] = useState<Set<ColumnKey>>(new Set(ALL_COLUMNS.filter((c) => !['tags', 'priority', 'format', 'topic', 'retries', 'duration'].includes(c))))
   const [showColPicker, setShowColPicker] = useState(false)
   const colPickerRef = useRef<HTMLDivElement>(null)
   const pageRef = useRef(page)
@@ -254,10 +259,36 @@ export default function Messages() {
   }
 
   const handleDelete = async (id: string) => {
-    if (await confirm({ description: t('messages.deleteConfirm'), variant: 'destructive', confirmLabel: t('messages.delete') })) {
-      await messagesApi.delete(id)
-      load()
-    }
+    // Save the message for potential undo
+    const msg = messages.find((m) => m.id === id)
+    if (!msg) return
+
+    // Optimistic update: remove from UI immediately
+    setMessages((prev) => prev.filter((m) => m.id !== id))
+
+    // Show toast with undo button
+    toast.success(t('messages.deleted'), {
+      action: {
+        label: t('messages.undo'),
+        onClick: () => {
+          // Restore the message in UI
+          setMessages((prev) => {
+            const next = [...prev, msg]
+            next.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            return next
+          })
+        },
+      },
+      duration: 5000,
+      onAutoClose: () => {
+        // Actually delete from server when toast closes
+        messagesApi.delete(id).catch(() => {})
+      },
+      onDismiss: () => {
+        // Also delete if manually dismissed
+        messagesApi.delete(id).catch(() => {})
+      },
+    })
   }
 
   const handleClearAll = async () => {
@@ -469,7 +500,7 @@ export default function Messages() {
                           </Badge>
                         </td>
                       )}
-                      {col('to') && <td className="px-3 py-1.5 text-xs max-w-[200px] truncate">{msg.toAddress}</td>}
+                      {col('to') && <td className="px-3 py-1.5 text-xs whitespace-nowrap"><Badge variant="outline" className="text-xs font-normal">{msg.toAddress}</Badge></td>}
                       {col('subject') && <td className="px-3 py-1.5 text-xs max-w-[360px] truncate">{msg.subject || '—'}</td>}
                       {col('summary') && <td className="px-3 py-1.5 text-xs max-w-[300px] truncate text-muted-foreground">{msg.body || '—'}</td>}
                       {col('topic') && (
@@ -507,7 +538,7 @@ export default function Messages() {
                       )}
                       {col('status') && (
                         <td className="px-3 py-1.5 whitespace-nowrap">
-                          <Badge variant={statusVariant[msg.status] || 'default'} className="text-xs">
+                          <Badge className={`text-xs border ${statusColor(msg.status)}`}>
                             {t(`status.${msg.status}`) || msg.status}
                           </Badge>
                           {msg.errorMessage && (
@@ -590,7 +621,7 @@ export default function Messages() {
               <div className="grid grid-cols-4 gap-x-4 gap-y-1.5 text-xs">
                 <MetaItem label={t('messages.colId')} children={<Badge variant="secondary" className="text-[10px] font-mono">{selectedMsg.id}</Badge>} />
                 <MetaItem label={t('messages.colStatus')} children={
-                  <Badge variant={statusVariant[selectedMsg.status] || 'default'} className="text-[10px]">
+                  <Badge className={`text-[10px] border ${statusColor(selectedMsg.status)}`}>
                     {t(`status.${selectedMsg.status}`) || selectedMsg.status}
                   </Badge>
                 } />

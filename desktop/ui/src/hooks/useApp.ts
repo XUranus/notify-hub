@@ -96,6 +96,7 @@ export function useApp() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteModalText, setDeleteModalText] = useState('')
   const [deleteModalCallback, setDeleteModalCallback] = useState<(() => void) | null>(null)
+  const [errorDetailOpen, setErrorDetailOpen] = useState(false)
 
   // ── Connection State ──
   const [connStatus, setConnStatus] = useState({ text: '—', connected: false })
@@ -202,7 +203,7 @@ export function useApp() {
     if (undoTimer.current) { clearTimeout(undoTimer.current); undoTimer.current = null }
     lastDeletedRef.current = null
     setLastDeletedTick(t => t + 1)
-    await invoke('insert_message', { msg: entry.msg })
+    await invoke('insert_message', { msg: entry.msg, index: entry.idx })
     refreshMessages()
   }, [refreshMessages])
 
@@ -335,6 +336,7 @@ export function useApp() {
     // Modals
     settingsOpen, setSettingsOpen, composeOpen, setComposeOpen, quickSendOpen, setQuickSendOpen,
     offlineOpen, setOfflineOpen, deleteModalOpen, setDeleteModalOpen, deleteModalText, deleteModalCallback,
+    errorDetailOpen, setErrorDetailOpen,
     showDeleteConfirm,
     // Connection
     connStatus, handleConnect,

@@ -14,7 +14,16 @@ export default function App() {
 
   return (
     <>
-      <TitleBar T={app.T} invoke={app.invoke} />
+      <TitleBar
+        T={app.T}
+        invoke={app.invoke}
+        connStatus={app.connStatus}
+        onCompose={() => app.setComposeOpen(true)}
+        onViewToggle={() => app.setViewMode(app.viewMode === 'messages' ? 'topics' : 'messages')}
+        viewMode={app.viewMode}
+        onSettings={() => app.setSettingsOpen(true)}
+        setErrorDetailOpen={app.setErrorDetailOpen}
+      />
 
       {app.currentView === 'connect' && (
         <ConnectView T={app.T} onConnect={app.handleConnect} showToast={app.showToast} />

@@ -66,7 +66,7 @@ export default function PushClients() {
           <table className="w-full min-w-[900px]">
             <thead>
               <tr className="border-b">
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colUuid')}</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap min-w-[280px]">{t('push.colUuid')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colName')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colOs')}</th>
                 <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('push.colArch')}</th>
@@ -83,7 +83,7 @@ export default function PushClients() {
               {loading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <tr key={`skeleton-${i}`} className="border-b">
-                    <td className="px-4 py-2"><Skeleton className="h-4 w-32" /></td>
+                    <td className="px-4 py-2"><Skeleton className="h-4 w-64" /></td>
                     <td className="px-4 py-2"><Skeleton className="h-4 w-20" /></td>
                     <td className="px-4 py-2"><Skeleton className="h-4 w-16" /></td>
                     <td className="px-4 py-2"><Skeleton className="h-4 w-12" /></td>
@@ -103,7 +103,7 @@ export default function PushClients() {
                     const Icon = osIcons[client.os] || Monitor
                     return (
                       <tr key={client.uuid} className="border-b hover:bg-muted/50">
-                        <td className="px-4 py-1.5 text-xs font-mono max-w-[180px] truncate">{client.uuid}</td>
+                        <td className="px-4 py-1.5 text-xs whitespace-nowrap"><Badge variant="secondary" className="text-[10px] font-mono">{client.uuid}</Badge></td>
                         <td className="px-4 py-1.5 text-xs">{client.name || '—'}</td>
                         <td className="px-4 py-1.5 text-xs">
                           <div className="flex items-center gap-1.5">

@@ -12,12 +12,13 @@
     "windows": [
       {
         "title": "NotifyHub Desktop",
-        "width": 1080,
-        "height": 850,
-        "resizable": true,
-        "visible": true,
+        "width": 450,
+        "height": 900,
+        "resizable": false,
+        "visible": false,
         "decorations": false,
-        "transparent": true
+        "transparent": true,
+        "center": false
       }
     ],
     "security": {

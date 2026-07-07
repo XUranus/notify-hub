@@ -66,13 +66,17 @@ interface RecentMessage {
   createdAt: string
 }
 
-const statusVariant: Record<string, 'default' | 'success' | 'destructive' | 'warning' | 'secondary'> = {
-  queued: 'warning',
-  sending: 'default',
-  sent: 'success',
-  delivered: 'success',
-  failed: 'destructive',
-  dead: 'destructive',
+const STATUS_COLORS: Record<string, string> = {
+  queued: 'bg-amber-100 text-amber-800 border-amber-200',
+  sending: 'bg-purple-100 text-purple-800 border-purple-200',
+  sent: 'bg-blue-100 text-blue-800 border-blue-200',
+  delivered: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  failed: 'bg-red-100 text-red-800 border-red-200',
+  dead: 'bg-gray-100 text-gray-600 border-gray-200',
+}
+
+function statusColor(status: string): string {
+  return STATUS_COLORS[status] || 'bg-gray-100 text-gray-600 border-gray-200'
 }
 
 const CHANNEL_COLORS: Record<string, string> = {
@@ -315,7 +319,7 @@ export default function Dashboard() {
                 return (
                   <tr key={msg.id} className="border-b hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => navigate('/messages')}>
                     <td className="px-3 py-1.5 text-xs">
-                      <Badge variant="secondary" className="text-[10px] font-mono">{msg.id.slice(0, 8)}</Badge>
+                      <Badge variant="secondary" className="text-[10px] font-mono">{msg.id}</Badge>
                     </td>
                     <td className="px-3 py-1.5 text-xs whitespace-nowrap">
                       <Badge variant="outline" className="text-[10px] gap-1">
@@ -323,11 +327,11 @@ export default function Dashboard() {
                         {msg.channelName || t(`common.${msg.channelType}`) || msg.channelType}
                       </Badge>
                     </td>
-                    <td className="px-3 py-1.5 text-xs max-w-[160px] truncate">{msg.toAddress}</td>
+                    <td className="px-3 py-1.5 text-xs whitespace-nowrap"><Badge variant="outline" className="text-xs font-normal">{msg.toAddress}</Badge></td>
                     <td className="px-3 py-1.5 text-xs max-w-[160px] truncate">{msg.subject || '—'}</td>
                     <td className="px-3 py-1.5 text-xs max-w-[200px] truncate text-muted-foreground">{msg.body || '—'}</td>
                     <td className="px-3 py-1.5 text-xs">
-                      <Badge variant={statusVariant[msg.status] || 'secondary'} className="text-[10px]">
+                      <Badge className={`text-[10px] border ${statusColor(msg.status)}`}>
                         {t(`status.${msg.status}`) || msg.status}
                       </Badge>
                     </td>
@@ -374,7 +378,7 @@ export default function Dashboard() {
                   return (
                   <tr key={msg.id} className="border-b hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => navigate('/messages')}>
                     <td className="px-3 py-1.5 text-xs">
-                      <Badge variant="secondary" className="text-[10px] font-mono">{msg.id.slice(0, 8)}</Badge>
+                      <Badge variant="secondary" className="text-[10px] font-mono">{msg.id}</Badge>
                     </td>
                     <td className="px-3 py-1.5 text-xs whitespace-nowrap">
                       <Badge variant="outline" className="text-[10px] gap-1">
@@ -382,7 +386,7 @@ export default function Dashboard() {
                         {msg.channelName || t(`common.${msg.channelType}`) || msg.channelType}
                       </Badge>
                     </td>
-                    <td className="px-3 py-1.5 text-xs max-w-[160px] truncate">{msg.toAddress}</td>
+                    <td className="px-3 py-1.5 text-xs whitespace-nowrap"><Badge variant="outline" className="text-xs font-normal">{msg.toAddress}</Badge></td>
                     <td className="px-3 py-1.5 text-xs max-w-[160px] truncate">{msg.subject || '—'}</td>
                     <td className="px-3 py-1.5 text-xs max-w-[200px] truncate text-muted-foreground">{msg.body || '—'}</td>
                     <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap">{formatDate(msg.createdAt)}</td>

@@ -85,7 +85,7 @@ export const api = {
   markAsRead: (id: string) => invoke('mark_as_read', { id }),
   toggleFlag: (id: string) => invoke('toggle_flag', { id }),
   deleteMessageUndo: (id: string) => invoke('delete_message_undo', { id }),
-  insertMessage: (msg: Message) => invoke('insert_message', { msg }),
+  insertMessage: (msg: Message, index: number) => invoke('insert_message', { msg, index }),
   deleteMessage: (id: string) => invoke('delete_message', { id }),
   clearMessages: () => invoke('clear_messages'),
 

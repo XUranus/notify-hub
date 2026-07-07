@@ -556,11 +556,6 @@ fn window_close(window: tauri::Window) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn window_start_drag(window: tauri::Window) -> Result<(), String> {
-    window.start_dragging().map_err(|e| e.to_string())
-}
-
-#[tauri::command]
 fn update_tray_status(tray_items: tauri::State<'_, TrayMenuItems>, connected: bool, mode: Option<String>, error: Option<String>) {
     let text = if let Some(ref err) = error {
         format!("● Error: {}", if err.len() > 30 { &err[..30] } else { err })
@@ -1084,7 +1079,6 @@ fn main() {
             window_minimize,
             window_toggle_maximize,
             window_close,
-            window_start_drag,
             update_tray_status,
             update_tray_unread,
             get_log_settings,
