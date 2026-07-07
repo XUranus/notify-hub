@@ -254,12 +254,12 @@ jobs:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2g"
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease --stacktrace
+          ./gradlew assembleDebug --stacktrace
 
       - name: Rename artifact
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          APK=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -1)
           cp "$APK" "NotifyHub-Android_${VERSION}.apk"
 
       - uses: actions/upload-artifact@v4
