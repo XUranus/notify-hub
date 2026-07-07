@@ -9,7 +9,7 @@ COPY web web/
 RUN cd web && pnpm build
 
 # ── Stage 2: Build Rust server ──
-FROM rust:1.75-bookworm AS server-builder
+FROM rust:1.82-bookworm AS server-builder
 WORKDIR /app
 COPY crates/ crates/
 RUN cd crates && cargo build --release --bin notifyhub-server
@@ -37,7 +37,7 @@ ENV HOST=0.0.0.0
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:9527/api/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:9527/api/health || exit 1
 
 EXPOSE 9527
 CMD ["./notifyhub-server"]
