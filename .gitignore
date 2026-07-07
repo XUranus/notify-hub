@@ -15,7 +15,7 @@ package-lock.json
 *~
 *.swp
 *.tsbuildinfo
-data/
+/data/
 deprecated/
 
 # Rust
