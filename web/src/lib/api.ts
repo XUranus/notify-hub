@@ -220,7 +220,7 @@ export const attachmentsApi = {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await fetch(`${BASE_URL}/v1/upload`, {
+    const response = await fetch(`${BASE_URL}/user/upload`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,

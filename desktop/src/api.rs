@@ -255,7 +255,7 @@ impl ApiClient {
         mime_type: &str,
     ) -> Result<serde_json::Value, String> {
         info!("[api] Upload file: name={}, mime={}", file_name, mime_type);
-        let url = format!("{}/api/v1/upload", self.base_url);
+        let url = format!("{}/api/user/upload", self.base_url);
 
         let file_part = multipart::Part::bytes(file_bytes)
             .file_name(file_name.to_string())

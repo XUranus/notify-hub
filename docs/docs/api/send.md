@@ -479,7 +479,7 @@ You can attach files to a message using the `attachment` field. The attachment o
 Before attaching a file via URL, upload it using the Upload API:
 
 ```bash
-curl -X POST http://localhost:9527/api/v1/upload \
+curl -X POST http://localhost:9527/api/user/upload \
   -H "Authorization: Bearer nh_your_token_here" \
   -F "file=@report.pdf"
 ```
@@ -505,7 +505,7 @@ Use the returned `url` (relative) or prepend your server URL to form the full UR
 Check your upload quota before uploading:
 
 ```bash
-curl http://localhost:9527/api/v1/upload/quota \
+curl http://localhost:9527/api/user/upload/quota \
   -H "Authorization: Bearer nh_your_token_here"
 ```
 

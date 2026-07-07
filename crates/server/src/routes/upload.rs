@@ -6,18 +6,18 @@ use notifyhub_common::error::AppError;
 use notifyhub_common::types::ApiResponse;
 use notifyhub_common::schemas::UploadQuota;
 
-use crate::auth::middleware::DualAuth;
+use crate::auth::middleware::AuthUser;
 use crate::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/upload", post(upload_file))
-        .route("/api/v1/upload/quota", get(get_quota))
+        .route("/api/user/upload", post(upload_file))
+        .route("/api/user/upload/quota", get(get_quota))
 }
 
 async fn get_quota(
     State(state): State<AppState>,
-    auth: DualAuth,
+    auth: AuthUser,
 ) -> Result<Json<ApiResponse<UploadQuota>>, AppError> {
     let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
 
@@ -40,7 +40,7 @@ async fn get_quota(
 
 async fn upload_file(
     State(state): State<AppState>,
-    auth: DualAuth,
+    auth: AuthUser,
     mut multipart: Multipart,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
