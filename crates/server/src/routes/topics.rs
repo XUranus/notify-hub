@@ -7,7 +7,7 @@ use notifyhub_common::error::AppError;
 use notifyhub_common::schemas::{CreateTopicRequest, UpdateTopicRequest};
 use notifyhub_common::types::{ApiResponse, Topic};
 
-use crate::auth::middleware::AuthUser;
+use crate::auth::middleware::{AuthUser, require_admin};
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -19,9 +19,10 @@ pub struct TopicQueryParams {
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/admin/topics", get(list_topics).post(create_topic))
-        .route("/api/admin/topics/{id}", get(get_topic).put(update_topic).delete(delete_topic))
-        // v1 API: topic CRUD for clients (with pagination & search)
+        // Admin routes: require admin role
+        .route("/api/admin/topics", get(list_topics).post(admin_create_topic))
+        .route("/api/admin/topics/{id}", get(get_topic).put(admin_update_topic).delete(admin_delete_topic))
+        // v1 API: topic CRUD for authenticated users (with pagination & search)
         .route("/api/v1/topics", get(list_topics_v2).post(create_topic))
         .route("/api/v1/topics/{id}", get(get_topic))
 }
@@ -77,6 +78,14 @@ async fn create_topic(
     auth: AuthUser,
     Json(req): Json<CreateTopicRequest>,
 ) -> Result<Json<ApiResponse<Topic>>, AppError> {
+    create_topic_inner(State(state), auth, req).await
+}
+
+async fn create_topic_inner(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    req: CreateTopicRequest,
+) -> Result<Json<ApiResponse<Topic>>, AppError> {
     let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
@@ -115,6 +124,15 @@ async fn update_topic(
     auth: AuthUser,
     Path(id): Path<String>,
     Json(req): Json<UpdateTopicRequest>,
+) -> Result<Json<ApiResponse<Topic>>, AppError> {
+    update_topic_inner(State(state), auth, Path(id), req).await
+}
+
+async fn update_topic_inner(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+    req: UpdateTopicRequest,
 ) -> Result<Json<ApiResponse<Topic>>, AppError> {
     let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
     let now = chrono::Utc::now().timestamp();
@@ -166,6 +184,14 @@ async fn delete_topic(
     auth: AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    delete_topic_inner(State(state), auth, Path(id)).await
+}
+
+async fn delete_topic_inner(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
     let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
 
     let result = if auth.claims.role == "admin" {
@@ -194,7 +220,38 @@ async fn delete_topic(
     Ok(Json(ApiResponse::success()))
 }
 
-/// v2 list topics with pagination and search
+/// Admin-only: create topic
+async fn admin_create_topic(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(req): Json<CreateTopicRequest>,
+) -> Result<Json<ApiResponse<Topic>>, AppError> {
+    require_admin(&auth)?;
+    create_topic_inner(State(state), auth, req).await
+}
+
+/// Admin-only: update topic
+async fn admin_update_topic(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+    Json(req): Json<UpdateTopicRequest>,
+) -> Result<Json<ApiResponse<Topic>>, AppError> {
+    require_admin(&auth)?;
+    update_topic_inner(State(state), auth, Path(id), req).await
+}
+
+/// Admin-only: delete topic
+async fn admin_delete_topic(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    require_admin(&auth)?;
+    delete_topic_inner(State(state), auth, Path(id)).await
+}
+
+/// v1 list topics with pagination and search
 async fn list_topics_v2(
     State(state): State<AppState>,
     auth: AuthUser,
