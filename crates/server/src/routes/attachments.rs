@@ -114,7 +114,8 @@ async fn attachment_stats(
 
 #[derive(Deserialize)]
 struct BatchDeleteRequest {
-    ids: Vec<String>,
+    ids: Option<Vec<String>>,
+    all: Option<bool>,
 }
 
 async fn batch_delete(
@@ -125,14 +126,27 @@ async fn batch_delete(
     let is_admin = auth.claims.role == "admin";
     let auth_user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
 
+    // If all=true, get all IDs for this user first
+    let ids = if req.all.unwrap_or(false) {
+        let rows: Vec<(String,)> = if is_admin {
+            sqlx::query_as("SELECT id FROM attachments")
+                .fetch_all(&state.pool).await?
+        } else {
+            sqlx::query_as("SELECT id FROM attachments WHERE user_id = ?")
+                .bind(auth_user_id)
+                .fetch_all(&state.pool).await?
+        };
+        rows.into_iter().map(|(id,)| id).collect()
+    } else {
+        req.ids.unwrap_or_default()
+    };
+
     let mut deleted = 0i64;
-    for id in &req.ids {
-        // Get file path before deleting
+    for id in &ids {
         let row: Option<(String, Option<i64>)> = sqlx::query_as("SELECT filename, user_id FROM attachments WHERE id = ?")
             .bind(id).fetch_optional(&state.pool).await?;
 
         if let Some((filename, owner_id)) = row {
-            // Non-admin users can only delete their own attachments
             if !is_admin && owner_id != Some(auth_user_id) {
                 continue;
             }
