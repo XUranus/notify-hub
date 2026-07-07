@@ -7,6 +7,11 @@ use std::sync::Mutex;
 
 const MAX_MESSAGES: usize = 15000;
 
+/// Lock a mutex, recovering from poisoning instead of panicking.
+fn lock_mutex<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalMessage {
     pub id: String,
@@ -121,7 +126,7 @@ impl MessageStore {
 
     /// Adds a message. Returns true if inserted (new), false if duplicate (already exists).
     pub fn add(&self, msg: LocalMessage) -> bool {
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_mutex(&self.conn);
         // Check for duplicate
         let exists: bool = match conn.query_row(
             "SELECT COUNT(*) FROM messages WHERE id = ?1",
@@ -165,6 +170,7 @@ impl MessageStore {
             ],
         ) {
             error!("[db] Failed to insert message: id={}: {}", msg.id, e);
+            return false;
         } else {
             debug!("[db] Message stored: id={}", msg.id);
         }
@@ -184,7 +190,7 @@ impl MessageStore {
 
     pub fn get_all(&self) -> Vec<LocalMessage> {
         debug!("[db] Loading all messages");
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_mutex(&self.conn);
         let mut stmt = conn
             .prepare("SELECT id, title, body, level, received_at, read, flagged, tags, priority, url, attachment, format, local_image_path, topic_id, topic_name, topic_display_name, topic_icon FROM messages ORDER BY received_at DESC")
             .expect("failed to prepare get_all");
@@ -202,7 +208,7 @@ impl MessageStore {
 
     pub fn mark_as_read(&self, id: &str) {
         debug!("[db] Mark as read: id={}", id);
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_mutex(&self.conn);
         if let Err(e) = conn.execute("UPDATE messages SET read = 1 WHERE id = ?1", params![id]) {
             warn!("[db] Failed to mark as read: id={}: {}", id, e);
         }
@@ -210,7 +216,7 @@ impl MessageStore {
 
     pub fn toggle_flag(&self, id: &str) {
         debug!("[db] Toggle flag: id={}", id);
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_mutex(&self.conn);
         if let Err(e) = conn.execute(
             "UPDATE messages SET flagged = CASE WHEN flagged = 0 THEN 1 ELSE 0 END WHERE id = ?1",
             params![id],
@@ -221,7 +227,7 @@ impl MessageStore {
 
     pub fn delete_and_return(&self, id: &str) -> Option<LocalMessage> {
         debug!("[db] Delete and return: id={}", id);
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_mutex(&self.conn);
         // Query first
         let msg = {
             let mut stmt = match conn
@@ -248,7 +254,7 @@ impl MessageStore {
 
     pub fn insert_at(&self, msg: LocalMessage, index: usize) {
         debug!("[db] Insert at index {}: id={}", index, msg.id);
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_mutex(&self.conn);
         if index == 0 {
             // Insert at the top: set received_at to now so it sorts first
             let effective_received_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
@@ -325,7 +331,7 @@ impl MessageStore {
 
     pub fn delete(&self, id: &str) {
         debug!("[db] Delete message: id={}", id);
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_mutex(&self.conn);
         if let Err(e) = conn.execute("DELETE FROM messages WHERE id = ?1", params![id]) {
             warn!("[db] Failed to delete message: id={}: {}", id, e);
         }
@@ -333,7 +339,7 @@ impl MessageStore {
 
     pub fn clear(&self) {
         info!("[db] Clear all messages");
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_mutex(&self.conn);
         if let Err(e) = conn.execute("DELETE FROM messages", []) {
             error!("[db] Failed to clear all messages: {}", e);
         }
@@ -341,7 +347,7 @@ impl MessageStore {
 
     pub fn restore(&self, new_msgs: Vec<LocalMessage>) {
         info!("[db] Restore {} messages", new_msgs.len());
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_mutex(&self.conn);
         // Wrap in a transaction for performance (single fsync instead of one per insert)
         if let Err(e) = conn.execute("BEGIN", []) {
             error!("[db] Failed to begin transaction for restore: {}", e);
@@ -398,7 +404,7 @@ impl MessageStore {
     }
 
     pub fn unread_count(&self) -> usize {
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_mutex(&self.conn);
         match conn.query_row(
             "SELECT COUNT(*) FROM messages WHERE read = 0",
             [],

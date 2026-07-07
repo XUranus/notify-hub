@@ -9,6 +9,11 @@ use std::time::Duration;
 const BATCH_NOTIFICATION_THRESHOLD: usize = 5;
 const DEBOUNCE_DELAY_MS: u64 = 3000;  // Wait 3 seconds of silence before notifying
 
+/// Lock a mutex, recovering from poisoning instead of panicking.
+pub fn lock_mutex<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 pub const RECONNECT_BASE_MS: u64 = 5000;
 pub const RECONNECT_MAX_MS: u64 = 120000; // 2 minutes
 
@@ -51,7 +56,7 @@ impl NotificationDebounce {
     /// Add messages to the pending queue and reset the debounce timer.
     pub fn push(self: &Arc<Self>, messages: Vec<LocalMessage>) {
         {
-            let mut pending = self.pending.lock().unwrap();
+            let mut pending = lock_mutex(&self.pending);
             pending.extend(messages);
         }
         self.reset_timer();
@@ -63,7 +68,7 @@ impl NotificationDebounce {
 
         // Cancel existing timer
         {
-            let mut handle = self.debounce_handle.lock().unwrap();
+            let mut handle = lock_mutex(&self.debounce_handle);
             if let Some(h) = handle.take() {
                 h.abort();
             }
@@ -75,13 +80,13 @@ impl NotificationDebounce {
             debounce.flush();
         });
 
-        *self.debounce_handle.lock().unwrap() = Some(handle);
+        *lock_mutex(&self.debounce_handle) = Some(handle);
     }
 
     /// Flush all pending messages: show notifications.
     fn flush(&self) {
         let to_notify: Vec<LocalMessage> = {
-            let mut pending = self.pending.lock().unwrap();
+            let mut pending = lock_mutex(&self.pending);
             std::mem::take(&mut *pending)
         };
 
@@ -236,9 +241,48 @@ pub struct PollState {
     pub last_poll: Option<String>,
     pub error: Option<String>,
     pub was_connected: bool,
+    pub transport_handle: Option<std::thread::JoinHandle<()>>,
 }
 
-pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store: Arc<MessageStore>, debounce: Arc<NotificationDebounce>) {
+/// Try to refresh the JWT by logging in with stored credentials.
+/// On success, saves the new JWT to config, re-registers the client,
+/// and returns the new JWT and ApiClient.
+/// On failure, returns an error message.
+pub async fn try_refresh_jwt(
+    server_url: &str,
+    username: &str,
+    password: &str,
+    uuid: &str,
+    name: &str,
+    source: &str,
+) -> Result<(String, ApiClient), String> {
+    log::warn!("[{}] JWT expired, re-logging in...", source);
+    let new_jwt = ApiClient::login(server_url, username, password)
+        .await
+        .map_err(|e| {
+            log::error!("[{}] Re-login failed: {}", source, e);
+            format!("Re-login failed: {}", e)
+        })?;
+    // Save new JWT to config
+    if let Some(mut cfg) = AppConfig::load() {
+        cfg.server.jwt = new_jwt.clone();
+        if let Err(e) = cfg.save() {
+            log::warn!("[{}] Failed to save new JWT: {}", source, e);
+        }
+    }
+    // Re-register
+    let new_api = ApiClient::new(server_url, &new_jwt);
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    let desktop = crate::detect_desktop_env();
+    let version = env!("CARGO_PKG_VERSION");
+    if let Err(e) = new_api.register(uuid, name, os, arch, &desktop, version).await {
+        log::warn!("[{}] Re-register after JWT refresh failed: {}", source, e);
+    }
+    Ok((new_jwt, new_api))
+}
+
+pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store: Arc<MessageStore>, debounce: Arc<NotificationDebounce>) -> std::thread::JoinHandle<()> {
     let jwt = config.server.jwt.clone();
     let uuid = config.client.uuid.clone();
     let name = config.client.name.clone();
@@ -255,7 +299,7 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
         loop {
             // Check if polling should stop or mode changed
             {
-                let s = state.lock().unwrap();
+                let s = lock_mutex(&state);
                 if !s.running || s.mode != "poll" {
                     break;
                 }
@@ -268,38 +312,20 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
                     Ok((code, messages)) => {
                         // Re-login on 401 (JWT expired)
                         if code == 401 {
-                            log::warn!("[poll] JWT expired (401), re-logging in...");
-                            match ApiClient::login(&server_url, &username, &password).await {
-                                Ok(new_jwt) => {
-                                    current_jwt = new_jwt.clone();
-                                    // Save new JWT to config
-                                    if let Some(mut cfg) = AppConfig::load() {
-                                        cfg.server.jwt = new_jwt;
-                                        if let Err(e) = cfg.save() {
-                                            log::warn!("[poll] Failed to save new JWT: {}", e);
-                                        }
-                                    }
-                                    // Re-register
-                                    let new_api = ApiClient::new(&server_url, &current_jwt);
-                                    let os = std::env::consts::OS;
-                                    let arch = std::env::consts::ARCH;
-                                    let desktop = crate::detect_desktop_env();
-                                    let version = env!("CARGO_PKG_VERSION");
-                                    if let Err(e) = new_api.register(&uuid, &name, os, arch, &desktop, version).await {
-                                        log::warn!("[poll] Re-register after JWT refresh failed: {}", e);
-                                    }
+                            match try_refresh_jwt(&server_url, &username, &password, &uuid, &name, "poll").await {
+                                Ok((new_jwt, _)) => {
+                                    current_jwt = new_jwt;
                                 }
                                 Err(e) => {
-                                    log::error!("[poll] Re-login failed: {}", e);
-                                    let mut s = state.lock().unwrap();
-                                    s.error = Some(format!("Re-login failed: {}", e));
+                                    let mut s = lock_mutex(&state);
+                                    s.error = Some(e);
                                 }
                             }
                             return false;
                         }
 
                         {
-                            let mut s = state.lock().unwrap();
+                            let mut s = lock_mutex(&state);
                             // Connection restored - notify if was previously disconnected
                             if s.error.is_some() {
                                 show_notification("NotifyHub", "Connection restored");
@@ -316,7 +342,7 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
                     }
                     Err(e) => {
                         log::error!("[poll] Poll error: {}", e);
-                        let mut s = state.lock().unwrap();
+                        let mut s = lock_mutex(&state);
                         // Connection lost - notify if was previously connected
                         if s.was_connected {
                             show_notification("NotifyHub", "Connection lost");
@@ -338,7 +364,7 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
             let iterations = reconnect_state.delay_ms() / 500;
             for _ in 0..iterations.max(1) {
                 {
-                    let s = state.lock().unwrap();
+                    let s = lock_mutex(&state);
                     if !s.running || s.mode != "poll" {
                         break;
                     }
@@ -346,5 +372,5 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
                 std::thread::sleep(Duration::from_millis(500));
             }
         }
-    });
+    })
 }

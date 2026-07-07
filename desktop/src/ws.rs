@@ -2,13 +2,14 @@ use crate::api::{ApiClient, PushMessage};
 use crate::config::AppConfig;
 use crate::messages::MessageStore;
 use crate::notify::show_notification;
-use crate::poll::{PollState, NotificationDebounce, ReconnectState, process_message};
-use futures_util::StreamExt;
+use crate::poll::{PollState, NotificationDebounce, ReconnectState, process_message, lock_mutex};
+use futures_util::{SinkExt, StreamExt};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite;
-use tokio_tungstenite::tungstenite::protocol::Message;
+use tokio_tungstenite::tungstenite::protocol::{CloseFrame, Message};
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 
 /// Start WebSocket connection for real-time message delivery.
 /// Falls back to poll on failure.
@@ -17,7 +18,7 @@ pub fn start_ws(
     state: Arc<Mutex<PollState>>,
     msg_store: Arc<MessageStore>,
     debounce: Arc<NotificationDebounce>,
-) {
+) -> std::thread::JoinHandle<()> {
     let jwt = config.server.jwt.clone();
     let uuid = config.client.uuid.clone();
     let name = config.client.name.clone();
@@ -34,7 +35,7 @@ pub fn start_ws(
         loop {
             // Check if should stop
             {
-                let s = state.lock().unwrap();
+                let s = lock_mutex(&state);
                 if !s.running || s.mode != "ws" {
                     break;
                 }
@@ -52,7 +53,7 @@ pub fn start_ws(
                     Ok((ws_stream, _response)) => {
                         // Mark connected
                         {
-                            let mut s = state.lock().unwrap();
+                            let mut s = lock_mutex(&state);
                             if s.error.is_some() {
                                 show_notification("NotifyHub", "Connection restored");
                             }
@@ -61,12 +62,12 @@ pub fn start_ws(
                             s.was_connected = true;
                         }
 
-                        let (mut _write, mut read) = ws_stream.split();
+                        let (mut write, mut read) = ws_stream.split();
 
                         while let Some(msg) = read.next().await {
                             // Check if should stop or mode changed
                             {
-                                let s = state.lock().unwrap();
+                                let s = lock_mutex(&state);
                                 if !s.running || s.mode != "ws" {
                                     break;
                                 }
@@ -84,6 +85,9 @@ pub fn start_ws(
                                         &current_jwt,
                                     ).await;
                                 }
+                                Ok(Message::Ping(data)) => {
+                                    let _ = write.send(Message::Pong(data)).await;
+                                }
                                 Ok(Message::Close(_)) => {
                                     log::warn!("[ws] Server closed connection");
                                     break;
@@ -92,41 +96,30 @@ pub fn start_ws(
                                     log::error!("[ws] Error: {}", e);
                                     break;
                                 }
-                                _ => {} // Ping/Pong/Binary handled by tungstenite
+                                _ => {} // Pong/Binary handled by tungstenite
                             }
                         }
+                        // Send Close frame on exit
+                        let _ = write.send(Message::Close(Some(CloseFrame {
+                            code: CloseCode::Normal,
+                            reason: "client disconnect".into(),
+                        }))).await;
                         true
                     }
                     Err(tungstenite::Error::Http(resp)) => {
                         let status = resp.status();
-                        log::warn!("[ws] JWT expired (HTTP {}), re-logging in...", status);
                         if status == 401 || status == 403 {
-                            match ApiClient::login(&server_url, &username, &password).await {
-                                Ok(new_jwt) => {
-                                    current_jwt = new_jwt.clone();
-                                    if let Some(mut cfg) = AppConfig::load() {
-                                        cfg.server.jwt = new_jwt;
-                                        if let Err(e) = cfg.save() {
-                                            log::warn!("[ws] Failed to save new JWT: {}", e);
-                                        }
-                                    }
-                                    let new_api = ApiClient::new(&server_url, &current_jwt);
-                                    let os = std::env::consts::OS;
-                                    let arch = std::env::consts::ARCH;
-                                    let desktop = crate::detect_desktop_env();
-                                    let version = env!("CARGO_PKG_VERSION");
-                                    if let Err(e) = new_api.register(&uuid, &name, os, arch, &desktop, version).await {
-                                        log::warn!("[ws] Re-register after JWT refresh failed: {}", e);
-                                    }
+                            match crate::poll::try_refresh_jwt(&server_url, &username, &password, &uuid, &name, "ws").await {
+                                Ok((new_jwt, _)) => {
+                                    current_jwt = new_jwt;
                                 }
                                 Err(e) => {
-                                    log::error!("[ws] Re-login failed: {}", e);
-                                    let mut s = state.lock().unwrap();
-                                    s.error = Some(format!("Re-login failed: {}", e));
+                                    let mut s = lock_mutex(&state);
+                                    s.error = Some(e);
                                 }
                             }
                         } else {
-                            let mut s = state.lock().unwrap();
+                            let mut s = lock_mutex(&state);
                             if s.was_connected {
                                 show_notification("NotifyHub", "Connection lost");
                                 s.was_connected = false;
@@ -139,34 +132,18 @@ pub fn start_ws(
                         let err_msg = e.to_string();
                         // Fallback: string match for auth errors
                         if err_msg.contains("401") || err_msg.contains("403") {
-                            log::warn!("[ws] Possible auth error: {err_msg}");
-                            match ApiClient::login(&server_url, &username, &password).await {
-                                Ok(new_jwt) => {
-                                    current_jwt = new_jwt.clone();
-                                    if let Some(mut cfg) = AppConfig::load() {
-                                        cfg.server.jwt = new_jwt;
-                                        if let Err(e) = cfg.save() {
-                                            log::warn!("[ws] Failed to save new JWT: {}", e);
-                                        }
-                                    }
-                                    let new_api = ApiClient::new(&server_url, &current_jwt);
-                                    let os = std::env::consts::OS;
-                                    let arch = std::env::consts::ARCH;
-                                    let desktop = crate::detect_desktop_env();
-                                    let version = env!("CARGO_PKG_VERSION");
-                                    if let Err(e) = new_api.register(&uuid, &name, os, arch, &desktop, version).await {
-                                        log::warn!("[ws] Re-register after JWT refresh failed: {}", e);
-                                    }
+                            match crate::poll::try_refresh_jwt(&server_url, &username, &password, &uuid, &name, "ws").await {
+                                Ok((new_jwt, _)) => {
+                                    current_jwt = new_jwt;
                                 }
                                 Err(e) => {
-                                    log::error!("[ws] Re-login failed: {}", e);
-                                    let mut s = state.lock().unwrap();
-                                    s.error = Some(format!("Re-login failed: {}", e));
+                                    let mut s = lock_mutex(&state);
+                                    s.error = Some(e);
                                 }
                             }
                         } else {
                             log::error!("[ws] Connection failed: {}", err_msg);
-                            let mut s = state.lock().unwrap();
+                            let mut s = lock_mutex(&state);
                             if s.was_connected {
                                 show_notification("NotifyHub", "Connection lost");
                                 s.was_connected = false;
@@ -188,7 +165,7 @@ pub fn start_ws(
             let iterations = reconnect_state.delay_ms() / 500;
             for _ in 0..iterations.max(1) {
                 {
-                    let s = state.lock().unwrap();
+                    let s = lock_mutex(&state);
                     if !s.running || s.mode != "ws" {
                         break;
                     }
@@ -196,7 +173,7 @@ pub fn start_ws(
                 std::thread::sleep(Duration::from_millis(500));
             }
         }
-    });
+    })
 }
 
 async fn handle_ws_message(

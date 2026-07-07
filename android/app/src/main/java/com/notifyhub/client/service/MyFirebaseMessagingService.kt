@@ -20,6 +20,7 @@ import com.notifyhub.client.data.ApiClient
 import com.notifyhub.client.data.PushMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -38,7 +39,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         private const val CHANNEL_ID_PUSH = "notifyhub_push"
     }
 
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     /**
      * Called when a new FCM registration token is generated.

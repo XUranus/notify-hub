@@ -2,7 +2,7 @@ use crate::api::{ApiClient, PushMessage};
 use crate::config::AppConfig;
 use crate::messages::MessageStore;
 use crate::notify::show_notification;
-use crate::poll::{PollState, NotificationDebounce, ReconnectState, process_message};
+use crate::poll::{PollState, NotificationDebounce, ReconnectState, process_message, lock_mutex};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::timeout;
@@ -16,7 +16,7 @@ pub fn start_sse(
     state: Arc<Mutex<PollState>>,
     msg_store: Arc<MessageStore>,
     debounce: Arc<NotificationDebounce>,
-) {
+) -> std::thread::JoinHandle<()> {
     let jwt = config.server.jwt.clone();
     let uuid = config.client.uuid.clone();
     let name = config.client.name.clone();
@@ -33,7 +33,7 @@ pub fn start_sse(
         loop {
             // Check if should stop
             {
-                let s = state.lock().unwrap();
+                let s = lock_mutex(&state);
                 if !s.running || s.mode != "sse" {
                     break;
                 }
@@ -57,7 +57,7 @@ pub fn start_sse(
                     Ok(r) => r,
                     Err(e) => {
                         log::error!("[sse] Connection failed: {}", e);
-                        let mut s = state.lock().unwrap();
+                        let mut s = lock_mutex(&state);
                         if s.was_connected {
                             show_notification("NotifyHub", "Connection lost");
                             s.was_connected = false;
@@ -68,29 +68,13 @@ pub fn start_sse(
                 };
 
                 if resp.status().as_u16() == 401 {
-                    log::warn!("[sse] JWT expired, re-logging in...");
-                    match ApiClient::login(&server_url, &username, &password).await {
-                        Ok(new_jwt) => {
-                            current_jwt = new_jwt.clone();
-                            if let Some(mut cfg) = AppConfig::load() {
-                                cfg.server.jwt = new_jwt;
-                                if let Err(e) = cfg.save() {
-                                    log::warn!("[sse] Failed to save new JWT: {}", e);
-                                }
-                            }
-                            let new_api = ApiClient::new(&server_url, &current_jwt);
-                            let os = std::env::consts::OS;
-                            let arch = std::env::consts::ARCH;
-                            let desktop = crate::detect_desktop_env();
-                            let version = env!("CARGO_PKG_VERSION");
-                            if let Err(e) = new_api.register(&uuid, &name, os, arch, &desktop, version).await {
-                                log::warn!("[sse] Re-register after JWT refresh failed: {}", e);
-                            }
+                    match crate::poll::try_refresh_jwt(&server_url, &username, &password, &uuid, &name, "sse").await {
+                        Ok((new_jwt, _)) => {
+                            current_jwt = new_jwt;
                         }
                         Err(e) => {
-                            log::error!("[sse] Re-login failed: {}", e);
-                            let mut s = state.lock().unwrap();
-                            s.error = Some(format!("Re-login failed: {}", e));
+                            let mut s = lock_mutex(&state);
+                            s.error = Some(e);
                         }
                     }
                     return false;
@@ -99,14 +83,14 @@ pub fn start_sse(
                 if !resp.status().is_success() {
                     let status = resp.status().as_u16();
                     log::error!("[sse] HTTP error: status={}", status);
-                    let mut s = state.lock().unwrap();
+                    let mut s = lock_mutex(&state);
                     s.error = Some(format!("SSE HTTP {}", status));
                     return false;
                 }
 
                 // Mark connected
                 {
-                    let mut s = state.lock().unwrap();
+                    let mut s = lock_mutex(&state);
                     if s.error.is_some() {
                         show_notification("NotifyHub", "Connection restored");
                     }
@@ -124,7 +108,7 @@ pub fn start_sse(
                 loop {
                     // Check if should stop or mode changed
                     {
-                        let s = state.lock().unwrap();
+                        let s = lock_mutex(&state);
                         if !s.running || s.mode != "sse" {
                             break;
                         }
@@ -154,7 +138,6 @@ pub fn start_sse(
                         }
                     };
 
-                    had_data = true;
                     buffer.push_str(&String::from_utf8_lossy(&bytes));
 
                     // Process complete lines
@@ -171,6 +154,7 @@ pub fn start_sse(
                             if data.is_empty() {
                                 continue;
                             }
+                            had_data = true;
 
                             let mut ack_ids: Vec<String> = Vec::new();
 
@@ -229,7 +213,7 @@ pub fn start_sse(
             let iterations = reconnect_state.delay_ms() / 500;
             for _ in 0..iterations.max(1) {
                 {
-                    let s = state.lock().unwrap();
+                    let s = lock_mutex(&state);
                     if !s.running || s.mode != "sse" {
                         break;
                     }
@@ -237,5 +221,5 @@ pub fn start_sse(
                 std::thread::sleep(std::time::Duration::from_millis(500));
             }
         }
-    });
+    })
 }

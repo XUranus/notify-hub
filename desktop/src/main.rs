@@ -12,7 +12,7 @@ mod ws;
 use config::AppConfig;
 use log::{info, error, debug};
 use messages::{LocalMessage, MessageStore};
-use poll::PollState;
+use poll::{PollState, lock_mutex};
 use std::sync::{Arc, Mutex};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -35,7 +35,7 @@ fn save_config(cfg: AppConfig) -> Result<(), String> {
 
 #[tauri::command]
 fn get_poll_state(state: tauri::State<'_, Arc<Mutex<PollState>>>) -> PollStateSnapshot {
-    let s = state.lock().unwrap();
+    let s = lock_mutex(&state);
     PollStateSnapshot {
         running: s.running,
         mode: s.mode.clone(),
@@ -165,9 +165,18 @@ async fn download_file(url: String, filename: String, app: tauri::AppHandle) -> 
         .ok_or_else(|| { log::error!("[cmd] Invalid save path"); "Invalid save path".to_string() })?
         .to_path_buf();
 
-    // Download file
+    // Download file (reject if > 10MB)
+    const MAX_DOWNLOAD_SIZE: u64 = 10 * 1024 * 1024;
     let resp = reqwest::get(&url).await.map_err(|e| { log::error!("[cmd] Download HTTP failed: {}", e); format!("Download failed: {}", e) })?;
+    if let Some(content_length) = resp.content_length() {
+        if content_length > MAX_DOWNLOAD_SIZE {
+            return Err(format!("File too large ({:.1} MB, max 10 MB)", content_length as f64 / 1024.0 / 1024.0));
+        }
+    }
     let bytes = resp.bytes().await.map_err(|e| { log::error!("[cmd] Download read body failed: {}", e); format!("Download failed: {}", e) })?;
+    if bytes.len() as u64 > MAX_DOWNLOAD_SIZE {
+        return Err(format!("File too large ({:.1} MB, max 10 MB)", bytes.len() as f64 / 1024.0 / 1024.0));
+    }
     log::debug!("[cmd] Downloaded {} bytes", bytes.len());
 
     // Write to chosen path
@@ -275,7 +284,7 @@ async fn update_client_name(name: String) -> Result<(), String> {
 
 #[tauri::command]
 fn get_connection_mode(state: tauri::State<'_, Arc<Mutex<PollState>>>) -> String {
-    let s = state.lock().unwrap();
+    let s = lock_mutex(&state);
     s.mode.clone()
 }
 
@@ -292,17 +301,32 @@ fn set_connection_mode(
         cfg.connection_mode = mode.clone();
         cfg.save()?;
     }
-    // Update poll state mode — existing loops check this and exit if mode changed
-    {
-        let mut s = state.lock().unwrap();
+    // Stop old transport: set running=false so existing loops exit
+    let old_handle = {
+        let mut s = lock_mutex(&state);
+        s.running = false;
         s.mode = mode.clone();
+        s.transport_handle.take()
+    };
+    // Join the old transport thread if it exists
+    if let Some(handle) = old_handle {
+        let _ = handle.join();
     }
-    // Start the appropriate mode
+    // Re-enable running for the new transport
+    {
+        let mut s = lock_mutex(&state);
+        s.running = true;
+    }
+    // Start the appropriate mode and store the handle
     let cfg = AppConfig::load().ok_or("No config")?;
-    match mode.as_str() {
+    let handle = match mode.as_str() {
         "sse" => sse::start_sse(cfg, state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone()),
         "ws" => ws::start_ws(cfg, state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone()),
         _ => poll::start_polling(cfg, state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone()),
+    };
+    {
+        let mut s = lock_mutex(&state);
+        s.transport_handle = Some(handle);
     }
     Ok(())
 }
@@ -312,7 +336,7 @@ fn logout(state: tauri::State<'_, Arc<Mutex<PollState>>>) -> Result<(), String> 
     log::info!("[cmd] Logout");
     // Stop polling
     {
-        let mut s = state.lock().unwrap();
+        let mut s = lock_mutex(&state);
         s.running = false;
         s.last_poll = None;
         s.error = None;
@@ -413,7 +437,7 @@ async fn reconnect(
         .await
         .map_err(|e| {
             log::error!("[cmd] Reconnect login failed: {}", e);
-            let mut s = state.lock().unwrap();
+            let mut s = lock_mutex(&state);
             s.error = Some(e.clone());
             e
         })?;
@@ -422,7 +446,7 @@ async fn reconnect(
     cfg.server.jwt = jwt.clone();
     cfg.save().map_err(|e| {
         log::error!("[cmd] Reconnect: failed to save JWT: {}", e);
-        let mut s = state.lock().unwrap();
+        let mut s = lock_mutex(&state);
         s.error = Some(e.clone());
         e
     })?;
@@ -437,22 +461,36 @@ async fn reconnect(
     let version = env!("CARGO_PKG_VERSION");
     api.register(&uuid, &name, os, arch, &desktop, version).await.map_err(|e| {
         log::error!("[cmd] Reconnect register failed: {}", e);
-        let mut s = state.lock().unwrap();
+        let mut s = lock_mutex(&state);
         s.error = Some(e.clone());
         e
     })?;
     log::info!("[cmd] Reconnect successful, starting {}", cfg.connection_mode);
 
-    {
-        let mut s = state.lock().unwrap();
+    // Stop old transport
+    let old_handle = {
+        let mut s = lock_mutex(&state);
+        s.running = false;
         s.last_poll = None;
         s.error = None;
+        s.transport_handle.take()
+    };
+    if let Some(handle) = old_handle {
+        let _ = handle.join();
+    }
+    {
+        let mut s = lock_mutex(&state);
+        s.running = true;
     }
     let mode = cfg.connection_mode.clone();
-    match mode.as_str() {
+    let handle = match mode.as_str() {
         "sse" => sse::start_sse(cfg.clone(), state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone()),
         "ws" => ws::start_ws(cfg.clone(), state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone()),
         _ => poll::start_polling(cfg.clone(), state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone()),
+    };
+    {
+        let mut s = lock_mutex(&state);
+        s.transport_handle = Some(handle);
     }
 
     Ok(())
@@ -753,16 +791,19 @@ fn main() {
                 last_poll: None,
                 error: None,
                 was_connected: false,
+                transport_handle: None,
             }));
             app.manage(poll_state.clone());
 
-            // Helper: start the appropriate connection mode
+            // Helper: start the appropriate connection mode and store the handle
             fn start_connection_mode(mode: &str, cfg: AppConfig, state: Arc<Mutex<PollState>>, store: Arc<MessageStore>, debounce: Arc<poll::NotificationDebounce>) {
-                match mode {
-                    "sse" => sse::start_sse(cfg, state, store, debounce),
-                    "ws" => ws::start_ws(cfg, state, store, debounce),
-                    _ => poll::start_polling(cfg, state, store, debounce),
-                }
+                let handle = match mode {
+                    "sse" => sse::start_sse(cfg, state.clone(), store, debounce),
+                    "ws" => ws::start_ws(cfg, state.clone(), store, debounce),
+                    _ => poll::start_polling(cfg, state.clone(), store, debounce),
+                };
+                let mut s = lock_mutex(&state);
+                s.transport_handle = Some(handle);
             }
 
             if !cfg.server.jwt.is_empty() {
@@ -830,7 +871,7 @@ fn main() {
                             }
                             Err(e) => {
                                 error!("[startup] Login failed: {}", e);
-                                let mut s = state_clone.lock().unwrap();
+                                let mut s = lock_mutex(&state_clone);
                                 s.error = Some(format!("Login failed: {}", e));
                             }
                         }

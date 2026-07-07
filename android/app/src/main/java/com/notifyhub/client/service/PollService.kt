@@ -53,7 +53,6 @@ class PollService : Service() {
 
         private const val RECONNECT_BASE_MS = 5000L
         private const val RECONNECT_MAX_MS = 120000L  // 2 minutes max
-        private var reconnectDelay = RECONNECT_BASE_MS
 
         const val ACTION_START = "com.notifyhub.client.START_POLL"
         const val ACTION_STOP = "com.notifyhub.client.STOP_POLL"
@@ -158,12 +157,17 @@ class PollService : Service() {
 
     // Notification debounce: accumulate messages and notify in batches
     private val pendingMessages = mutableListOf<PushMessage>()
+    @Volatile
     private var debounceJob: Job? = null
+
+    // Reconnect backoff delay — instance variable to avoid static leaks across service restarts
+    private var reconnectDelay = RECONNECT_BASE_MS
 
     private fun startPolling() {
         if (pollJob?.isActive == true) return
         isRunning = true
         instance = this
+        reconnectDelay = RECONNECT_BASE_MS  // Reset backoff on fresh start
 
         pollJob = scope.launch {
             var config = ConfigStore.load(this@PollService)
@@ -259,6 +263,32 @@ class PollService : Service() {
     }
 
     /**
+     * Schedule a reconnect with exponential backoff. Reloads fresh config/JWT after the delay
+     * to avoid stale credentials. Deduplicates: no-op if mode changed or a reconnect is already pending.
+     */
+    private fun scheduleReconnect(mode: String, onStop: () -> Unit) {
+        if (ConfigStore.getConnectionMode(this@PollService) != mode || reconnectJob?.isActive == true) return
+        reconnectJob = scope.launch {
+            onStop()
+            val delay = reconnectDelay
+            reconnectDelay = (reconnectDelay * 2).coerceAtMost(RECONNECT_MAX_MS)
+            delay(delay)
+            if (isActive) {
+                val freshConfig = ConfigStore.load(this@PollService)
+                val freshJwt = ConfigStore.getJwtToken(this@PollService).ifBlank {
+                    // Fall back to current JWT if fresh one is blank
+                    freshConfig.jwtToken
+                }
+                val freshApi = ApiClient(freshConfig.serverUrl, freshJwt)
+                when (mode) {
+                    "sse" -> startSseMode(freshConfig, freshJwt, freshApi)
+                    "ws" -> startWsMode(freshConfig, freshJwt, freshApi)
+                }
+            }
+        }
+    }
+
+    /**
      * Try switching to a new connection mode.
      * Returns true if switch succeeded (connection established within timeout), false otherwise.
      * On failure, reverts to the previous mode.
@@ -287,6 +317,19 @@ class PollService : Service() {
         return false
     }
 
+    private suspend fun ackWithRetry(api: ApiClient, uuid: String, ids: List<String>, maxRetries: Int = 3) {
+        for (attempt in 1..maxRetries) {
+            try {
+                api.ack(uuid, ids)
+                return
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "ACK attempt $attempt/$maxRetries failed: ${e.message}")
+                if (attempt < maxRetries) delay(1000L)
+            }
+        }
+        AppLogger.e(TAG, "ACK failed after $maxRetries attempts")
+    }
+
     private suspend fun handleIncomingMessages(messages: List<PushMessage>, source: String) {
         val now = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         lastPollTime.value = now
@@ -303,7 +346,7 @@ class PollService : Service() {
                 val ids = messages.mapNotNull { it.id }
                 if (ids.isNotEmpty()) {
                     scope.launch(Dispatchers.IO) {
-                        try { api.ack(uuid, ids) } catch (e: Exception) { AppLogger.e(TAG, "Ack failed for ${ids.size} messages", e) }
+                        ackWithRetry(api, uuid, ids)
                     }
                 }
             }
@@ -392,41 +435,11 @@ class PollService : Service() {
             },
             onError = { e ->
                 AppLogger.e(TAG, "SSE error: ${e.message}")
-                // Only reconnect if still in SSE mode and no pending reconnect
-                if (ConfigStore.getConnectionMode(this@PollService) == "sse" && reconnectJob?.isActive != true) {
-                    reconnectJob = scope.launch {
-                        sseClient?.stop()
-                        sseClient = null
-                        val delay = reconnectDelay
-                        reconnectDelay = (reconnectDelay * 2).coerceAtMost(RECONNECT_MAX_MS)
-                        delay(delay)
-                        if (isActive) {
-                            // Use fresh config/JWT to avoid stale credentials after JWT refresh
-                            val freshJwt = ConfigStore.load(this@PollService).jwtToken
-                            val freshApi = if (freshJwt.isNotBlank()) ApiClient(config.serverUrl, freshJwt) else api
-                            startSseMode(config, freshJwt, freshApi)
-                        }
-                    }
-                }
+                scheduleReconnect("sse") { sseClient?.stop(); sseClient = null }
             },
             onClosed = {
                 AppLogger.w(TAG, "SSE closed")
-                // Only reconnect if still in SSE mode and no pending reconnect
-                if (ConfigStore.getConnectionMode(this@PollService) == "sse" && reconnectJob?.isActive != true) {
-                    reconnectJob = scope.launch {
-                        sseClient?.stop()
-                        sseClient = null
-                        val delay = reconnectDelay
-                        reconnectDelay = (reconnectDelay * 2).coerceAtMost(RECONNECT_MAX_MS)
-                        delay(delay)
-                        if (isActive) {
-                            // Use fresh config/JWT to avoid stale credentials after JWT refresh
-                            val freshJwt = ConfigStore.load(this@PollService).jwtToken
-                            val freshApi = if (freshJwt.isNotBlank()) ApiClient(config.serverUrl, freshJwt) else api
-                            startSseMode(config, freshJwt, freshApi)
-                        }
-                    }
-                }
+                scheduleReconnect("sse") { sseClient?.stop(); sseClient = null }
             },
             onAuthError = {
                 AppLogger.w(TAG, "SSE auth error (401), re-logging in...")
@@ -477,39 +490,11 @@ class PollService : Service() {
             },
             onError = { e ->
                 AppLogger.e(TAG, "WS error: ${e.message}")
-                if (ConfigStore.getConnectionMode(this@PollService) == "ws" && reconnectJob?.isActive != true) {
-                    reconnectJob = scope.launch {
-                        wsClient?.stop()
-                        wsClient = null
-                        val delay = reconnectDelay
-                        reconnectDelay = (reconnectDelay * 2).coerceAtMost(RECONNECT_MAX_MS)
-                        delay(delay)
-                        if (isActive) {
-                            // Use fresh config/JWT to avoid stale credentials after JWT refresh
-                            val freshJwt = ConfigStore.load(this@PollService).jwtToken
-                            val freshApi = if (freshJwt.isNotBlank()) ApiClient(config.serverUrl, freshJwt) else api
-                            startWsMode(config, freshJwt, freshApi)
-                        }
-                    }
-                }
+                scheduleReconnect("ws") { wsClient?.stop(); wsClient = null }
             },
             onClosed = {
                 AppLogger.w(TAG, "WS closed")
-                if (ConfigStore.getConnectionMode(this@PollService) == "ws" && reconnectJob?.isActive != true) {
-                    reconnectJob = scope.launch {
-                        wsClient?.stop()
-                        wsClient = null
-                        val delay = reconnectDelay
-                        reconnectDelay = (reconnectDelay * 2).coerceAtMost(RECONNECT_MAX_MS)
-                        delay(delay)
-                        if (isActive) {
-                            // Use fresh config/JWT to avoid stale credentials after JWT refresh
-                            val freshJwt = ConfigStore.load(this@PollService).jwtToken
-                            val freshApi = if (freshJwt.isNotBlank()) ApiClient(config.serverUrl, freshJwt) else api
-                            startWsMode(config, freshJwt, freshApi)
-                        }
-                    }
-                }
+                scheduleReconnect("ws") { wsClient?.stop(); wsClient = null }
             },
             onAuthError = {
                 AppLogger.w(TAG, "WS auth error (401), re-logging in...")
@@ -689,7 +674,7 @@ class PollService : Service() {
             .setLargeIcon(largeIcon)
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(if (isHighPriority) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
             .setDefaults(Notification.DEFAULT_ALL) // sound + vibrate + lights
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
 

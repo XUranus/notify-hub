@@ -54,7 +54,10 @@ impl ApiClient {
     pub fn new(base_url: &str, jwt: &str) -> Self {
         debug!("[api] Client created for {}", base_url);
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .unwrap_or_default(),
             base_url: base_url.trim_end_matches('/').to_string(),
             jwt: jwt.to_string(),
         }
@@ -63,7 +66,10 @@ impl ApiClient {
     /// Login with username/email + password. Returns JWT token on success.
     pub async fn login(base_url: &str, username: &str, password: &str) -> Result<String, String> {
         info!("[api] Login attempt: url={}, username={}", base_url, username);
-        let client = Client::new();
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap_or_default();
         let url = format!("{}/api/auth/login", base_url.trim_end_matches('/'));
         let body = serde_json::json!({
             "emailOrUsername": username,
