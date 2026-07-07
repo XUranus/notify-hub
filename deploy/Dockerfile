@@ -9,7 +9,7 @@ COPY web web/
 RUN cd web && pnpm build
 
 # ── Stage 2: Build Rust server ──
-FROM rust:1.82-bookworm AS server-builder
+FROM rust:1.85-bookworm AS server-builder
 WORKDIR /app
 COPY crates/ crates/
 RUN cd crates && cargo build --release --bin notifyhub-server
