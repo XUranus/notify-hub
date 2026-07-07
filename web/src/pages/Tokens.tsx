@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
 import { tokensApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { Plus, Copy, Check, Trash2, Key, Code2, RotateCw, Timer } from 'lucide-react'
@@ -254,10 +255,14 @@ export default function Tokens() {
     expiresIn: 'never' as string,
   })
   const [copiedId, setCopiedId] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const load = () => tokensApi.list().then((res) => {
-    if (res.success) setTokens(res.data || [])
-  })
+  const load = () => {
+    setLoading(true)
+    tokensApi.list().then((res) => {
+      if (res.success) setTokens(res.data || [])
+    }).finally(() => setLoading(false))
+  }
 
   useEffect(() => { load() }, [])
 
@@ -396,83 +401,100 @@ export default function Tokens() {
               </tr>
             </thead>
             <tbody>
-              {tokens.map((tok) => (
-                <tr key={tok.id} className="border-b hover:bg-muted/50 transition-colors">
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <Key className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium text-sm">{tok.name}</span>
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="font-mono text-xs max-w-[360px] truncate">
-                        {tok.token}
-                      </Badge>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 shrink-0"
-                        onClick={() => copyToken(tok.id, tok.token)}
-                        title={t('tokens.copy')}
-                      >
-                        {copiedId === tok.id ? (
-                          <Check className="h-3 w-3 text-green-500" />
-                        ) : (
-                          <Copy className="h-3 w-3" />
-                        )}
-                      </Button>
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex gap-1">
-                      {tok.scopes.map((s) => (
-                        <Badge key={s} variant="outline">{t(`common.${s}`) || s}</Badge>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="p-4 text-sm text-muted-foreground">
-                    {tok.rateLimit}{t('tokens.perMin')}
-                  </td>
-                  <td className="p-4">
-                    <ExpirationBadge expiresAt={tok.expiresAt} t={t} />
-                  </td>
-                  <td className="p-4 text-sm text-muted-foreground">
-                    {tok.lastUsedAt ? formatDate(tok.lastUsedAt) : '—'}
-                  </td>
-                  <td className="p-4 text-sm text-muted-foreground">
-                    {formatDate(tok.createdAt)}
-                  </td>
-                  <td className="p-4 text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                        onClick={() => handleRotate(tok.id)}
-                        title={t('tokens.rotate')}
-                      >
-                        <RotateCw className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDelete(tok.id)}
-                        title={t('tokens.revokeConfirm')}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {tokens.length === 0 && (
-                <tr>
-                  <td colSpan={8}>
-                    <EmptyState title={t('tokens.empty')} />
-                  </td>
-                </tr>
+              {loading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <tr key={`skeleton-${i}`} className="border-b">
+                    <td className="p-4"><Skeleton className="h-5 w-28" /></td>
+                    <td className="p-4"><Skeleton className="h-6 w-64" /></td>
+                    <td className="p-4"><Skeleton className="h-5 w-24" /></td>
+                    <td className="p-4"><Skeleton className="h-4 w-20" /></td>
+                    <td className="p-4"><Skeleton className="h-5 w-20" /></td>
+                    <td className="p-4"><Skeleton className="h-4 w-28" /></td>
+                    <td className="p-4"><Skeleton className="h-4 w-28" /></td>
+                    <td className="p-4"><Skeleton className="h-8 w-16 ml-auto" /></td>
+                  </tr>
+                ))
+              ) : (
+                <>
+                  {tokens.map((tok) => (
+                    <tr key={tok.id} className="border-b hover:bg-muted/50 transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <Key className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium text-sm">{tok.name}</span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="font-mono text-xs max-w-[360px] truncate">
+                            {tok.token}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 shrink-0"
+                            onClick={() => copyToken(tok.id, tok.token)}
+                            title={t('tokens.copy')}
+                          >
+                            {copiedId === tok.id ? (
+                              <Check className="h-3 w-3 text-green-500" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </Button>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex gap-1">
+                          {tok.scopes.map((s) => (
+                            <Badge key={s} variant="outline">{t(`common.${s}`) || s}</Badge>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="p-4 text-sm text-muted-foreground">
+                        {tok.rateLimit}{t('tokens.perMin')}
+                      </td>
+                      <td className="p-4">
+                        <ExpirationBadge expiresAt={tok.expiresAt} t={t} />
+                      </td>
+                      <td className="p-4 text-sm text-muted-foreground">
+                        {tok.lastUsedAt ? formatDate(tok.lastUsedAt) : '—'}
+                      </td>
+                      <td className="p-4 text-sm text-muted-foreground">
+                        {formatDate(tok.createdAt)}
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                            onClick={() => handleRotate(tok.id)}
+                            title={t('tokens.rotate')}
+                          >
+                            <RotateCw className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDelete(tok.id)}
+                            title={t('tokens.revokeConfirm')}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {tokens.length === 0 && (
+                    <tr>
+                      <td colSpan={8}>
+                        <EmptyState title={t('tokens.empty')} />
+                      </td>
+                    </tr>
+                  )}
+                </>
               )}
             </tbody>
           </table>

@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import { topicsApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { Plus, Trash2, Pencil, Tags, Upload, X } from 'lucide-react'
@@ -32,12 +33,15 @@ export default function Topics() {
   const [formData, setFormData] = useState({ name: '', displayName: '' })
   const [iconPreview, setIconPreview] = useState<string | null>(null)
   const [iconBase64, setIconBase64] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const load = () =>
+  const load = () => {
+    setLoading(true)
     topicsApi.list().then((res) => {
       if (res.success) setTopics(res.data || [])
-    })
+    }).finally(() => setLoading(false))
+  }
 
   useEffect(() => {
     load()
@@ -143,7 +147,24 @@ export default function Topics() {
         </Button>
       </div>
 
-      {topics.length === 0 ? (
+      {loading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={`skeleton-${i}`} className="rounded-xl">
+              <CardHeader className="flex flex-row items-center gap-3 pb-3">
+                <Skeleton className="h-10 w-10 rounded-xl" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Skeleton className="h-3 w-48" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : topics.length === 0 ? (
         <Card className="rounded-xl">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Tags className="h-12 w-12 text-muted-foreground mb-4" />

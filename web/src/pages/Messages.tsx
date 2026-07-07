@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
 import { messagesApi, topicsApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
 import { RefreshCw, RotateCw, Trash2, Download, Link, Paperclip, ExternalLink, SlidersHorizontal, ChevronDown } from 'lucide-react'
@@ -149,6 +150,7 @@ export default function Messages() {
   const [topicName, setTopicName] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [clearing, setClearing] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [visibleCols, setVisibleCols] = useState<Set<ColumnKey>>(new Set(ALL_COLUMNS.filter((c) => c !== 'tags' && c !== 'priority' && c !== 'format')))
   const [showColPicker, setShowColPicker] = useState(false)
   const colPickerRef = useRef<HTMLDivElement>(null)
@@ -203,12 +205,13 @@ export default function Messages() {
   const col = (key: ColumnKey) => visibleCols.has(key)
 
   const load = () => {
+    setLoading(true)
     messagesApi.list({ page, pageSize: 20, status: statusFilter || undefined }).then((res) => {
       if (res.success && res.data) {
         setMessages(res.data.items || [])
         setTotal(res.data.total || 0)
       }
-    })
+    }).finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [page, statusFilter])
@@ -391,101 +394,125 @@ export default function Messages() {
               </tr>
             </thead>
             <tbody>
-              {filteredMessages.map((msg) => (
-                <tr
-                  key={msg.id}
-                  className="border-b hover:bg-muted/50 cursor-pointer"
-                  onClick={() => setSelectedMsg(msg)}
-                >
-                  {col('id') && (
-                    <td className="px-3 py-1.5 text-xs">
-                      <Badge variant="secondary" className="text-[10px] font-mono">{msg.id}</Badge>
-                    </td>
-                  )}
-                  {col('channel') && (
-                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
-                      <Badge variant="outline" className="text-xs">
-                        {msg.channelName || t(`common.${msg.channelType}`) || msg.channelType}
-                      </Badge>
-                    </td>
-                  )}
-                  {col('to') && <td className="px-3 py-1.5 text-xs max-w-[200px] truncate">{msg.toAddress}</td>}
-                  {col('subject') && <td className="px-3 py-1.5 text-xs max-w-[360px] truncate">{msg.subject || '—'}</td>}
-                  {col('summary') && <td className="px-3 py-1.5 text-xs max-w-[300px] truncate text-muted-foreground">{msg.body || '—'}</td>}
-                  {col('topic') && (
-                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
-                      {msg.topicId ? (
-                        <Badge variant="outline" className="text-[10px]">{msg.topicId}</Badge>
-                      ) : <span className="text-muted-foreground">—</span>}
-                    </td>
-                  )}
-                  {col('tags') && (
-                    <td className="px-3 py-1.5">
-                      <div className="flex gap-1 flex-wrap max-w-[140px]">
-                        {parseTags(msg.tags).map((tag, i) => (
-                          <Badge key={i} variant="outline" className="text-[10px] px-1 py-0">{tag}</Badge>
-                        ))}
-                        {parseTags(msg.tags).length === 0 && <span className="text-muted-foreground text-xs">—</span>}
-                      </div>
-                    </td>
-                  )}
-                  {col('priority') && (
-                    <td className="px-3 py-1.5 text-xs text-center whitespace-nowrap">
-                      {msg.priority > 0 ? (
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${priorityColor(msg.priority)}`}>
-                          {msg.priority}
-                        </span>
-                      ) : <span className="text-muted-foreground">—</span>}
-                    </td>
-                  )}
-                  {col('format') && (
-                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
-                      <Badge variant="secondary" className="text-[10px]">
-                        {msg.format || 'text'}
-                      </Badge>
-                    </td>
-                  )}
-                  {col('status') && (
-                    <td className="px-3 py-1.5 whitespace-nowrap">
-                      <Badge variant={statusVariant[msg.status] || 'default'} className="text-xs">
-                        {t(`status.${msg.status}`) || msg.status}
-                      </Badge>
-                      {msg.errorMessage && (
-                        <p className="text-[11px] text-destructive mt-0.5 max-w-[200px] truncate">
-                          {msg.errorMessage}
-                        </p>
+              {loading ? (
+                // Skeleton rows while loading
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={`skeleton-${i}`} className="border-b">
+                    {col('id') && <td className="px-3 py-2"><Skeleton className="h-4 w-16" /></td>}
+                    {col('channel') && <td className="px-3 py-2"><Skeleton className="h-5 w-14" /></td>}
+                    {col('to') && <td className="px-3 py-2"><Skeleton className="h-4 w-32" /></td>}
+                    {col('subject') && <td className="px-3 py-2"><Skeleton className="h-4 w-48" /></td>}
+                    {col('summary') && <td className="px-3 py-2"><Skeleton className="h-4 w-40" /></td>}
+                    {col('topic') && <td className="px-3 py-2"><Skeleton className="h-5 w-20" /></td>}
+                    {col('tags') && <td className="px-3 py-2"><Skeleton className="h-4 w-16" /></td>}
+                    {col('priority') && <td className="px-3 py-2"><Skeleton className="h-4 w-8 mx-auto" /></td>}
+                    {col('format') && <td className="px-3 py-2"><Skeleton className="h-5 w-12" /></td>}
+                    {col('status') && <td className="px-3 py-2"><Skeleton className="h-5 w-16" /></td>}
+                    {col('retries') && <td className="px-3 py-2"><Skeleton className="h-4 w-10 mx-auto" /></td>}
+                    {col('duration') && <td className="px-3 py-2"><Skeleton className="h-4 w-12 mx-auto" /></td>}
+                    {col('created') && <td className="px-3 py-2"><Skeleton className="h-4 w-28" /></td>}
+                    {col('actions') && <td className="px-3 py-2"><Skeleton className="h-6 w-12 ml-auto" /></td>}
+                  </tr>
+                ))
+              ) : (
+                <>
+                  {filteredMessages.map((msg) => (
+                    <tr
+                      key={msg.id}
+                      className="border-b hover:bg-muted/50 cursor-pointer"
+                      onClick={() => setSelectedMsg(msg)}
+                    >
+                      {col('id') && (
+                        <td className="px-3 py-1.5 text-xs">
+                          <Badge variant="secondary" className="text-[10px] font-mono">{msg.id}</Badge>
+                        </td>
                       )}
-                    </td>
+                      {col('channel') && (
+                        <td className="px-3 py-1.5 text-xs whitespace-nowrap">
+                          <Badge variant="outline" className="text-xs">
+                            {msg.channelName || t(`common.${msg.channelType}`) || msg.channelType}
+                          </Badge>
+                        </td>
+                      )}
+                      {col('to') && <td className="px-3 py-1.5 text-xs max-w-[200px] truncate">{msg.toAddress}</td>}
+                      {col('subject') && <td className="px-3 py-1.5 text-xs max-w-[360px] truncate">{msg.subject || '—'}</td>}
+                      {col('summary') && <td className="px-3 py-1.5 text-xs max-w-[300px] truncate text-muted-foreground">{msg.body || '—'}</td>}
+                      {col('topic') && (
+                        <td className="px-3 py-1.5 text-xs whitespace-nowrap">
+                          {msg.topicId ? (
+                            <Badge variant="outline" className="text-[10px]">{msg.topicId}</Badge>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      )}
+                      {col('tags') && (
+                        <td className="px-3 py-1.5">
+                          <div className="flex gap-1 flex-wrap max-w-[140px]">
+                            {parseTags(msg.tags).map((tag, i) => (
+                              <Badge key={i} variant="outline" className="text-[10px] px-1 py-0">{tag}</Badge>
+                            ))}
+                            {parseTags(msg.tags).length === 0 && <span className="text-muted-foreground text-xs">—</span>}
+                          </div>
+                        </td>
+                      )}
+                      {col('priority') && (
+                        <td className="px-3 py-1.5 text-xs text-center whitespace-nowrap">
+                          {msg.priority > 0 ? (
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${priorityColor(msg.priority)}`}>
+                              {msg.priority}
+                            </span>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      )}
+                      {col('format') && (
+                        <td className="px-3 py-1.5 text-xs whitespace-nowrap">
+                          <Badge variant="secondary" className="text-[10px]">
+                            {msg.format || 'text'}
+                          </Badge>
+                        </td>
+                      )}
+                      {col('status') && (
+                        <td className="px-3 py-1.5 whitespace-nowrap">
+                          <Badge variant={statusVariant[msg.status] || 'default'} className="text-xs">
+                            {t(`status.${msg.status}`) || msg.status}
+                          </Badge>
+                          {msg.errorMessage && (
+                            <p className="text-[11px] text-destructive mt-0.5 max-w-[200px] truncate">
+                              {msg.errorMessage}
+                            </p>
+                          )}
+                        </td>
+                      )}
+                      {col('retries') && <td className="px-3 py-1.5 text-xs text-center whitespace-nowrap">{msg.retryCount > 0 ? `${msg.retryCount}/${msg.maxRetries}` : '—'}</td>}
+                      {col('duration') && (
+                        <td className="px-3 py-1.5 text-xs text-muted-foreground text-center whitespace-nowrap">
+                          {msg.sentAt ? `${((toDate(msg.sentAt).getTime() - toDate(msg.createdAt).getTime()) / 1000).toFixed(1)}s` : '—'}
+                        </td>
+                      )}
+                      {col('created') && <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap">{formatDate(msg.createdAt)}</td>}
+                      {col('actions') && (
+                        <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                          <div className="flex justify-end gap-1">
+                            {(msg.status === 'failed' || msg.status === 'dead') && (
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" onClick={(e) => { e.stopPropagation(); handleRetry(msg.id) }}>
+                                <RotateCw className="h-3 w-3" />
+                              </Button>
+                            )}
+                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(msg.id) }}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                  {filteredMessages.length === 0 && (
+                    <tr>
+                      <td colSpan={visibleCols.size}>
+                        <EmptyState title={t('messages.empty')} />
+                      </td>
+                    </tr>
                   )}
-                  {col('retries') && <td className="px-3 py-1.5 text-xs text-center whitespace-nowrap">{msg.retryCount > 0 ? `${msg.retryCount}/${msg.maxRetries}` : '—'}</td>}
-                  {col('duration') && (
-                    <td className="px-3 py-1.5 text-xs text-muted-foreground text-center whitespace-nowrap">
-                      {msg.sentAt ? `${((toDate(msg.sentAt).getTime() - toDate(msg.createdAt).getTime()) / 1000).toFixed(1)}s` : '—'}
-                    </td>
-                  )}
-                  {col('created') && <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap">{formatDate(msg.createdAt)}</td>}
-                  {col('actions') && (
-                    <td className="px-3 py-1.5 text-right whitespace-nowrap">
-                      <div className="flex justify-end gap-1">
-                        {(msg.status === 'failed' || msg.status === 'dead') && (
-                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" onClick={(e) => { e.stopPropagation(); handleRetry(msg.id) }}>
-                            <RotateCw className="h-3 w-3" />
-                          </Button>
-                        )}
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(msg.id) }}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {filteredMessages.length === 0 && (
-                <tr>
-                  <td colSpan={visibleCols.size}>
-                    <EmptyState title={t('messages.empty')} />
-                  </td>
-                </tr>
+                </>
               )}
             </tbody>
           </table>
