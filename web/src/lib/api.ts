@@ -160,11 +160,11 @@ export const templatesApi = {
 // ── Messages ──
 
 export const topicsApi = {
-  list: () => request<any[]>('GET', '/admin/topics'),
-  get: (id: string) => request<any>('GET', `/admin/topics/${id}`),
-  create: (data: any) => request<any>('POST', '/admin/topics', data),
-  update: (id: string, data: any) => request<any>('PUT', `/admin/topics/${id}`, data),
-  delete: (id: string) => request<any>('DELETE', `/admin/topics/${id}`),
+  list: () => request<any[]>('GET', '/v1/topics'),
+  get: (id: string) => request<any>('GET', `/v1/topics/${id}`),
+  create: (data: any) => request<any>('POST', '/v1/topics', data),
+  update: (id: string, data: any) => request<any>('PUT', `/v1/topics/${id}`, data),
+  delete: (id: string) => request<any>('DELETE', `/v1/topics/${id}`),
 }
 
 export const messagesApi = {
