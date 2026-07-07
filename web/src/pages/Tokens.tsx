@@ -390,49 +390,47 @@ export default function Tokens() {
           <table className="w-full min-w-[700px]">
             <thead>
               <tr className="border-b">
-                <th className="text-left p-4 text-sm font-medium text-muted-foreground">{t('tokens.name')}</th>
-                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Key</th>
-                <th className="text-left p-4 text-sm font-medium text-muted-foreground">{t('tokens.scopes')}</th>
-                <th className="text-left p-4 text-sm font-medium text-muted-foreground">{t('tokens.rateLimit')}</th>
-                <th className="text-left p-4 text-sm font-medium text-muted-foreground">{t('tokens.expiresAt')}</th>
-                <th className="text-left p-4 text-sm font-medium text-muted-foreground">{t('tokens.lastUsed')}</th>
-                <th className="text-left p-4 text-sm font-medium text-muted-foreground">{t('tokens.createdAt')}</th>
-                <th className="text-right p-4 text-sm font-medium text-muted-foreground">{t('messages.colActions')}</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('tokens.name')}</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Key</th>
+                <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colActions')}</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Status</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('tokens.scopes')}</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('tokens.expiresAt')}</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('tokens.lastUsed')}</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <tr key={`skeleton-${i}`} className="border-b">
-                    <td className="p-4"><Skeleton className="h-5 w-28" /></td>
-                    <td className="p-4"><Skeleton className="h-6 w-64" /></td>
-                    <td className="p-4"><Skeleton className="h-5 w-24" /></td>
-                    <td className="p-4"><Skeleton className="h-4 w-20" /></td>
-                    <td className="p-4"><Skeleton className="h-5 w-20" /></td>
-                    <td className="p-4"><Skeleton className="h-4 w-28" /></td>
-                    <td className="p-4"><Skeleton className="h-4 w-28" /></td>
-                    <td className="p-4"><Skeleton className="h-8 w-16 ml-auto" /></td>
+                    <td className="px-3 py-2"><Skeleton className="h-4 w-28" /></td>
+                    <td className="px-3 py-2"><Skeleton className="h-5 w-48" /></td>
+                    <td className="px-3 py-2"><Skeleton className="h-6 w-16 ml-auto" /></td>
+                    <td className="px-3 py-2"><Skeleton className="h-5 w-16" /></td>
+                    <td className="px-3 py-2"><Skeleton className="h-5 w-24" /></td>
+                    <td className="px-3 py-2"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-3 py-2"><Skeleton className="h-4 w-28" /></td>
                   </tr>
                 ))
               ) : (
                 <>
                   {tokens.map((tok) => (
                     <tr key={tok.id} className="border-b hover:bg-muted/50 transition-colors">
-                      <td className="p-4">
+                      <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2">
-                          <Key className="h-4 w-4 text-muted-foreground" />
+                          <Key className="h-3.5 w-3.5 text-muted-foreground" />
                           <span className="font-medium text-sm">{tok.name}</span>
                         </div>
                       </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="font-mono text-xs max-w-[360px] truncate">
+                      <td className="px-3 py-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="secondary" className="font-mono text-[11px] max-w-[280px] truncate">
                             {tok.token}
                           </Badge>
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 w-7 p-0 shrink-0"
+                            className="h-6 w-6 p-0 shrink-0"
                             onClick={() => copyToken(tok.id, tok.token)}
                             title={t('tokens.copy')}
                           >
@@ -444,52 +442,49 @@ export default function Tokens() {
                           </Button>
                         </div>
                       </td>
-                      <td className="p-4">
-                        <div className="flex gap-1">
-                          {tok.scopes.map((s) => (
-                            <Badge key={s} variant="outline">{t(`common.${s}`) || s}</Badge>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="p-4 text-sm text-muted-foreground">
-                        {tok.rateLimit}{t('tokens.perMin')}
-                      </td>
-                      <td className="p-4">
-                        <ExpirationBadge expiresAt={tok.expiresAt} t={t} />
-                      </td>
-                      <td className="p-4 text-sm text-muted-foreground">
-                        {tok.lastUsedAt ? formatDate(tok.lastUsedAt) : '—'}
-                      </td>
-                      <td className="p-4 text-sm text-muted-foreground">
-                        {formatDate(tok.createdAt)}
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="flex justify-end gap-1">
+                      <td className="px-3 py-1.5 text-right">
+                        <div className="flex justify-end gap-0.5">
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
                             onClick={() => handleRotate(tok.id)}
                             title={t('tokens.rotate')}
                           >
-                            <RotateCw className="h-4 w-4" />
+                            <RotateCw className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             onClick={() => handleDelete(tok.id)}
                             title={t('tokens.revokeConfirm')}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <ExpirationBadge expiresAt={tok.expiresAt} t={t} />
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <div className="flex gap-1">
+                          {tok.scopes.map((s) => (
+                            <Badge key={s} variant="outline" className="text-[11px]">{t(`common.${s}`) || s}</Badge>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-3 py-1.5 text-xs text-muted-foreground">
+                        {tok.expiresAt ? formatDate(tok.expiresAt) : '—'}
+                      </td>
+                      <td className="px-3 py-1.5 text-xs text-muted-foreground">
+                        {tok.lastUsedAt ? formatDate(tok.lastUsedAt) : '—'}
                       </td>
                     </tr>
                   ))}
                   {tokens.length === 0 && (
                     <tr>
-                      <td colSpan={8}>
+                      <td colSpan={7}>
                         <EmptyState title={t('tokens.empty')} />
                       </td>
                     </tr>
