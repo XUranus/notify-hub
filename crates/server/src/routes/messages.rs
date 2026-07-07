@@ -13,6 +13,9 @@ use crate::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        // Public API (DualAuth: JWT or API token, user sees own)
+        .route("/api/v1/messages", get(pub_list_messages))
+        .route("/api/v1/messages/{id}", get(pub_get_message))
         // User API (JWT, user sees own messages)
         .route("/api/user/messages", get(v1_list_messages))
         .route("/api/user/messages/{id}", get(v1_get_message))
@@ -33,9 +36,9 @@ struct ListParams {
     topic: Option<String>,
 }
 
-// ── v1 handlers (DualAuth: JWT + API token, always filter by user_id) ──
+// ── Public API handlers (DualAuth: JWT + API token, user sees own) ──
 
-async fn v1_list_messages(
+async fn pub_list_messages(
     State(state): State<AppState>,
     auth: DualAuth,
     Query(params): Query<ListParams>,
@@ -43,9 +46,27 @@ async fn v1_list_messages(
     list_messages_core(&state, &auth.claims, false, params).await
 }
 
-async fn v1_get_message(
+async fn pub_get_message(
     State(state): State<AppState>,
     auth: DualAuth,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<Message>>, AppError> {
+    get_message_core(&state, &auth.claims, false, id).await
+}
+
+// ── User API handlers (AuthUser: JWT only, user sees own) ──
+
+async fn v1_list_messages(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Query(params): Query<ListParams>,
+) -> Result<Json<ApiResponse<PaginatedResponse<Message>>>, AppError> {
+    list_messages_core(&state, &auth.claims, false, params).await
+}
+
+async fn v1_get_message(
+    State(state): State<AppState>,
+    auth: AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<Message>>, AppError> {
     get_message_core(&state, &auth.claims, false, id).await
