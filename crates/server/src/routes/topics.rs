@@ -1,6 +1,7 @@
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::get;
 use axum::{Json, Router};
+use serde::Deserialize;
 
 use notifyhub_common::error::AppError;
 use notifyhub_common::schemas::{CreateTopicRequest, UpdateTopicRequest};
@@ -9,10 +10,23 @@ use notifyhub_common::types::{ApiResponse, Topic};
 use crate::auth::middleware::AuthUser;
 use crate::AppState;
 
+#[derive(Debug, Deserialize)]
+pub struct TopicQueryParams {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    pub search: Option<String>,
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/admin/topics", get(list_topics).post(create_topic))
         .route("/api/admin/topics/{id}", get(get_topic).put(update_topic).delete(delete_topic))
+        // v1 API: topic CRUD for clients (with pagination & search)
+        .route("/api/v1/topics", get(list_topics_v2).post(create_topic))
+        .route("/api/v1/topics/{id}", get(get_topic))
+        // v2 API: topic management for clients
+        .route("/api/v2/topics", get(list_topics_v2).post(create_topic))
+        .route("/api/v2/topics/{id}", get(get_topic))
 }
 
 async fn list_topics(
@@ -181,6 +195,42 @@ async fn delete_topic(
         .await?;
 
     Ok(Json(ApiResponse::success()))
+}
+
+/// v2 list topics with pagination and search
+async fn list_topics_v2(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Query(params): Query<TopicQueryParams>,
+) -> Result<Json<ApiResponse<Vec<Topic>>>, AppError> {
+    let user_id: i64 = auth.claims.sub.parse()
+        .map_err(|_| AppError::BadRequest("invalid user id".into()))?;
+    let limit = params.limit.unwrap_or(50).min(200);
+    let offset = params.offset.unwrap_or(0);
+
+    let rows: Vec<TopicRow> = if auth.claims.role == "admin" {
+        if let Some(ref search) = params.search {
+            let pattern = format!("%{search}%");
+            sqlx::query_as("SELECT * FROM topics WHERE (name LIKE ? OR display_name LIKE ?) ORDER BY created_at DESC LIMIT ? OFFSET ?")
+                .bind(&pattern).bind(&pattern).bind(limit).bind(offset)
+                .fetch_all(&state.pool).await?
+        } else {
+            sqlx::query_as("SELECT * FROM topics ORDER BY created_at DESC LIMIT ? OFFSET ?")
+                .bind(limit).bind(offset)
+                .fetch_all(&state.pool).await?
+        }
+    } else if let Some(ref search) = params.search {
+        let pattern = format!("%{search}%");
+        sqlx::query_as("SELECT * FROM topics WHERE user_id = ? AND (name LIKE ? OR display_name LIKE ?) ORDER BY created_at DESC LIMIT ? OFFSET ?")
+            .bind(user_id).bind(&pattern).bind(&pattern).bind(limit).bind(offset)
+            .fetch_all(&state.pool).await?
+    } else {
+        sqlx::query_as("SELECT * FROM topics WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?")
+            .bind(user_id).bind(limit).bind(offset)
+            .fetch_all(&state.pool).await?
+    };
+
+    Ok(Json(ApiResponse::ok(rows.into_iter().map(Topic::from).collect())))
 }
 
 #[derive(sqlx::FromRow)]
