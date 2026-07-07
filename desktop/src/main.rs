@@ -835,6 +835,14 @@ fn dock_window_to_right(win: &tauri::WebviewWindow, animate: bool) {
     });
 }
 
+fn toggle_docked_window(win: &tauri::WebviewWindow) {
+    if win.is_visible().unwrap_or(false) {
+        let _ = win.hide();
+    } else {
+        dock_window_to_right(win, false);
+    }
+}
+
 fn main() {
     prefer_x11_for_window_positioning();
 
@@ -996,11 +1004,11 @@ fn main() {
             let status_item = MenuItem::with_id(app, "status", "● Connecting...", false, None::<&str>)?;
             let unread_item = MenuItem::with_id(app, "unread", "No unread", false, None::<&str>)?;
             let separator1 = PredefinedMenuItem::separator(app)?;
-            let show_item = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
+            let toggle_item = MenuItem::with_id(app, "toggle", "Toggle Window", true, None::<&str>)?;
             let reconnect_item = MenuItem::with_id(app, "reconnect", "Reconnect", true, None::<&str>)?;
             let separator2 = PredefinedMenuItem::separator(app)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&status_item, &unread_item, &separator1, &show_item, &reconnect_item, &separator2, &quit_item])?;
+            let menu = Menu::with_items(app, &[&status_item, &unread_item, &separator1, &toggle_item, &reconnect_item, &separator2, &quit_item])?;
 
             let icon = app
                 .default_window_icon()
@@ -1014,9 +1022,9 @@ fn main() {
                 .menu(&menu)
                 .tooltip("NotifyHub Client")
                 .on_menu_event(move |app, event| match event.id.as_ref() {
-                    "show" => {
+                    "toggle" => {
                         if let Some(win) = app.get_webview_window("main") {
-                            dock_window_to_right(&win, false);
+                            toggle_docked_window(&win);
                         }
                     }
                     "reconnect" => {
@@ -1033,7 +1041,7 @@ fn main() {
                     if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
                         let app = tray.app_handle();
                         if let Some(win) = app.get_webview_window("main") {
-                            dock_window_to_right(&win, false);
+                            toggle_docked_window(&win);
                         }
                     }
                 })
