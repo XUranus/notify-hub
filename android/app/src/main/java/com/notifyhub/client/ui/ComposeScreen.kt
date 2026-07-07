@@ -348,15 +348,65 @@ fun ComposeScreen(
                             )
                         } else {
                             clients.forEach { client ->
-                                val name = (client["name"] as? String) ?: "Unknown"
+                                val name = (client["deviceName"] as? String) ?: (client["name"] as? String) ?: "Unknown"
                                 val uuid = (client["uuid"] as? String) ?: ""
-                                val os = (client["os"] as? String) ?: ""
+                                val os = (client["deviceOs"] as? String) ?: (client["os"] as? String) ?: ""
+                                val desktop = (client["desktop"] as? String) ?: ""
+                                val connectionMode = (client["connectionMode"] as? String)
+                                val lastSeenAt = (client["lastSeenAt"] as? Number)?.toLong()
+
+                                // Determine online status (last seen within 5 minutes)
+                                val isOnline = if (lastSeenAt != null) {
+                                    val nowSeconds = System.currentTimeMillis() / 1000
+                                    (nowSeconds - lastSeenAt) < 5 * 60
+                                } else false
+
+                                // OS icon
+                                val osIcon = when {
+                                    os.contains("android", ignoreCase = true) -> "🤖"
+                                    os.contains("ios", ignoreCase = true) -> "🍎"
+                                    os.contains("windows", ignoreCase = true) -> "🪟"
+                                    os.contains("mac", ignoreCase = true) || os.contains("darwin", ignoreCase = true) -> "🍎"
+                                    os.contains("linux", ignoreCase = true) -> "🐧"
+                                    else -> "💻"
+                                }
+
+                                // OS display name
+                                val osDisplay = when {
+                                    os.contains("android", ignoreCase = true) -> "Android"
+                                    os.contains("ios", ignoreCase = true) -> "iOS"
+                                    os.contains("windows", ignoreCase = true) -> "Windows"
+                                    os.contains("mac", ignoreCase = true) || os.contains("darwin", ignoreCase = true) -> "macOS"
+                                    os.contains("linux", ignoreCase = true) -> "Linux"
+                                    else -> os.replaceFirstChar { it.uppercase() }
+                                }
+
                                 DropdownMenuItem(
                                     text = {
-                                        Column {
-                                            Text(name, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                            Text("$uuid ($os)", fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(osIcon, fontSize = 20.sp)
+                                            Spacer(Modifier.width(8.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(name, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                                    if (!isOnline) {
+                                                        Spacer(Modifier.width(6.dp))
+                                                        Text(i18n("compose_offline"),
+                                                            fontSize = 11.sp,
+                                                            color = MaterialTheme.colorScheme.error)
+                                                    }
+                                                }
+                                                Text(buildString {
+                                                    append(osDisplay)
+                                                    if (desktop.isNotBlank() && desktop != osDisplay) {
+                                                        append(" · $desktop")
+                                                    }
+                                                    if (connectionMode != null) {
+                                                        append(" · ${connectionMode.uppercase()}")
+                                                    }
+                                                }, fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
                                         }
                                     },
                                     onClick = { toValue = uuid; clientMenuExpanded = false }

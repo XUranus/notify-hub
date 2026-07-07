@@ -130,8 +130,8 @@ impl std::str::FromStr for SmsProvider {
 pub const RETRY_DELAYS: &[u64] = &[1, 5, 30, 300, 1800];
 pub const DEFAULT_MAX_RETRIES: u32 = 5;
 pub const DEFAULT_RATE_LIMIT: u32 = 100; // requests/min
-pub const WORKER_POLL_INTERVAL_MS: u64 = 1000;
-pub const WORKER_BATCH_SIZE: i64 = 10;
+pub const WORKER_POLL_INTERVAL_MS: u64 = 200;
+pub const WORKER_BATCH_SIZE: i64 = 100;
 pub const API_TOKEN_PREFIX: &str = "nfkey_";
 pub const JWT_EXPIRY_HOURS: u64 = 24;
 pub const CLIENT_JWT_EXPIRY_DAYS: u64 = 90;

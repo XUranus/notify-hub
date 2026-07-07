@@ -6,6 +6,119 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
+const BATCH_NOTIFICATION_THRESHOLD: usize = 5;
+const DEBOUNCE_DELAY_MS: u64 = 3000;  // Wait 3 seconds of silence before notifying
+
+pub const RECONNECT_BASE_MS: u64 = 5000;
+pub const RECONNECT_MAX_MS: u64 = 120000; // 2 minutes
+
+/// Tracks exponential backoff delay for reconnection.
+pub struct ReconnectState {
+    delay_ms: u64,
+}
+
+impl ReconnectState {
+    pub fn new() -> Self {
+        Self { delay_ms: RECONNECT_BASE_MS }
+    }
+    pub fn reset(&mut self) {
+        self.delay_ms = RECONNECT_BASE_MS;
+    }
+    pub fn backoff(&mut self) {
+        self.delay_ms = (self.delay_ms * 2).min(RECONNECT_MAX_MS);
+    }
+    pub fn delay_ms(&self) -> u64 {
+        self.delay_ms
+    }
+}
+
+/// Notification debounce state: accumulates messages and flushes after silence.
+pub struct NotificationDebounce {
+    pending: Mutex<Vec<LocalMessage>>,
+    debounce_handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    msg_store: Arc<MessageStore>,
+}
+
+impl NotificationDebounce {
+    pub fn new(msg_store: Arc<MessageStore>) -> Arc<Self> {
+        Arc::new(Self {
+            pending: Mutex::new(Vec::new()),
+            debounce_handle: Mutex::new(None),
+            msg_store,
+        })
+    }
+
+    /// Add messages to the pending queue and reset the debounce timer.
+    pub fn push(self: &Arc<Self>, messages: Vec<LocalMessage>) {
+        {
+            let mut pending = self.pending.lock().unwrap();
+            pending.extend(messages);
+        }
+        self.reset_timer();
+    }
+
+    /// Reset the debounce timer. After DEBOUNCE_DELAY_MS of silence, flush pending messages.
+    fn reset_timer(self: &Arc<Self>) {
+        let debounce = Arc::clone(self);
+
+        // Cancel existing timer
+        {
+            let mut handle = self.debounce_handle.lock().unwrap();
+            if let Some(h) = handle.take() {
+                h.abort();
+            }
+        }
+
+        // Spawn new timer
+        let handle = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(DEBOUNCE_DELAY_MS)).await;
+            debounce.flush();
+        });
+
+        *self.debounce_handle.lock().unwrap() = Some(handle);
+    }
+
+    /// Flush all pending messages: show notifications.
+    fn flush(&self) {
+        let to_notify: Vec<LocalMessage> = {
+            let mut pending = self.pending.lock().unwrap();
+            std::mem::take(&mut *pending)
+        };
+
+        if to_notify.is_empty() {
+            return;
+        }
+
+        log::info!("[debounce] Flushing {} pending message(s)", to_notify.len());
+
+        if to_notify.len() <= BATCH_NOTIFICATION_THRESHOLD {
+            // Few messages: show individual notifications
+            for msg in &to_notify {
+                let icon_path = msg.topic_icon.as_deref().and_then(decode_topic_icon);
+                if let Some(ref path) = icon_path {
+                    show_notification_with_icon(&msg.title, &msg.body, Some(&path.to_string_lossy()));
+                } else {
+                    show_notification(&msg.title, &msg.body);
+                }
+            }
+        } else {
+            // Many messages: show summary + last 3 individually
+            show_notification(
+                "NotifyHub",
+                &format!("{} new messages", to_notify.len()),
+            );
+            for msg in to_notify.iter().rev().take(3).collect::<Vec<_>>().iter().rev() {
+                let icon_path = msg.topic_icon.as_deref().and_then(decode_topic_icon);
+                if let Some(ref path) = icon_path {
+                    show_notification_with_icon(&msg.title, &msg.body, Some(&path.to_string_lossy()));
+                } else {
+                    show_notification(&msg.title, &msg.body);
+                }
+            }
+        }
+    }
+}
+
 const MAX_AUTO_DOWNLOAD_SIZE: u64 = 5 * 1024 * 1024; // 5MB
 
 /// Try to download an image attachment to local cache. Returns the local path if successful.
@@ -70,11 +183,12 @@ pub async fn try_download_image(attachment_json: &str, server_url: &str) -> Opti
     Some(path.to_string_lossy().to_string())
 }
 
-/// Process an incoming push message: convert to local, store, and show notification.
+/// Process an incoming push message: convert to local, store, and debounce notification.
 /// Shared across poll, SSE, and WebSocket connection modes.
 pub async fn process_message(
     msg: &PushMessage,
     msg_store: &Arc<MessageStore>,
+    debounce: &Arc<NotificationDebounce>,
     auto_download: bool,
     server_url: &str,
     source: &str,
@@ -108,13 +222,9 @@ pub async fn process_message(
         topic_display_name: msg.topic_display_name.clone(),
         topic_icon: msg.topic_icon.clone(),
     };
-    if msg_store.add(local) {
-        let icon_path = msg.topic_icon.as_deref().and_then(decode_topic_icon);
-        if let Some(ref path) = icon_path {
-            show_notification_with_icon(&msg.title, &msg.body, Some(&path.to_string_lossy()));
-        } else {
-            show_notification(&msg.title, &msg.body);
-        }
+    if msg_store.add(local.clone()) {
+        // Add to debounce queue instead of showing notification immediately
+        debounce.push(vec![local]);
     } else {
         log::warn!("[{}] Duplicate message ignored: id={}", source, msg.id);
     }
@@ -128,7 +238,7 @@ pub struct PollState {
     pub was_connected: bool,
 }
 
-pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store: Arc<MessageStore>) {
+pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store: Arc<MessageStore>, debounce: Arc<NotificationDebounce>) {
     let jwt = config.server.jwt.clone();
     let uuid = config.client.uuid.clone();
     let name = config.client.name.clone();
@@ -138,8 +248,9 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
     let password = config.server.password.clone();
 
     std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = crate::create_runtime();
         let mut current_jwt = jwt;
+        let mut reconnect_state = ReconnectState::new();
 
         loop {
             // Check if polling should stop or mode changed
@@ -152,7 +263,7 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
 
             let api = ApiClient::new(&server_url, &current_jwt);
 
-            rt.block_on(async {
+            let poll_ok = rt.block_on(async {
                 match api.poll_with_status(&uuid).await {
                     Ok((code, messages)) => {
                         // Re-login on 401 (JWT expired)
@@ -184,7 +295,7 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
                                     s.error = Some(format!("Re-login failed: {}", e));
                                 }
                             }
-                            return;
+                            return false;
                         }
 
                         {
@@ -199,8 +310,9 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
                         }
                         log::info!("[poll] Received {} message(s) via Poll", messages.len());
                         for msg in messages {
-                            process_message(&msg, &msg_store, auto_download, &server_url, "poll").await;
+                            process_message(&msg, &msg_store, &debounce, auto_download, &server_url, "poll").await;
                         }
+                        true
                     }
                     Err(e) => {
                         log::error!("[poll] Poll error: {}", e);
@@ -211,12 +323,20 @@ pub fn start_polling(config: AppConfig, state: Arc<Mutex<PollState>>, msg_store:
                             s.was_connected = false;
                         }
                         s.error = Some(e);
+                        false
                     }
                 }
             });
 
-            // Interruptible sleep: check running flag every 500ms
-            for _ in 0..10 {
+            if poll_ok {
+                reconnect_state.reset();
+            } else {
+                reconnect_state.backoff();
+            }
+
+            // Interruptible sleep with exponential backoff
+            let iterations = reconnect_state.delay_ms() / 500;
+            for _ in 0..iterations.max(1) {
                 {
                     let s = state.lock().unwrap();
                     if !s.running || s.mode != "poll" {

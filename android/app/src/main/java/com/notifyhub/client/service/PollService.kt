@@ -48,9 +48,37 @@ class PollService : Service() {
         private const val CHANNEL_ID_PUSH = "notifyhub_push"
         private const val NOTIFICATION_ID_SERVICE = 1001
         private const val POLL_INTERVAL_MS = 5000L
+        private const val BATCH_NOTIFICATION_THRESHOLD = 5
+        private const val DEBOUNCE_DELAY_MS = 3000L  // Wait 3 seconds of silence before notifying
+
+        private const val RECONNECT_BASE_MS = 5000L
+        private const val RECONNECT_MAX_MS = 120000L  // 2 minutes max
+        private var reconnectDelay = RECONNECT_BASE_MS
 
         const val ACTION_START = "com.notifyhub.client.START_POLL"
         const val ACTION_STOP = "com.notifyhub.client.STOP_POLL"
+
+        /** Whether PollService is currently running (for FCM fallback) */
+        @Volatile
+        var isRunning = false
+            private set
+
+        /**
+         * Shared reference to the active PollService instance.
+         * Used by FCM to feed messages into the debounce pipeline.
+         */
+        private var instance: PollService? = null
+
+        /** Feed messages into PollService's debounce pipeline (called by FCM) */
+        fun enqueueMessages(messages: List<PushMessage>) {
+            val svc = instance ?: return
+            if (!ConfigStore.isMuted(svc)) {
+                synchronized(svc.pendingMessages) {
+                    svc.pendingMessages.addAll(messages)
+                }
+                svc.debounceNotifications()
+            }
+        }
     }
 
     // Binder for Activity binding
@@ -128,8 +156,14 @@ class PollService : Service() {
     private var currentApi: ApiClient? = null  // For ack'ing messages
     private var currentUuid: String? = null
 
+    // Notification debounce: accumulate messages and notify in batches
+    private val pendingMessages = mutableListOf<PushMessage>()
+    private var debounceJob: Job? = null
+
     private fun startPolling() {
         if (pollJob?.isActive == true) return
+        isRunning = true
+        instance = this
 
         pollJob = scope.launch {
             var config = ConfigStore.load(this@PollService)
@@ -143,6 +177,7 @@ class PollService : Service() {
                     AppLogger.w(TAG, "No JWT and no username configured, skipping")
                     isConnected.value = false
                     lastError.value = I18n["notif_conn_failed"]
+                    showOfflineDialog.value = true
                     return@launch
                 }
                 AppLogger.d(TAG, "No JWT, attempting login...")
@@ -153,24 +188,29 @@ class PollService : Service() {
 
             var api = ApiClient(config.serverUrl, jwt)
 
-            // Fetch FCM token (if Firebase is configured, with 5s timeout)
+            // Fetch FCM token (if enabled in settings and Firebase is configured)
             var fcmToken: String? = null
-            try {
-                // Delete old token first to force refresh (fixes stale tokens from old Firebase projects)
-                val fcm = com.google.firebase.messaging.FirebaseMessaging.getInstance()
-                withTimeoutOrNull(3000L) { fcm.deleteToken().await() }
-                AppLogger.i(TAG, "Old FCM token deleted, fetching new one...")
+            if (ConfigStore.isFcmEnabled(this@PollService)) {
+                val fcmTimeout = ConfigStore.getFcmTokenTimeout(this@PollService)
+                try {
+                    // Delete old token first to force refresh (fixes stale tokens from old Firebase projects)
+                    val fcm = com.google.firebase.messaging.FirebaseMessaging.getInstance()
+                    withTimeoutOrNull(2000L) { fcm.deleteToken().await() }
+                    AppLogger.i(TAG, "Old FCM token deleted, fetching new one (timeout=${fcmTimeout}ms)...")
 
-                fcmToken = withTimeoutOrNull(5000L) {
-                    fcm.token.await()
+                    fcmToken = withTimeoutOrNull(fcmTimeout) {
+                        fcm.token.await()
+                    }
+                    if (fcmToken != null) {
+                        AppLogger.i(TAG, "FCM token obtained: ${fcmToken!!.take(20)}...")
+                    } else {
+                        AppLogger.w(TAG, "FCM token fetch timed out")
+                    }
+                } catch (e: Exception) {
+                    AppLogger.w(TAG, "Could not get FCM token (Firebase may not be configured): ${e.message}")
                 }
-                if (fcmToken != null) {
-                    AppLogger.i(TAG, "FCM token obtained: ${fcmToken!!.take(20)}...")
-                } else {
-                    AppLogger.w(TAG, "FCM token fetch timed out")
-                }
-            } catch (e: Exception) {
-                AppLogger.w(TAG, "Could not get FCM token (Firebase may not be configured): ${e.message}")
+            } else {
+                AppLogger.i(TAG, "FCM disabled in settings, skipping token fetch")
             }
 
             // Initial registration with retry
@@ -277,15 +317,49 @@ class PollService : Service() {
                 }
 
                 if (!ConfigStore.isMuted(this@PollService)) {
-                    for (msg in newMessages) {
-                        showPushNotification(msg)
+                    // Add to pending queue and reset debounce timer
+                    synchronized(pendingMessages) {
+                        pendingMessages.addAll(newMessages)
                     }
+                    debounceNotifications()
+                }
+            }
+        }
+    }
+
+    /**
+     * Debounce notification delivery.
+     * When messages arrive in rapid succession, wait [DEBOUNCE_DELAY_MS] of silence
+     * before sending notifications. This prevents notification storms on reconnect.
+     */
+    private fun debounceNotifications() {
+        debounceJob?.cancel()
+        debounceJob = scope.launch {
+            delay(DEBOUNCE_DELAY_MS)
+            // No new messages for DEBOUNCE_DELAY_MS — flush pending notifications
+            val toNotify: List<PushMessage>
+            synchronized(pendingMessages) {
+                toNotify = pendingMessages.toList()
+                pendingMessages.clear()
+            }
+            if (toNotify.isEmpty()) return@launch
+
+            AppLogger.i(TAG, "Debounce flushed: ${toNotify.size} message(s)")
+            if (toNotify.size <= BATCH_NOTIFICATION_THRESHOLD) {
+                for (msg in toNotify) {
+                    showPushNotification(msg)
+                }
+            } else {
+                showBatchNotification(toNotify)
+                for (msg in toNotify.takeLast(3)) {
+                    showPushNotification(msg)
                 }
             }
         }
     }
 
     private fun handleConnectionRestored() {
+        reconnectDelay = RECONNECT_BASE_MS
         if (!isConnected.value) {
             AppLogger.i(TAG, "Connection restored")
             if (wasConnected) {
@@ -323,8 +397,15 @@ class PollService : Service() {
                     reconnectJob = scope.launch {
                         sseClient?.stop()
                         sseClient = null
-                        delay(POLL_INTERVAL_MS)
-                        if (isActive) startSseMode(config, jwt, api)
+                        val delay = reconnectDelay
+                        reconnectDelay = (reconnectDelay * 2).coerceAtMost(RECONNECT_MAX_MS)
+                        delay(delay)
+                        if (isActive) {
+                            // Use fresh config/JWT to avoid stale credentials after JWT refresh
+                            val freshJwt = ConfigStore.load(this@PollService).jwtToken
+                            val freshApi = if (freshJwt.isNotBlank()) ApiClient(config.serverUrl, freshJwt) else api
+                            startSseMode(config, freshJwt, freshApi)
+                        }
                     }
                 }
             },
@@ -335,8 +416,15 @@ class PollService : Service() {
                     reconnectJob = scope.launch {
                         sseClient?.stop()
                         sseClient = null
-                        delay(POLL_INTERVAL_MS)
-                        if (isActive) startSseMode(config, jwt, api)
+                        val delay = reconnectDelay
+                        reconnectDelay = (reconnectDelay * 2).coerceAtMost(RECONNECT_MAX_MS)
+                        delay(delay)
+                        if (isActive) {
+                            // Use fresh config/JWT to avoid stale credentials after JWT refresh
+                            val freshJwt = ConfigStore.load(this@PollService).jwtToken
+                            val freshApi = if (freshJwt.isNotBlank()) ApiClient(config.serverUrl, freshJwt) else api
+                            startSseMode(config, freshJwt, freshApi)
+                        }
                     }
                 }
             },
@@ -353,7 +441,21 @@ class PollService : Service() {
                             if (ConfigStore.getConnectionMode(this@PollService) == "sse") {
                                 startSseMode(config, newJwt, newApi)
                             }
+                        } else {
+                            // Re-login failed, clear JWT and show login prompt
+                            AppLogger.e(TAG, "Re-login failed, clearing JWT")
+                            ConfigStore.saveJwtToken(this@PollService, "")
+                            isConnected.value = false
+                            lastError.value = I18n["notif_conn_failed"]
+                            showOfflineDialog.value = true
                         }
+                    } else {
+                        // No username stored, can't re-login automatically
+                        AppLogger.e(TAG, "No username stored, clearing JWT and showing login prompt")
+                        ConfigStore.saveJwtToken(this@PollService, "")
+                        isConnected.value = false
+                        lastError.value = I18n["notif_conn_failed"]
+                        showOfflineDialog.value = true
                     }
                 }
             }
@@ -379,8 +481,15 @@ class PollService : Service() {
                     reconnectJob = scope.launch {
                         wsClient?.stop()
                         wsClient = null
-                        delay(POLL_INTERVAL_MS)
-                        if (isActive) startWsMode(config, jwt, api)
+                        val delay = reconnectDelay
+                        reconnectDelay = (reconnectDelay * 2).coerceAtMost(RECONNECT_MAX_MS)
+                        delay(delay)
+                        if (isActive) {
+                            // Use fresh config/JWT to avoid stale credentials after JWT refresh
+                            val freshJwt = ConfigStore.load(this@PollService).jwtToken
+                            val freshApi = if (freshJwt.isNotBlank()) ApiClient(config.serverUrl, freshJwt) else api
+                            startWsMode(config, freshJwt, freshApi)
+                        }
                     }
                 }
             },
@@ -390,8 +499,15 @@ class PollService : Service() {
                     reconnectJob = scope.launch {
                         wsClient?.stop()
                         wsClient = null
-                        delay(POLL_INTERVAL_MS)
-                        if (isActive) startWsMode(config, jwt, api)
+                        val delay = reconnectDelay
+                        reconnectDelay = (reconnectDelay * 2).coerceAtMost(RECONNECT_MAX_MS)
+                        delay(delay)
+                        if (isActive) {
+                            // Use fresh config/JWT to avoid stale credentials after JWT refresh
+                            val freshJwt = ConfigStore.load(this@PollService).jwtToken
+                            val freshApi = if (freshJwt.isNotBlank()) ApiClient(config.serverUrl, freshJwt) else api
+                            startWsMode(config, freshJwt, freshApi)
+                        }
                     }
                 }
             },
@@ -408,7 +524,21 @@ class PollService : Service() {
                             if (ConfigStore.getConnectionMode(this@PollService) == "ws") {
                                 startWsMode(config, newJwt, newApi)
                             }
+                        } else {
+                            // Re-login failed, clear JWT and show login prompt
+                            AppLogger.e(TAG, "Re-login failed, clearing JWT")
+                            ConfigStore.saveJwtToken(this@PollService, "")
+                            isConnected.value = false
+                            lastError.value = I18n["notif_conn_failed"]
+                            showOfflineDialog.value = true
                         }
+                    } else {
+                        // No username stored, can't re-login automatically
+                        AppLogger.e(TAG, "No username stored, clearing JWT and showing login prompt")
+                        ConfigStore.saveJwtToken(this@PollService, "")
+                        isConnected.value = false
+                        lastError.value = I18n["notif_conn_failed"]
+                        showOfflineDialog.value = true
                     }
                 }
             }
@@ -426,6 +556,8 @@ class PollService : Service() {
                 val (code, messages) = currentApi.pollRawResponse(config.clientUuid)
                 handleIncomingMessages(messages, "Poll")
                 handleConnectionRestored()
+                reconnectDelay = RECONNECT_BASE_MS  // Reset backoff on successful poll
+                delay(RECONNECT_BASE_MS)
             } catch (e: PollException) {
                 if (e.code == 401 && config.username.isNotBlank()) {
                     AppLogger.w(TAG, "JWT expired (401), re-logging in...")
@@ -440,17 +572,29 @@ class PollService : Service() {
                 }
                 AppLogger.e(TAG, "Poll HTTP error: ${e.code}", e)
                 handlePollError(e)
+                delay(reconnectDelay)
+                reconnectDelay = (reconnectDelay * 2).coerceAtMost(RECONNECT_MAX_MS)
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Poll error", e)
                 handlePollError(e)
+                delay(reconnectDelay)
+                reconnectDelay = (reconnectDelay * 2).coerceAtMost(RECONNECT_MAX_MS)
             }
-
-            delay(POLL_INTERVAL_MS)
         }
         AppLogger.d(TAG, "Poll loop ended")
     }
 
     private fun stopPolling() {
+        // Flush pending notifications before stopping
+        synchronized(pendingMessages) {
+            if (pendingMessages.isNotEmpty()) {
+                val toNotify = pendingMessages.toList()
+                pendingMessages.clear()
+                for (msg in toNotify) {
+                    showPushNotification(msg)
+                }
+            }
+        }
         pollJob?.cancel()
         pollJob = null
         modeJob?.cancel()
@@ -459,7 +603,11 @@ class PollService : Service() {
         sseClient = null
         wsClient?.stop()
         wsClient = null
+        debounceJob?.cancel()
+        debounceJob = null
         isConnected.value = false
+        isRunning = false
+        instance = null
     }
 
     /** Enter offline mode - keep polling silently without showing login prompts */
@@ -558,6 +706,47 @@ class PollService : Service() {
         }
 
         nm.notify(msg.id.hashCode(), builder.build())
+    }
+
+    private fun showBatchNotification(messages: List<PushMessage>) {
+        AppLogger.i(TAG, "Showing batch notification for ${messages.size} messages")
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        // Click intent — opens MainActivity
+        val contentIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        // Build inbox style with last 5 message titles
+        val inboxStyle = NotificationCompat.InboxStyle()
+            .setBigContentTitle(I18n["notif_batch_title"]?.replace("{count}", messages.size.toString())
+                ?: "${messages.size} new messages")
+            .setSummaryText(I18n["notif_batch_summary"] ?: "NotifyHub")
+
+        for (msg in messages.takeLast(5).reversed()) {
+            inboxStyle.addLine("${msg.title}: ${msg.body.take(80)}")
+        }
+
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID_PUSH)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(I18n["notif_batch_title"]?.replace("{count}", messages.size.toString())
+                ?: "${messages.size} new messages")
+            .setContentText(messages.lastOrNull()?.title ?: "")
+            .setStyle(inboxStyle)
+            .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.logo))
+            .setContentIntent(contentIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(Notification.DEFAULT_ALL)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setGroup("batch_messages")
+
+        // Summary notification for the group
+        nm.notify(0x7FFFFFFF, builder.build())
     }
 
     private fun decodeTopicIcon(icon: String?): Bitmap? {

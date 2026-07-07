@@ -19,8 +19,8 @@ async fn list_clients(
     let user_id: i64 = auth.claims.sub.parse()
         .map_err(|_| AppError::BadRequest("invalid user id".into()))?;
 
-    let rows: Vec<(i64, String, i64, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64)> = sqlx::query_as(
-        "SELECT id, uuid, user_id, name, os, arch, fcm_token, last_seen_at, registered_at FROM push_clients WHERE user_id = ? ORDER BY last_seen_at DESC",
+    let rows: Vec<(String, String, i64, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64)> = sqlx::query_as(
+        "SELECT id, uuid, user_id, name, os, arch, desktop, app_version, connection_mode, fcm_token, last_seen_at, registered_at FROM push_clients WHERE user_id = ? ORDER BY last_seen_at DESC",
     )
     .bind(user_id)
     .fetch_all(&state.pool)
@@ -33,9 +33,12 @@ async fn list_clients(
         device_name: r.3,
         device_os: r.4,
         device_arch: r.5,
-        fcm_token: r.6,
-        last_seen_at: r.7,
-        created_at: r.8,
+        desktop: r.6,
+        app_version: r.7,
+        connection_mode: r.8,
+        fcm_token: r.9,
+        last_seen_at: r.10,
+        created_at: r.11,
     }).collect();
 
     Ok(Json(ApiResponse::ok(clients)))

@@ -2,10 +2,12 @@ use crate::api::{ApiClient, PushMessage};
 use crate::config::AppConfig;
 use crate::messages::MessageStore;
 use crate::notify::show_notification;
-use crate::poll::{PollState, process_message};
+use crate::poll::{PollState, NotificationDebounce, ReconnectState, process_message};
 use futures_util::StreamExt;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
 /// Start WebSocket connection for real-time message delivery.
@@ -14,6 +16,7 @@ pub fn start_ws(
     config: AppConfig,
     state: Arc<Mutex<PollState>>,
     msg_store: Arc<MessageStore>,
+    debounce: Arc<NotificationDebounce>,
 ) {
     let jwt = config.server.jwt.clone();
     let uuid = config.client.uuid.clone();
@@ -24,8 +27,9 @@ pub fn start_ws(
     let password = config.server.password.clone();
 
     std::thread::spawn(move || {
-        let rt = crate::shared_runtime();
+        let rt = crate::create_runtime();
         let mut current_jwt = jwt;
+        let mut reconnect_state = ReconnectState::new();
 
         loop {
             // Check if should stop
@@ -43,7 +47,7 @@ pub fn start_ws(
                 current_jwt
             );
 
-            let result = rt.block_on(async {
+            let ws_ok = rt.block_on(async {
                 match connect_async(&ws_url).await {
                     Ok((ws_stream, _response)) => {
                         // Mark connected
@@ -73,6 +77,7 @@ pub fn start_ws(
                                     handle_ws_message(
                                         &text,
                                         &msg_store,
+                                        &debounce,
                                         auto_download,
                                         &server_url,
                                         &uuid,
@@ -90,13 +95,51 @@ pub fn start_ws(
                                 _ => {} // Ping/Pong/Binary handled by tungstenite
                             }
                         }
-                        Ok::<(), String>(())
+                        true
+                    }
+                    Err(tungstenite::Error::Http(resp)) => {
+                        let status = resp.status();
+                        log::warn!("[ws] JWT expired (HTTP {}), re-logging in...", status);
+                        if status == 401 || status == 403 {
+                            match ApiClient::login(&server_url, &username, &password).await {
+                                Ok(new_jwt) => {
+                                    current_jwt = new_jwt.clone();
+                                    if let Some(mut cfg) = AppConfig::load() {
+                                        cfg.server.jwt = new_jwt;
+                                        if let Err(e) = cfg.save() {
+                                            log::warn!("[ws] Failed to save new JWT: {}", e);
+                                        }
+                                    }
+                                    let new_api = ApiClient::new(&server_url, &current_jwt);
+                                    let os = std::env::consts::OS;
+                                    let arch = std::env::consts::ARCH;
+                                    let desktop = crate::detect_desktop_env();
+                                    let version = env!("CARGO_PKG_VERSION");
+                                    if let Err(e) = new_api.register(&uuid, &name, os, arch, &desktop, version).await {
+                                        log::warn!("[ws] Re-register after JWT refresh failed: {}", e);
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!("[ws] Re-login failed: {}", e);
+                                    let mut s = state.lock().unwrap();
+                                    s.error = Some(format!("Re-login failed: {}", e));
+                                }
+                            }
+                        } else {
+                            let mut s = state.lock().unwrap();
+                            if s.was_connected {
+                                show_notification("NotifyHub", "Connection lost");
+                                s.was_connected = false;
+                            }
+                            s.error = Some(format!("WS HTTP {}", status));
+                        }
+                        false
                     }
                     Err(e) => {
                         let err_msg = e.to_string();
-                        // Check if it's a 401
-                        if err_msg.contains("401") {
-                            log::warn!("[ws] JWT expired, re-logging in...");
+                        // Fallback: string match for auth errors
+                        if err_msg.contains("401") || err_msg.contains("403") {
+                            log::warn!("[ws] Possible auth error: {err_msg}");
                             match ApiClient::login(&server_url, &username, &password).await {
                                 Ok(new_jwt) => {
                                     current_jwt = new_jwt.clone();
@@ -130,25 +173,27 @@ pub fn start_ws(
                             }
                             s.error = Some(format!("WS: {}", err_msg));
                         }
-                        Err(err_msg)
+                        false
                     }
                 }
             });
 
-            if result.is_err() {
-                // Error already handled above
+            if ws_ok {
+                reconnect_state.reset();
+            } else {
+                reconnect_state.backoff();
             }
 
-            log::warn!("[ws] Disconnected, will reconnect in 5s...");
-            // Interruptible sleep: check running flag and mode every 500ms
-            for _ in 0..10 {
+            // Interruptible sleep with exponential backoff
+            let iterations = reconnect_state.delay_ms() / 500;
+            for _ in 0..iterations.max(1) {
                 {
                     let s = state.lock().unwrap();
                     if !s.running || s.mode != "ws" {
                         break;
                     }
                 }
-                std::thread::sleep(std::time::Duration::from_millis(500));
+                std::thread::sleep(Duration::from_millis(500));
             }
         }
     });
@@ -157,6 +202,7 @@ pub fn start_ws(
 async fn handle_ws_message(
     text: &str,
     msg_store: &Arc<MessageStore>,
+    debounce: &Arc<NotificationDebounce>,
     auto_download: bool,
     server_url: &str,
     uuid: &str,
@@ -190,15 +236,27 @@ async fn handle_ws_message(
     for msg_val in messages {
         if let Ok(msg) = serde_json::from_value::<PushMessage>(msg_val) {
             ack_ids.push(msg.id.clone());
-            process_message(&msg, msg_store, auto_download, server_url, "ws").await;
+            process_message(&msg, msg_store, debounce, auto_download, server_url, "ws").await;
         }
     }
 
-    // Ack messages on server so they won't be re-delivered via poll
+    // Ack messages on server with retry
     if !ack_ids.is_empty() {
         let api = ApiClient::new(server_url, jwt);
-        if let Err(e) = api.ack(uuid, &ack_ids).await {
-            log::error!("[ws] ACK failed for {} messages: {}", ack_ids.len(), e);
+        let mut ack_success = false;
+        for attempt in 0..3 {
+            match api.ack(uuid, &ack_ids).await {
+                Ok(_) => { ack_success = true; break; }
+                Err(e) => {
+                    log::warn!("[ws] ACK attempt {}/3 failed: {}", attempt + 1, e);
+                    if attempt < 2 {
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
+                }
+            }
+        }
+        if !ack_success {
+            log::error!("[ws] ACK failed after 3 attempts for {} messages", ack_ids.len());
         }
     }
 }

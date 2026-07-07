@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
-import { messagesApi } from '@/lib/api'
+import { messagesApi, topicsApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
-import { RefreshCw, RotateCw, Trash2, Download, Link, Paperclip, ExternalLink } from 'lucide-react'
+import { RefreshCw, RotateCw, Trash2, Download, Link, Paperclip, ExternalLink, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { formatDate, toDate } from '@/lib/utils'
 
 interface Message {
@@ -34,6 +34,7 @@ interface Message {
   url: string | null
   attachment: string | null
   format: string
+  topicId: string | null
 }
 
 interface MessageAttachment {
@@ -79,7 +80,7 @@ function downloadFile(content: string, filename: string, mimeType: string) {
 }
 
 function toCsv(messages: Message[]): string {
-  const headers = ['id', 'channelType', 'channelName', 'toAddress', 'subject', 'body', 'status', 'retryCount', 'errorMessage', 'ipAddress', 'ipLocation', 'app', 'createdAt', 'sentAt', 'tags', 'priority', 'url', 'attachment', 'format']
+  const headers = ['id', 'channelType', 'channelName', 'toAddress', 'subject', 'body', 'status', 'retryCount', 'errorMessage', 'ipAddress', 'ipLocation', 'app', 'createdAt', 'sentAt', 'tags', 'priority', 'url', 'attachment', 'format', 'topicId']
   const escape = (v: unknown) => {
     const s = v == null ? '' : String(v)
     return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
@@ -94,7 +95,7 @@ function toJson(messages: Message[]): string {
 
 function toXml(messages: Message[]): string {
   const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-  const fields = ['id', 'channelType', 'channelName', 'toAddress', 'subject', 'body', 'status', 'retryCount', 'errorMessage', 'ipAddress', 'ipLocation', 'app', 'createdAt', 'sentAt', 'tags', 'priority', 'url', 'attachment', 'format']
+  const fields = ['id', 'channelType', 'channelName', 'toAddress', 'subject', 'body', 'status', 'retryCount', 'errorMessage', 'ipAddress', 'ipLocation', 'app', 'createdAt', 'sentAt', 'tags', 'priority', 'url', 'attachment', 'format', 'topicId']
   const items = messages.map((m) => {
     const inner = fields.map((f) => {
       const v = (m as unknown as Record<string, unknown>)[f]
@@ -105,15 +106,101 @@ function toXml(messages: Message[]): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<messages>\n${items.join('\n')}\n</messages>`
 }
 
+type ColumnKey = 'id' | 'channel' | 'to' | 'subject' | 'summary' | 'topic' | 'tags' | 'priority' | 'format' | 'status' | 'retries' | 'duration' | 'created' | 'actions'
+
+const ALL_COLUMNS: ColumnKey[] = ['id', 'channel', 'to', 'subject', 'summary', 'topic', 'tags', 'priority', 'format', 'status', 'retries', 'duration', 'created', 'actions']
+
+function MetaItem({ label, value, mono, children, className }: { label: string; value?: string | null; mono?: boolean; children?: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <span className="text-muted-foreground">{label}</span>
+      <p className={`mt-0.5 truncate ${mono ? 'font-mono' : ''}`}>
+        {children ?? <span>{value || '—'}</span>}
+      </p>
+    </div>
+  )
+}
+
+const COLUMN_I18N: Record<ColumnKey, string> = {
+  id: 'messages.colId',
+  channel: 'messages.colChannel',
+  to: 'messages.colTo',
+  subject: 'messages.colSubject',
+  summary: 'messages.colSummary',
+  topic: 'messages.colTopic',
+  tags: 'messages.colTags',
+  priority: 'messages.colPriority',
+  format: 'messages.colFormat',
+  status: 'messages.colStatus',
+  retries: 'messages.colRetries',
+  duration: 'messages.colDuration',
+  created: 'messages.colCreated',
+  actions: 'messages.colActions',
+}
+
 export default function Messages() {
   const { t } = useTranslation()
   const [messages, setMessages] = useState<Message[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
+  const [channelFilter, setChannelFilter] = useState('')
   const [selectedMsg, setSelectedMsg] = useState<Message | null>(null)
+  const [topicName, setTopicName] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [clearing, setClearing] = useState(false)
+  const [visibleCols, setVisibleCols] = useState<Set<ColumnKey>>(new Set(ALL_COLUMNS.filter((c) => c !== 'tags' && c !== 'priority' && c !== 'format')))
+  const [showColPicker, setShowColPicker] = useState(false)
+  const colPickerRef = useRef<HTMLDivElement>(null)
+
+  // Click outside to close column picker
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (colPickerRef.current && !colPickerRef.current.contains(e.target as Node)) {
+        setShowColPicker(false)
+      }
+    }
+    if (showColPicker) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showColPicker])
+
+  const toggleCol = (key: ColumnKey) => {
+    setVisibleCols((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  // Fetch topic name when a message with topicId is selected
+  useEffect(() => {
+    if (!selectedMsg?.topicId) {
+      setTopicName(null)
+      return
+    }
+    let cancelled = false
+    topicsApi.get(selectedMsg.topicId).then((res) => {
+      if (!cancelled && res.success && res.data) {
+        setTopicName(res.data.displayName || res.data.name || null)
+      }
+    }).catch(() => {
+      if (!cancelled) setTopicName(null)
+    })
+    return () => { cancelled = true }
+  }, [selectedMsg?.topicId])
+
+  const channelTypes = useMemo(() => {
+    const types = new Set(messages.map((m) => m.channelType))
+    return Array.from(types).sort()
+  }, [messages])
+
+  const filteredMessages = useMemo(() => {
+    if (!channelFilter) return messages
+    return messages.filter((m) => m.channelType === channelFilter)
+  }, [messages, channelFilter])
+
+  const col = (key: ColumnKey) => visibleCols.has(key)
 
   const load = () => {
     messagesApi.list({ page, pageSize: 20, status: statusFilter || undefined }).then((res) => {
@@ -125,6 +212,12 @@ export default function Messages() {
   }
 
   useEffect(() => { load() }, [page, statusFilter])
+
+  // Auto-refresh every 30s
+  useEffect(() => {
+    const timer = setInterval(load, 30_000)
+    return () => clearInterval(timer)
+  }, [page, statusFilter])
 
   const handleRetry = async (id: string) => {
     await messagesApi.retry(id)
@@ -204,7 +297,8 @@ export default function Messages() {
         </div>
       </div>
 
-      <div className="flex gap-2 mb-4 flex-wrap">
+      <div className="flex gap-2 mb-4 flex-wrap items-center">
+        {/* Status filter */}
         {statuses.map((s) => (
           <Button
             key={s}
@@ -215,6 +309,64 @@ export default function Messages() {
             {s ? t(`status.${s}`) : t('messages.all')}
           </Button>
         ))}
+
+        <div className="w-px h-5 bg-border mx-1" />
+
+        {/* Channel type filter */}
+        {channelTypes.length > 1 && (
+          <div className="flex gap-1 flex-wrap">
+            <Button
+              size="sm"
+              variant={channelFilter === '' ? 'default' : 'outline'}
+              onClick={() => setChannelFilter('')}
+            >
+              {t('messages.all')}
+            </Button>
+            {channelTypes.map((ct) => (
+              <Button
+                key={ct}
+                size="sm"
+                variant={channelFilter === ct ? 'default' : 'outline'}
+                onClick={() => setChannelFilter(ct)}
+              >
+                {t(`common.${ct}`) || ct}
+              </Button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex-1" />
+
+        {/* Column picker */}
+        <div className="relative" ref={colPickerRef}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowColPicker(!showColPicker)}
+          >
+            <SlidersHorizontal className="h-4 w-4 mr-1" />
+            {t('messages.columns') || 'Columns'}
+            <ChevronDown className="h-3 w-3 ml-1" />
+          </Button>
+          {showColPicker && (
+            <div className="absolute right-0 top-full mt-1 z-50 bg-popover border rounded-lg shadow-lg p-2 min-w-[180px]">
+              {ALL_COLUMNS.map((key) => (
+                <label
+                  key={key}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={visibleCols.has(key)}
+                    onChange={() => toggleCol(key)}
+                    className="rounded accent-primary"
+                  />
+                  {t(COLUMN_I18N[key])}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <Card>
@@ -222,87 +374,115 @@ export default function Messages() {
           <table className="w-full">
             <thead>
               <tr className="border-b">
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colId')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colChannel')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colTo')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colSubject')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colTags')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colPriority')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colFormat')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colStatus')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colRetries')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colDuration')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colCreated')}</th>
-                <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colActions')}</th>
+                {col('id') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colId')}</th>}
+                {col('channel') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap w-[80px]">{t('messages.colChannel')}</th>}
+                {col('to') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colTo')}</th>}
+                {col('subject') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colSubject')}</th>}
+                {col('summary') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colSummary')}</th>}
+                {col('topic') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colTopic')}</th>}
+                {col('tags') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colTags')}</th>}
+                {col('priority') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap w-[50px]">{t('messages.colPriority')}</th>}
+                {col('format') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap w-[60px]">{t('messages.colFormat')}</th>}
+                {col('status') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap w-[80px]">{t('messages.colStatus')}</th>}
+                {col('retries') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap w-[50px]">{t('messages.colRetries')}</th>}
+                {col('duration') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap w-[60px]">{t('messages.colDuration')}</th>}
+                {col('created') && <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap w-[120px]">{t('messages.colCreated')}</th>}
+                {col('actions') && <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap w-[60px]">{t('messages.colActions')}</th>}
               </tr>
             </thead>
             <tbody>
-              {messages.map((msg) => (
+              {filteredMessages.map((msg) => (
                 <tr
                   key={msg.id}
                   className="border-b hover:bg-muted/50 cursor-pointer"
                   onClick={() => setSelectedMsg(msg)}
                 >
-                  <td className="px-4 py-1.5 text-xs font-mono">{msg.id}</td>
-                  <td className="px-4 py-1.5 text-xs">
-                    <Badge variant="outline" className="text-xs">
-                      {msg.channelName || t(`common.${msg.channelType}`) || msg.channelType}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-1.5 text-xs max-w-[200px] truncate">{msg.toAddress}</td>
-                  <td className="px-4 py-1.5 text-xs max-w-[200px] truncate">{msg.subject || '—'}</td>
-                  <td className="px-4 py-1.5">
-                    <div className="flex gap-1 flex-wrap max-w-[140px]">
-                      {parseTags(msg.tags).map((tag, i) => (
-                        <Badge key={i} variant="outline" className="text-[10px] px-1 py-0">{tag}</Badge>
-                      ))}
-                      {parseTags(msg.tags).length === 0 && <span className="text-muted-foreground text-xs">—</span>}
-                    </div>
-                  </td>
-                  <td className="px-4 py-1.5 text-xs">
-                    {msg.priority > 0 ? (
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${priorityColor(msg.priority)}`}>
-                        {msg.priority}
-                      </span>
-                    ) : <span className="text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-4 py-1.5 text-xs">
-                    {msg.format && msg.format !== 'text' ? (
-                      <Badge variant="secondary" className="text-[10px]">{msg.format}</Badge>
-                    ) : <span className="text-muted-foreground text-xs">text</span>}
-                  </td>
-                  <td className="px-4 py-1.5">
-                    <Badge variant={statusVariant[msg.status] || 'default'} className="text-xs">
-                      {t(`status.${msg.status}`) || msg.status}
-                    </Badge>
-                    {msg.errorMessage && (
-                      <p className="text-[11px] text-destructive mt-0.5 max-w-[200px] truncate">
-                        {msg.errorMessage}
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-4 py-1.5 text-xs">{msg.retryCount > 0 ? `${msg.retryCount}/${msg.maxRetries}` : '—'}</td>
-                  <td className="px-4 py-1.5 text-xs text-muted-foreground">
-                    {msg.sentAt ? `${((toDate(msg.sentAt).getTime() - toDate(msg.createdAt).getTime()) / 1000).toFixed(1)}s` : '—'}
-                  </td>
-                  <td className="px-4 py-1.5 text-xs text-muted-foreground">{formatDate(msg.createdAt)}</td>
-                  <td className="px-4 py-1.5 text-right">
-                    <div className="flex justify-end gap-1">
-                      {(msg.status === 'failed' || msg.status === 'dead') && (
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" onClick={(e) => { e.stopPropagation(); handleRetry(msg.id) }}>
-                          <RotateCw className="h-3 w-3" />
-                        </Button>
+                  {col('id') && (
+                    <td className="px-3 py-1.5 text-xs">
+                      <Badge variant="secondary" className="text-[10px] font-mono">{msg.id}</Badge>
+                    </td>
+                  )}
+                  {col('channel') && (
+                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
+                      <Badge variant="outline" className="text-xs">
+                        {msg.channelName || t(`common.${msg.channelType}`) || msg.channelType}
+                      </Badge>
+                    </td>
+                  )}
+                  {col('to') && <td className="px-3 py-1.5 text-xs max-w-[200px] truncate">{msg.toAddress}</td>}
+                  {col('subject') && <td className="px-3 py-1.5 text-xs max-w-[360px] truncate">{msg.subject || '—'}</td>}
+                  {col('summary') && <td className="px-3 py-1.5 text-xs max-w-[300px] truncate text-muted-foreground">{msg.body || '—'}</td>}
+                  {col('topic') && (
+                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
+                      {msg.topicId ? (
+                        <Badge variant="outline" className="text-[10px]">{msg.topicId}</Badge>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </td>
+                  )}
+                  {col('tags') && (
+                    <td className="px-3 py-1.5">
+                      <div className="flex gap-1 flex-wrap max-w-[140px]">
+                        {parseTags(msg.tags).map((tag, i) => (
+                          <Badge key={i} variant="outline" className="text-[10px] px-1 py-0">{tag}</Badge>
+                        ))}
+                        {parseTags(msg.tags).length === 0 && <span className="text-muted-foreground text-xs">—</span>}
+                      </div>
+                    </td>
+                  )}
+                  {col('priority') && (
+                    <td className="px-3 py-1.5 text-xs text-center whitespace-nowrap">
+                      {msg.priority > 0 ? (
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${priorityColor(msg.priority)}`}>
+                          {msg.priority}
+                        </span>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </td>
+                  )}
+                  {col('format') && (
+                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
+                      <Badge variant="secondary" className="text-[10px]">
+                        {msg.format || 'text'}
+                      </Badge>
+                    </td>
+                  )}
+                  {col('status') && (
+                    <td className="px-3 py-1.5 whitespace-nowrap">
+                      <Badge variant={statusVariant[msg.status] || 'default'} className="text-xs">
+                        {t(`status.${msg.status}`) || msg.status}
+                      </Badge>
+                      {msg.errorMessage && (
+                        <p className="text-[11px] text-destructive mt-0.5 max-w-[200px] truncate">
+                          {msg.errorMessage}
+                        </p>
                       )}
-                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(msg.id) }}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </td>
+                    </td>
+                  )}
+                  {col('retries') && <td className="px-3 py-1.5 text-xs text-center whitespace-nowrap">{msg.retryCount > 0 ? `${msg.retryCount}/${msg.maxRetries}` : '—'}</td>}
+                  {col('duration') && (
+                    <td className="px-3 py-1.5 text-xs text-muted-foreground text-center whitespace-nowrap">
+                      {msg.sentAt ? `${((toDate(msg.sentAt).getTime() - toDate(msg.createdAt).getTime()) / 1000).toFixed(1)}s` : '—'}
+                    </td>
+                  )}
+                  {col('created') && <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap">{formatDate(msg.createdAt)}</td>}
+                  {col('actions') && (
+                    <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                      <div className="flex justify-end gap-1">
+                        {(msg.status === 'failed' || msg.status === 'dead') && (
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" onClick={(e) => { e.stopPropagation(); handleRetry(msg.id) }}>
+                            <RotateCw className="h-3 w-3" />
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(msg.id) }}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
-              {messages.length === 0 && (
+              {filteredMessages.length === 0 && (
                 <tr>
-                  <td colSpan={12}>
+                  <td colSpan={visibleCols.size}>
                     <EmptyState title={t('messages.empty')} />
                   </td>
                 </tr>
@@ -338,178 +518,121 @@ export default function Messages() {
 
       {/* Message Detail Dialog */}
       <Dialog open={!!selectedMsg} onOpenChange={(v) => { if (!v) setSelectedMsg(null) }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('messages.detail')}</DialogTitle>
           </DialogHeader>
           {selectedMsg && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-muted-foreground">{t('messages.colId')}</span>
-                  <p className="font-mono text-xs mt-0.5">{selectedMsg.id}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">{t('messages.colStatus')}</span>
-                  <div className="mt-0.5">
-                    <Badge variant={statusVariant[selectedMsg.status] || 'default'} className="text-xs">
-                      {t(`status.${selectedMsg.status}`) || selectedMsg.status}
-                    </Badge>
-                  </div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">{t('messages.colChannel')}</span>
-                  <p className="mt-0.5">
-                    <Badge variant="outline" className="text-xs">
-                      {selectedMsg.channelName || t(`common.${selectedMsg.channelType}`) || selectedMsg.channelType}
-                    </Badge>
-                  </p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">{t('messages.colTo')}</span>
-                  <p className="mt-0.5">{selectedMsg.toAddress}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">{t('messages.colCreated')}</span>
-                  <p className="mt-0.5">{formatDate(selectedMsg.createdAt)}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">{t('messages.colDuration')}</span>
-                  <p className="mt-0.5">
-                    {selectedMsg.sentAt
-                      ? `${((toDate(selectedMsg.sentAt).getTime() - toDate(selectedMsg.createdAt).getTime()) / 1000).toFixed(1)}s`
-                      : '—'}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">{t('messages.colRetries')}</span>
-                  <p className="mt-0.5">{selectedMsg.retryCount}/{selectedMsg.maxRetries}</p>
-                </div>
-                {selectedMsg.channelId && (
-                  <div>
-                    <span className="text-muted-foreground">Channel ID</span>
-                    <p className="font-mono text-xs mt-0.5">{selectedMsg.channelId}</p>
-                  </div>
+            <div className="space-y-3">
+              {/* Compact metadata grid */}
+              <div className="grid grid-cols-4 gap-x-4 gap-y-1.5 text-xs">
+                <MetaItem label={t('messages.colId')} children={<Badge variant="secondary" className="text-[10px] font-mono">{selectedMsg.id}</Badge>} />
+                <MetaItem label={t('messages.colStatus')} children={
+                  <Badge variant={statusVariant[selectedMsg.status] || 'default'} className="text-[10px]">
+                    {t(`status.${selectedMsg.status}`) || selectedMsg.status}
+                  </Badge>
+                } />
+                <MetaItem label={t('messages.colChannel')} children={
+                  <Badge variant="outline" className="text-[10px]">
+                    {selectedMsg.channelName || t(`common.${selectedMsg.channelType}`) || selectedMsg.channelType}
+                  </Badge>
+                } />
+                <MetaItem label={t('messages.colFormat')} children={
+                  <Badge variant="secondary" className="text-[10px]">{selectedMsg.format || 'text'}</Badge>
+                } />
+                <MetaItem label={t('messages.colTo')} value={selectedMsg.toAddress} className="col-span-2" />
+                <MetaItem label={t('messages.colPriority')} value={selectedMsg.priority > 0 ? String(selectedMsg.priority) : '0'} />
+                <MetaItem label={t('messages.colRetries')} value={`${selectedMsg.retryCount}/${selectedMsg.maxRetries}`} />
+                <MetaItem label={t('messages.colCreated')} value={formatDate(selectedMsg.createdAt)} />
+                <MetaItem label={t('messages.colSentAt')} value={selectedMsg.sentAt ? formatDate(selectedMsg.sentAt) : '—'} />
+                <MetaItem label={t('messages.colDuration')} value={
+                  selectedMsg.sentAt ? `${((toDate(selectedMsg.sentAt).getTime() - toDate(selectedMsg.createdAt).getTime()) / 1000).toFixed(1)}s` : '—'
+                } />
+                {selectedMsg.topicId && (
+                  <MetaItem label={t('messages.colTopic')} children={
+                    <span className="flex items-center gap-1">
+                      <Badge variant="outline" className="text-[10px]">{topicName || selectedMsg.topicId}</Badge>
+                      {topicName && <span className="text-muted-foreground font-mono text-[10px]">({selectedMsg.topicId})</span>}
+                    </span>
+                  } />
                 )}
-                {selectedMsg.ipAddress && (
-                  <div>
-                    <span className="text-muted-foreground">{t('messages.ipAddress')}</span>
-                    <p className="font-mono text-xs mt-0.5">{selectedMsg.ipAddress}</p>
-                  </div>
-                )}
-                {selectedMsg.ipLocation && (
-                  <div>
-                    <span className="text-muted-foreground">{t('messages.ipLocation')}</span>
-                    <p className="mt-0.5">{selectedMsg.ipLocation}</p>
-                  </div>
-                )}
+                {selectedMsg.channelId && <MetaItem label="Channel ID" mono value={selectedMsg.channelId} />}
+                {selectedMsg.ipAddress && <MetaItem label={t('messages.ipAddress')} mono value={selectedMsg.ipAddress} />}
+                {selectedMsg.ipLocation && <MetaItem label={t('messages.ipLocation')} value={selectedMsg.ipLocation} />}
                 {selectedMsg.app && (
-                  <div>
-                    <span className="text-muted-foreground">{t('messages.app')}</span>
-                    <p className="mt-0.5"><Badge variant="outline" className="text-xs">{selectedMsg.app}</Badge></p>
-                  </div>
+                  <MetaItem label={t('messages.app')} children={<Badge variant="outline" className="text-[10px]">{selectedMsg.app}</Badge>} />
                 )}
-                <div>
-                  <span className="text-muted-foreground">{t('messages.colPriority')}</span>
-                  <p className="mt-0.5">
-                    {selectedMsg.priority > 0 ? (
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${priorityColor(selectedMsg.priority)}`}>
-                        {selectedMsg.priority}
-                      </span>
-                    ) : <span className="text-muted-foreground text-xs">0 (normal)</span>}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">{t('messages.colFormat')}</span>
-                  <p className="mt-0.5">
-                    <Badge variant={selectedMsg.format === 'text' ? 'outline' : 'secondary'} className="text-xs">
-                      {selectedMsg.format || 'text'}
-                    </Badge>
-                  </p>
-                </div>
+                <MetaItem label="Template ID" mono value={selectedMsg.templateId} />
               </div>
 
+              {/* Tags inline */}
               {parseTags(selectedMsg.tags).length > 0 && (
-                <div>
-                  <span className="text-sm text-muted-foreground">{t('messages.colTags')}</span>
-                  <div className="flex gap-1.5 flex-wrap mt-1">
-                    {parseTags(selectedMsg.tags).map((tag, i) => (
-                      <Badge key={i} variant="outline" className="text-xs">{tag}</Badge>
-                    ))}
-                  </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground">{t('messages.colTags')}:</span>
+                  {parseTags(selectedMsg.tags).map((tag, i) => (
+                    <Badge key={i} variant="outline" className="text-[10px]">{tag}</Badge>
+                  ))}
                 </div>
               )}
 
+              {/* URL inline */}
               {selectedMsg.url && (
-                <div>
-                  <span className="text-sm text-muted-foreground">URL</span>
-                  <p className="mt-1">
-                    <a href={selectedMsg.url} target="_blank" rel="noopener noreferrer"
-                       className="text-primary underline text-sm inline-flex items-center gap-1 hover:text-primary/80">
-                      <ExternalLink className="h-3 w-3" />
-                      {selectedMsg.url}
-                    </a>
-                  </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">URL:</span>
+                  <a href={selectedMsg.url} target="_blank" rel="noopener noreferrer"
+                     className="text-primary underline text-xs inline-flex items-center gap-1 hover:text-primary/80 truncate">
+                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                    {selectedMsg.url}
+                  </a>
                 </div>
               )}
 
+              {/* Attachment inline */}
               {selectedMsg.attachment && (() => {
                 const att = parseAttachment(selectedMsg.attachment)
                 return att ? (
-                  <div>
-                    <span className="text-sm text-muted-foreground">Attachment</span>
-                    <div className="mt-1 p-3 bg-muted rounded-md">
-                      <div className="flex items-center gap-2">
-                        <Paperclip className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">{att.name}</span>
-                      </div>
-                      {att.url && (
-                        <a href={att.url} target="_blank" rel="noopener noreferrer"
-                           className="text-primary underline text-xs mt-1 inline-flex items-center gap-1 hover:text-primary/80">
-                          <ExternalLink className="h-3 w-3" />
-                          Download
-                        </a>
-                      )}
-                      {att.data && (
-                        <p className="text-xs text-muted-foreground mt-1">Base64 data ({Math.ceil(att.data.length / 1024)} KB)</p>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">Attachment:</span>
+                    <Paperclip className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-medium">{att.name}</span>
+                    {att.url && (
+                      <a href={att.url} target="_blank" rel="noopener noreferrer"
+                         className="text-primary underline hover:text-primary/80">Download</a>
+                    )}
+                    {att.data && <span className="text-muted-foreground">Base64 ({Math.ceil(att.data.length / 1024)} KB)</span>}
                   </div>
                 ) : null
               })()}
 
+              {/* Subject */}
               {selectedMsg.subject && (
                 <div>
-                  <span className="text-sm text-muted-foreground">{t('messages.colSubject')}</span>
-                  <p className="text-sm mt-1">{selectedMsg.subject}</p>
+                  <span className="text-xs text-muted-foreground">{t('messages.colSubject')}</span>
+                  <p className="text-sm mt-0.5">{selectedMsg.subject}</p>
                 </div>
               )}
 
-              {selectedMsg.body && (
-                <div>
-                  <span className="text-sm text-muted-foreground">{t('messages.colBody')}</span>
-                  <pre className="text-sm mt-1 p-3 bg-muted rounded-md whitespace-pre-wrap break-all">{selectedMsg.body}</pre>
-                </div>
-              )}
-
-              {selectedMsg.templateId && (
-                <div>
-                  <span className="text-sm text-muted-foreground">Template ID</span>
-                  <p className="font-mono text-xs mt-1">{selectedMsg.templateId}</p>
-                </div>
-              )}
-
+              {/* Template vars */}
               {selectedMsg.templateVars && (
                 <div>
-                  <span className="text-sm text-muted-foreground">{t('messages.templateVars')}</span>
-                  <pre className="text-xs mt-1 p-3 bg-muted rounded-md overflow-x-auto">{selectedMsg.templateVars}</pre>
+                  <span className="text-xs text-muted-foreground">{t('messages.templateVars')}</span>
+                  <pre className="text-xs mt-0.5 p-2 bg-muted rounded-md overflow-x-auto">{selectedMsg.templateVars}</pre>
                 </div>
               )}
 
+              {/* Error */}
               {selectedMsg.errorMessage && (
                 <div>
-                  <span className="text-sm text-muted-foreground">{t('messages.errorMessage')}</span>
-                  <pre className="text-sm mt-1 p-3 bg-destructive/10 text-destructive rounded-md whitespace-pre-wrap">{selectedMsg.errorMessage}</pre>
+                  <span className="text-xs text-muted-foreground">{t('messages.errorMessage')}</span>
+                  <pre className="text-xs mt-0.5 p-2 bg-destructive/10 text-destructive rounded-md whitespace-pre-wrap">{selectedMsg.errorMessage}</pre>
+                </div>
+              )}
+
+              {/* Body - takes remaining space */}
+              {selectedMsg.body && (
+                <div>
+                  <span className="text-xs text-muted-foreground">{t('messages.colBody')}</span>
+                  <pre className="text-sm mt-0.5 p-3 bg-muted rounded-md whitespace-pre-wrap break-all max-h-[400px] overflow-y-auto">{selectedMsg.body}</pre>
                 </div>
               )}
             </div>

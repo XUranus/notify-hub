@@ -6,7 +6,6 @@ import {
   FileText,
   MessageSquare,
   LogOut,
-  Bell,
   Settings,
   User,
   Paperclip,
@@ -50,9 +49,7 @@ export default function AdminLayout() {
       <aside className="w-56 bg-surface-variant/30 border-r flex flex-col">
         <div className="p-5 border-b">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center">
-              <Bell className="h-5 w-5 text-primary-foreground" />
-            </div>
+            <img src="/logo.png" alt="NotifyHub" className="h-9 w-9 rounded-xl" />
             <div>
               <h1 className="text-base font-semibold">{t('nav.brand')}</h1>
               <p className="text-xs text-muted-foreground">{t('nav.subtitle')}</p>

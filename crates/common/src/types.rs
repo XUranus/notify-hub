@@ -124,12 +124,15 @@ pub struct Message {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PushClient {
-    pub id: i64,
+    pub id: String,
     pub uuid: String,
     pub user_id: i64,
     pub device_name: Option<String>,
     pub device_os: Option<String>,
     pub device_arch: Option<String>,
+    pub desktop: Option<String>,
+    pub app_version: Option<String>,
+    pub connection_mode: Option<String>,
     pub fcm_token: Option<String>,
     pub last_seen_at: i64,
     pub created_at: i64,

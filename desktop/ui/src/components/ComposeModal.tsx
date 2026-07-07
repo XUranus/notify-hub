@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 
 interface Props { app: any }
 
-interface Client { uuid: string; name: string | null; os: string | null; arch: string | null; appVersion: string | null; platform: string | null }
+interface Client { uuid: string; name: string | null; deviceName: string | null; os: string | null; deviceOs: string | null; arch: string | null; deviceArch: string | null; desktop: string | null; appVersion: string | null; platform: string | null; connectionMode: string | null; lastSeenAt: number | null }
 
 function fmtBytes(bytes: number): string {
   if (bytes < 1024) return bytes + 'B'
@@ -141,25 +141,44 @@ export function ComposeModal({ app }: Props) {
     fileInput.click()
   }
 
-  // Build client label with OS icon + device info
-  const buildClientLabel = (c: Client) => {
-    const name = c.name || c.uuid.substring(0, 8)
-    const os = c.os || c.platform || ''
-    const arch = c.arch || ''
-    const ver = c.appVersion || ''
-    const meta = [os, arch, ver].filter(Boolean).join(', ')
-    return meta ? `${name} (${meta})` : name
+  // Check if client is online (last seen within 5 minutes)
+  const isClientOnline = (c: Client): boolean => {
+    if (!c.lastSeenAt) return false
+    return Date.now() / 1000 - c.lastSeenAt < 5 * 60
   }
+
+  // Get effective OS from client (prefer deviceOs over os)
+  const getClientOs = (c: Client): string => (c.deviceOs || c.os || c.platform || '').toLowerCase()
 
   // OS icon for client
   const getOsIcon = (c: Client): string => {
-    const os = (c.os || c.platform || '').toLowerCase()
+    const os = getClientOs(c)
     if (os.includes('android')) return '🤖'
     if (os.includes('ios')) return '🍎'
     if (os.includes('windows')) return '🪟'
     if (os.includes('mac') || os.includes('darwin')) return '🍎'
     if (os.includes('linux')) return '🐧'
     return '💻'
+  }
+
+  // OS display name
+  const getOsDisplayName = (c: Client): string => {
+    const os = getClientOs(c)
+    if (os.includes('android')) return 'Android'
+    if (os.includes('ios')) return 'iOS'
+    if (os.includes('windows')) return 'Windows'
+    if (os.includes('mac') || os.includes('darwin')) return 'macOS'
+    if (os.includes('linux')) return 'Linux'
+    return os
+  }
+
+  // Build client label: icon + name + (OS) + offline status
+  const buildClientLabel = (c: Client) => {
+    const name = c.deviceName || c.name || c.uuid.substring(0, 8)
+    const osName = getOsDisplayName(c)
+    const online = isClientOnline(c)
+    const status = online ? '' : ' (离线)'
+    return `${name}（${osName}）${status}`
   }
 
   return (

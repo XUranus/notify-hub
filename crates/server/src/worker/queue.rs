@@ -12,13 +12,17 @@ use super::channels;
 
 /// Start the message queue worker loop
 pub async fn start(pool: SqlitePool, config: Arc<Config>, push_state: PushState) {
-    tracing::info!("[worker] Starting queue worker");
+    tracing::info!("[worker] Starting queue worker (batch_size={WORKER_BATCH_SIZE}, poll_interval={WORKER_POLL_INTERVAL_MS}ms)");
 
     loop {
         match process_batch(&pool, &config, &push_state).await {
             Ok(count) => {
                 if count > 0 {
                     tracing::debug!("[worker] Processed {count} messages");
+                }
+                // If we processed a full batch, there may be more — check immediately
+                if count >= WORKER_BATCH_SIZE as usize {
+                    continue;
                 }
             }
             Err(e) => {
@@ -112,10 +116,10 @@ async fn process_batch(pool: &SqlitePool, config: &Config, push_state: &PushStat
                             .execute(pool)
                             .await
                             .ok();
-                        tracing::info!("[worker] Message {id} deleted (user policy: no retention)");
+                        tracing::debug!("[worker] Message {id} deleted (user policy: no retention)");
                     }
 
-                    tracing::info!("[worker] Message {id} sent successfully");
+                    tracing::debug!("[worker] Message {id} sent successfully");
                 } else {
                     handle_failure(pool, &id, send_result.error.as_deref(), now).await;
                 }
@@ -207,13 +211,22 @@ async fn create_push_messages(
 
     // Look up topic info if topic_id is present
     let (topic_name, topic_display_name, topic_icon): (Option<String>, Option<String>, Option<String>) = if let Some(ref tid) = topic_id {
-        sqlx::query_as("SELECT name, display_name, icon FROM topics WHERE id = ?")
-            .bind(tid)
-            .fetch_optional(pool)
-            .await
-            .ok()
-            .flatten()
-            .unwrap_or((None, None, None))
+        match sqlx::query_as::<_, (Option<String>, Option<String>, Option<String>)>(
+            "SELECT name, display_name, icon FROM topics WHERE id = ?"
+        )
+        .bind(tid)
+        .fetch_optional(pool)
+        .await {
+            Ok(Some(row)) => row,
+            Ok(None) => {
+                tracing::warn!("[worker] Topic {} not found", tid);
+                (None, None, None)
+            }
+            Err(e) => {
+                tracing::warn!("[worker] Failed to query topic: {e}");
+                (None, None, None)
+            }
+        }
     } else {
         (None, None, None)
     };
@@ -223,14 +236,12 @@ async fn create_push_messages(
         return;
     }
 
-    tracing::info!("[worker] Creating push_messages for source={source_message_id}, user_id={user_id}, clients={}", clients.len());
+    tracing::debug!("[worker] Creating push_messages for source={source_message_id}, user_id={user_id}, clients={}", clients.len());
 
     // Check if FCM is configured
     let fcm_json = channels::get_fcm_config(config);
     if fcm_json.is_some() {
-        tracing::info!("[worker] FCM is configured, will attempt push delivery");
-    } else {
-        tracing::debug!("[worker] FCM not configured, skipping FCM delivery");
+        tracing::debug!("[worker] FCM is configured, will attempt push delivery");
     }
 
     // Generate push IDs upfront to avoid borrow issues
@@ -260,13 +271,8 @@ async fn create_push_messages(
         .execute(pool)
         .await;
 
-        match result {
-            Ok(_) => {
-                tracing::info!("[worker] Push message created: id={}, client_uuid={}", push_ids[i], client_uuid);
-            }
-            Err(e) => {
-                tracing::error!("[worker] Failed to create push_message for client {client_uuid}: {e}");
-            }
+        if let Err(e) = result {
+            tracing::error!("[worker] Failed to create push_message for client {client_uuid}: {e}");
         }
 
         // Send FCM data message if token is available
@@ -287,7 +293,7 @@ async fn create_push_messages(
                 data.insert("topicIcon".to_string(), topic_icon.clone().unwrap_or_default());
 
                 match channels::send_fcm(fcm_cfg, token, data).await {
-                    Ok(name) => tracing::info!("[worker] FCM sent to {}: {}", client_uuid, name),
+                    Ok(_) => tracing::debug!("[worker] FCM sent to {}", client_uuid),
                     Err(e) => tracing::warn!("[worker] FCM failed for {}: {e}", client_uuid),
                 }
             }

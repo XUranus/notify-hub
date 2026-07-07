@@ -105,6 +105,17 @@ async fn main() -> anyhow::Result<()> {
         worker::cleanup::start(pool_clone, config_clone3).await;
     });
 
+    // Periodically clean up stale push broadcast channels
+    {
+        let push_state = state.push_state.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(300)).await;
+                push_state.cleanup_stale().await;
+            }
+        });
+    }
+
     // Start server
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
     tracing::info!("Listening on {bind_addr}");

@@ -20,7 +20,7 @@ export default defineConfig({
     port: 4321,
     proxy: {
       '/api': {
-        target: 'http://localhost:9527',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         ws: true,
         configure: (proxy) => {
@@ -35,7 +35,7 @@ export default defineConfig({
         },
       },
       '/uploads': {
-        target: 'http://localhost:9527',
+        target: 'http://localhost:3000',
         changeOrigin: true,
       },
     },

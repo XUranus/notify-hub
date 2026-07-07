@@ -40,24 +40,41 @@ impl PushState {
     pub async fn notify(&self, client_uuid: &str, msg: serde_json::Value) {
         let channels = self.channels.read().await;
         if let Some(tx) = channels.get(client_uuid) {
-            let _ = tx.send(msg);
+            if tx.send(msg).is_err() {
+                tracing::debug!("[push] No active subscribers for {client_uuid}, message will be delivered via poll/reconnect");
+            }
         }
+    }
+
+    pub async fn cleanup_stale(&self) {
+        let mut channels = self.channels.write().await;
+        channels.retain(|_, tx| tx.receiver_count() > 0);
     }
 }
 
 // ── Shared helpers ──
 
 /// Update last_seen_at for a push client (no-op if uuid is empty)
-async fn update_last_seen(pool: &sqlx::SqlitePool, client_uuid: &str, user_id: i64) {
+async fn update_last_seen(pool: &sqlx::SqlitePool, client_uuid: &str, user_id: i64, mode: Option<&str>) {
     if client_uuid.is_empty() { return; }
     let now = chrono::Utc::now().timestamp();
-    sqlx::query("UPDATE push_clients SET last_seen_at = ? WHERE uuid = ? AND user_id = ?")
-        .bind(now)
-        .bind(client_uuid)
-        .bind(user_id)
-        .execute(pool)
-        .await
-        .ok();
+    let result = if let Some(m) = mode {
+        sqlx::query("UPDATE push_clients SET last_seen_at = ?, connection_mode = ? WHERE uuid = ? AND user_id = ?")
+            .bind(now)
+            .bind(m)
+            .bind(client_uuid)
+            .bind(user_id)
+            .execute(pool)
+            .await
+    } else {
+        sqlx::query("UPDATE push_clients SET last_seen_at = ? WHERE uuid = ? AND user_id = ?")
+            .bind(now)
+            .bind(client_uuid)
+            .bind(user_id)
+            .execute(pool)
+            .await
+    };
+    result.ok();
 }
 
 /// Check if user has "don't keep messages" policy (message_expiration == -1)
@@ -175,50 +192,36 @@ async fn register_client(
     }
 
     let now = chrono::Utc::now().timestamp();
+    let id = uuid::Uuid::new_v4().to_string();
 
-    // Upsert: if UUID exists, update; otherwise insert
-    let existing: Option<(String,)> = sqlx::query_as(
-        "SELECT uuid FROM push_clients WHERE uuid = ?",
+    // Atomic upsert: insert or update on uuid conflict
+    sqlx::query(
+        r#"INSERT INTO push_clients (id, user_id, uuid, name, os, arch, desktop, app_version, fcm_token, last_seen_at, registered_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(uuid) DO UPDATE SET
+               user_id = excluded.user_id,
+               name = COALESCE(excluded.name, name),
+               os = COALESCE(excluded.os, os),
+               arch = COALESCE(excluded.arch, arch),
+               desktop = COALESCE(excluded.desktop, desktop),
+               app_version = COALESCE(excluded.app_version, app_version),
+               fcm_token = COALESCE(excluded.fcm_token, fcm_token),
+               last_seen_at = excluded.last_seen_at,
+               registered_at = excluded.registered_at"#,
     )
+    .bind(&id)
+    .bind(user_id)
     .bind(&req.uuid)
-    .fetch_optional(&state.pool)
+    .bind(&req.name)
+    .bind(&req.device_os)
+    .bind(&req.arch)
+    .bind(&req.desktop)
+    .bind(&req.app_version)
+    .bind(&req.fcm_token)
+    .bind(now)
+    .bind(now)
+    .execute(&state.pool)
     .await?;
-
-    if existing.is_some() {
-        sqlx::query(
-            "UPDATE push_clients SET user_id = ?, name = ?, os = ?, arch = ?, desktop = ?, app_version = ?, fcm_token = ?, last_seen_at = ? WHERE uuid = ?",
-        )
-        .bind(user_id)
-        .bind(&req.name)
-        .bind(&req.device_os)
-        .bind(&req.arch)
-        .bind(&req.desktop)
-        .bind(&req.app_version)
-        .bind(&req.fcm_token)
-        .bind(now)
-        .bind(&req.uuid)
-        .execute(&state.pool)
-        .await?;
-    } else {
-        let id = uuid::Uuid::new_v4().to_string();
-        sqlx::query(
-            r#"INSERT INTO push_clients (id, user_id, uuid, name, os, arch, desktop, app_version, fcm_token, last_seen_at, registered_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
-        )
-        .bind(&id)
-        .bind(user_id)
-        .bind(&req.uuid)
-        .bind(&req.name)
-        .bind(&req.device_os)
-        .bind(&req.arch)
-        .bind(&req.desktop)
-        .bind(&req.app_version)
-        .bind(&req.fcm_token)
-        .bind(now)
-        .bind(now)
-        .execute(&state.pool)
-        .await?;
-    }
 
     Ok(Json(ApiResponse::ok(serde_json::json!({ "registered": true }))))
 }
@@ -291,7 +294,7 @@ async fn ack_messages(
 
     // Update last_seen_at for the client
     if let Some(ref client_uuid) = req.uuid {
-        update_last_seen(&state.pool, client_uuid, user_id).await;
+        update_last_seen(&state.pool, client_uuid, user_id, None).await;
     }
 
     let mut source_ids_to_check: Vec<String> = Vec::new();
@@ -375,7 +378,7 @@ async fn poll_messages(
     let client_uuid = params.uuid.clone().unwrap_or_default();
 
     // Update last_seen_at for the client
-    update_last_seen(&state.pool, &client_uuid, user_id).await;
+    update_last_seen(&state.pool, &client_uuid, user_id, Some("poll")).await;
 
     let rows: Vec<PushMessageRow> = sqlx::query_as(
         r#"SELECT pm.id, pm.client_uuid, pm.source_message_id, pm.title, pm.body, pm.level,
@@ -483,19 +486,20 @@ async fn stream_messages(
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
     // Authenticate: try Authorization header first, then ?token= query param
     let auth = extract_auth(&headers, &state, params.token.as_deref()).await?;
-    let user_id: i64 = auth.sub.parse().unwrap_or(0);
+    let user_id: i64 = auth.sub.parse()
+        .map_err(|_| AppError::BadRequest("invalid user id in token".into()))?;
     let client_uuid = params.uuid.clone().unwrap_or_default();
     let pool = state.pool.clone();
     let push_state = state.push_state.clone();
 
     // Update last_seen_at for the client
-    update_last_seen(&pool, &client_uuid, user_id).await;
+    update_last_seen(&pool, &client_uuid, user_id, Some("sse")).await;
 
     let stream = async_stream::stream! {
         // Send connected event
         yield Ok(Event::default().event("connected").data(r#"{"connected":true}"#));
 
-        // Send any undelivered messages from DB first
+        // Send any undelivered messages from DB first (limit to 100)
         let rows: Vec<PushMessageRow> = sqlx::query_as(
             r#"SELECT pm.id, pm.client_uuid, pm.source_message_id, pm.title, pm.body,
                       pm.level, pm.tags, pm.priority, pm.url, pm.attachment, pm.format, pm.topic_id,
@@ -504,16 +508,32 @@ async fn stream_messages(
                LEFT JOIN topics t ON t.id = pm.topic_id
                WHERE pm.user_id = ? AND pm.delivered = 0
                  AND (pm.client_uuid = ? OR ? = '')
-               ORDER BY pm.created_at ASC"#
+               ORDER BY pm.created_at ASC LIMIT 100"#
         )
         .bind(user_id).bind(&client_uuid).bind(&client_uuid)
         .fetch_all(&pool).await.unwrap_or_default();
 
         // Send initial undelivered messages as a batch: {"data": [...]}
         if !rows.is_empty() {
+            // Count remaining undelivered messages not in this batch
+            let remaining: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM push_messages WHERE user_id = ? AND delivered = 0 AND (client_uuid = ? OR ? = '')"
+            )
+            .bind(user_id).bind(&client_uuid).bind(&client_uuid)
+            .fetch_one(&pool).await.unwrap_or((0,));
+
+            let has_more = remaining.0 > rows.len() as i64;
+
             let messages: Vec<serde_json::Value> = rows.iter().map(|r| r.to_json()).collect();
-            let wrapper = serde_json::json!({"data": messages});
+            let wrapper = serde_json::json!({"data": messages, "hasMore": has_more});
             yield Ok(Event::default().data(serde_json::to_string(&wrapper).unwrap_or_default()));
+
+            // Mark sent messages as delivered
+            for row in &rows {
+                sqlx::query("UPDATE push_messages SET delivered = 1 WHERE id = ?")
+                    .bind(&row.id)
+                    .execute(&pool).await.ok();
+            }
         }
 
         // Subscribe to real-time messages
@@ -544,7 +564,8 @@ async fn ws_handler(
 ) -> Result<axum::response::Response, AppError> {
     // Authenticate: try Authorization header first, then ?token= query param
     let auth = extract_auth(&headers, &state, params.token.as_deref()).await?;
-    let user_id: i64 = auth.sub.parse().unwrap_or(0);
+    let user_id: i64 = auth.sub.parse()
+        .map_err(|_| AppError::BadRequest("invalid user id in token".into()))?;
     let client_uuid = params.uuid.clone().unwrap_or_default();
     Ok(ws.on_upgrade(move |socket| handle_ws(socket, user_id, client_uuid, state)))
 }
@@ -553,7 +574,7 @@ async fn handle_ws(mut socket: WebSocket, user_id: i64, client_uuid: String, sta
     tracing::info!("[ws] Client connected: user_id={user_id} client_uuid={client_uuid}");
 
     // Update last_seen_at for the client
-    update_last_seen(&state.pool, &client_uuid, user_id).await;
+    update_last_seen(&state.pool, &client_uuid, user_id, Some("ws")).await;
 
     // Send connected event
     let connected = serde_json::json!({"event": "connected", "data": {"connected": true}});
@@ -561,7 +582,7 @@ async fn handle_ws(mut socket: WebSocket, user_id: i64, client_uuid: String, sta
         return;
     }
 
-    // Send undelivered messages from DB first as a batch
+    // Send undelivered messages from DB first as a batch (limit to 100)
     let rows: Vec<PushMessageRow> = sqlx::query_as(
         r#"SELECT pm.id, pm.client_uuid, pm.source_message_id, pm.title, pm.body,
                   pm.level, pm.tags, pm.priority, pm.url, pm.attachment, pm.format, pm.topic_id,
@@ -570,17 +591,33 @@ async fn handle_ws(mut socket: WebSocket, user_id: i64, client_uuid: String, sta
            LEFT JOIN topics t ON t.id = pm.topic_id
            WHERE pm.user_id = ? AND pm.delivered = 0
              AND (pm.client_uuid = ? OR ? = '')
-           ORDER BY pm.created_at ASC"#
+           ORDER BY pm.created_at ASC LIMIT 100"#
     )
     .bind(user_id).bind(&client_uuid).bind(&client_uuid)
     .fetch_all(&state.pool).await.unwrap_or_default();
 
     if !rows.is_empty() {
+        // Count remaining undelivered messages not in this batch
+        let remaining: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM push_messages WHERE user_id = ? AND delivered = 0 AND (client_uuid = ? OR ? = '')"
+        )
+        .bind(user_id).bind(&client_uuid).bind(&client_uuid)
+        .fetch_one(&state.pool).await.unwrap_or((0,));
+
+        let has_more = remaining.0 > rows.len() as i64;
+
         let messages: Vec<serde_json::Value> = rows.iter().map(|r| r.to_json()).collect();
-        let wrapper = serde_json::json!({"data": messages});
+        let wrapper = serde_json::json!({"data": messages, "hasMore": has_more});
         if socket.send(Message::Text(serde_json::to_string(&wrapper).unwrap_or_default().into())).await.is_err() {
             tracing::info!("[ws] Client disconnected (user_id={user_id})");
             return;
+        }
+
+        // Mark sent messages as delivered
+        for row in &rows {
+            sqlx::query("UPDATE push_messages SET delivered = 1 WHERE id = ?")
+                .bind(&row.id)
+                .execute(&state.pool).await.ok();
         }
     }
 

@@ -162,14 +162,14 @@ async fn stats_recent(
     let is_admin = auth.claims.role == "admin";
     let user_id: i64 = auth.claims.sub.parse().unwrap_or(0);
 
-    let rows: Vec<(String, String, String, String, Option<String>, i64)> = if is_admin {
+    let rows: Vec<(String, String, Option<String>, String, String, Option<String>, Option<String>, i64)> = if is_admin {
         sqlx::query_as(
-            "SELECT id, channel_type, to_address, status, subject, created_at FROM messages ORDER BY created_at DESC LIMIT 10"
+            "SELECT m.id, m.channel_type, c.name, m.to_address, m.status, m.subject, m.body, m.created_at FROM messages m LEFT JOIN channels c ON m.channel_id = c.id ORDER BY m.created_at DESC LIMIT 10"
         )
         .fetch_all(&state.pool).await?
     } else {
         sqlx::query_as(
-            "SELECT id, channel_type, to_address, status, subject, created_at FROM messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 10"
+            "SELECT m.id, m.channel_type, c.name, m.to_address, m.status, m.subject, m.body, m.created_at FROM messages m LEFT JOIN channels c ON m.channel_id = c.id WHERE m.user_id = ? ORDER BY m.created_at DESC LIMIT 10"
         )
         .bind(user_id)
         .fetch_all(&state.pool).await?
@@ -177,8 +177,8 @@ async fn stats_recent(
 
     let items = rows.into_iter().map(|r| {
         serde_json::json!({
-            "id": r.0, "channelType": r.1, "toAddress": r.2,
-            "status": r.3, "subject": r.4, "createdAt": r.5,
+            "id": r.0, "channelType": r.1, "channelName": r.2, "toAddress": r.3,
+            "status": r.4, "subject": r.5, "body": r.6, "createdAt": r.7,
         })
     }).collect();
 

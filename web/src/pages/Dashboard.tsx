@@ -58,8 +58,10 @@ interface ChannelCount {
 interface RecentMessage {
   id: string
   channelType: string
+  channelName: string | null
   toAddress: string
   subject: string | null
+  body: string | null
   status: string
   createdAt: string
 }
@@ -115,7 +117,7 @@ export default function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
 
-  useEffect(() => {
+  const load = () => {
     statsApi.overview().then((res) => {
       if (res.success) setStats(res.data)
     })
@@ -139,6 +141,14 @@ export default function Dashboard() {
         setFailedTotal(res.data.total || 0)
       }
     })
+  }
+
+  useEffect(() => { load() }, [])
+
+  // Auto-refresh every 30s
+  useEffect(() => {
+    const timer = setInterval(load, 30_000)
+    return () => clearInterval(timer)
   }, [])
 
   const statItems = [
@@ -265,36 +275,43 @@ export default function Dashboard() {
           <table className="w-full">
             <thead>
               <tr className="border-b">
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colChannel')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colTo')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colSubject')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colStatus')}</th>
-                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colCreated')}</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">ID</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colChannel')}</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colTo')}</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colSubject')}</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colSummary')}</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colStatus')}</th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colCreated')}</th>
               </tr>
             </thead>
             <tbody>
               {recentMessages.length > 0 ? recentMessages.map((msg) => {
                 const Icon = CHANNEL_ICONS[msg.channelType] || MessageSquare
                 return (
-                  <tr key={msg.id} className="border-b hover:bg-muted/50 transition-colors">
-                    <td className="px-4 py-2 text-xs">
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0" title={msg.channelType}>
+                  <tr key={msg.id} className="border-b hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => navigate('/messages')}>
+                    <td className="px-3 py-1.5 text-xs">
+                      <Badge variant="secondary" className="text-[10px] font-mono">{msg.id.slice(0, 8)}</Badge>
+                    </td>
+                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
+                      <Badge variant="outline" className="text-[10px] gap-1">
                         <Icon className="h-3 w-3" />
+                        {msg.channelName || t(`common.${msg.channelType}`) || msg.channelType}
                       </Badge>
                     </td>
-                    <td className="px-4 py-2 text-xs max-w-[180px] truncate">{msg.toAddress}</td>
-                    <td className="px-4 py-2 text-xs max-w-[200px] truncate text-muted-foreground">{msg.subject || '—'}</td>
-                    <td className="px-4 py-2 text-xs">
-                      <Badge variant={statusVariant[msg.status] || 'secondary'} className="text-[10px] px-1.5 py-0">
+                    <td className="px-3 py-1.5 text-xs max-w-[160px] truncate">{msg.toAddress}</td>
+                    <td className="px-3 py-1.5 text-xs max-w-[160px] truncate">{msg.subject || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs max-w-[200px] truncate text-muted-foreground">{msg.body || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs">
+                      <Badge variant={statusVariant[msg.status] || 'secondary'} className="text-[10px]">
                         {t(`status.${msg.status}`) || msg.status}
                       </Badge>
                     </td>
-                    <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">{formatDate(msg.createdAt)}</td>
+                    <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap">{formatDate(msg.createdAt)}</td>
                   </tr>
                 )
               }) : (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={7}>
                     <EmptyState title={t('dashboard.noData')} />
                   </td>
                 </tr>
@@ -318,27 +335,32 @@ export default function Dashboard() {
             <table className="w-full">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">ID</th>
-                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colChannel')}</th>
-                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colTo')}</th>
-                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colSubject')}</th>
-                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">{t('messages.colCreated')}</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">ID</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colChannel')}</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colTo')}</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colSubject')}</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colSummary')}</th>
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{t('messages.colCreated')}</th>
                 </tr>
               </thead>
               <tbody>
                 {failedMessages.map((msg) => {
                   const FailIcon = CHANNEL_ICONS[msg.channelType] || MessageSquare
                   return (
-                  <tr key={msg.id} className="border-b hover:bg-muted/50 transition-colors">
-                    <td className="px-4 py-2 text-xs font-mono text-muted-foreground">{msg.id.slice(0, 8)}</td>
-                    <td className="px-4 py-2 text-xs">
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0" title={msg.channelType}>
+                  <tr key={msg.id} className="border-b hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => navigate('/messages')}>
+                    <td className="px-3 py-1.5 text-xs">
+                      <Badge variant="secondary" className="text-[10px] font-mono">{msg.id.slice(0, 8)}</Badge>
+                    </td>
+                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
+                      <Badge variant="outline" className="text-[10px] gap-1">
                         <FailIcon className="h-3 w-3" />
+                        {msg.channelName || t(`common.${msg.channelType}`) || msg.channelType}
                       </Badge>
                     </td>
-                    <td className="px-4 py-2 text-xs max-w-[180px] truncate">{msg.toAddress}</td>
-                    <td className="px-4 py-2 text-xs max-w-[200px] truncate text-muted-foreground">{msg.subject || '—'}</td>
-                    <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">{formatDate(msg.createdAt)}</td>
+                    <td className="px-3 py-1.5 text-xs max-w-[160px] truncate">{msg.toAddress}</td>
+                    <td className="px-3 py-1.5 text-xs max-w-[160px] truncate">{msg.subject || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs max-w-[200px] truncate text-muted-foreground">{msg.body || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap">{formatDate(msg.createdAt)}</td>
                   </tr>
                 )})}
               </tbody>

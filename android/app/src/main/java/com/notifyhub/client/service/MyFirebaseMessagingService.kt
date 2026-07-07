@@ -58,6 +58,11 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         AppLogger.d(TAG, "FCM message received from: ${message.from}")
 
+        if (!ConfigStore.isFcmEnabled(this)) {
+            AppLogger.i(TAG, "FCM disabled in settings, ignoring message")
+            return
+        }
+
         val data = message.data
         if (data.isEmpty()) {
             AppLogger.w(TAG, "FCM message has no data payload")
@@ -79,7 +84,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val topicDisplayName = data["topicDisplayName"]
         val topicIcon = data["topicIcon"]
 
-        // Save to local database
+        // Save to local database and always ACK to prevent server retries
         scope.launch {
             try {
                 val config = ConfigStore.load(this@MyFirebaseMessagingService)
@@ -101,25 +106,31 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                     createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault()).format(Date())
                 )
                 val newMessages = MessageStore.save(this@MyFirebaseMessagingService, listOf(pushMsg))
-                if (newMessages.isNotEmpty()) {
-                    AppLogger.d(TAG, "FCM message saved: $msgId")
-                    // Ack on server
-                    if (config.jwtToken.isNotBlank() && config.serverUrl.isNotBlank()) {
-                        try {
-                            val api = ApiClient(config.serverUrl, config.jwtToken)
-                            api.ack(config.clientUuid, listOf(msgId))
-                        } catch (e: Exception) {
-                            AppLogger.w(TAG, "FCM ack failed: ${e.message}")
-                        }
+                AppLogger.d(TAG, "FCM message saved: $msgId (${newMessages.size} new)")
+
+                // Always ack to prevent server from retrying FCM delivery (L3 fix)
+                if (config.jwtToken.isNotBlank() && config.serverUrl.isNotBlank()) {
+                    val api = ApiClient(config.serverUrl, config.jwtToken)
+                    try {
+                        api.ack(config.clientUuid, listOf(msgId))
+                    } catch (e: Exception) {
+                        AppLogger.e(TAG, "FCM ack failed", e)
                     }
+                }
+
+                // M3: Delegate to PollService's debounce pipeline if running,
+                // otherwise show notification directly as fallback
+                if (PollService.isRunning) {
+                    AppLogger.d(TAG, "PollService is running, enqueuing message into debounce pipeline")
+                    PollService.enqueueMessages(listOf(pushMsg))
+                } else {
+                    AppLogger.d(TAG, "PollService not running, showing notification directly")
+                    showNotification(msgId, title, body, level, topicIcon)
                 }
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Failed to save FCM message", e)
             }
         }
-
-        // Show notification
-        showNotification(msgId, title, body, level, topicIcon)
     }
 
     private fun showNotification(

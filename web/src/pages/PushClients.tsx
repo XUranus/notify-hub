@@ -51,6 +51,12 @@ export default function PushClients() {
 
   useEffect(() => { load() }, [])
 
+  // Auto-refresh every 30s
+  useEffect(() => {
+    const timer = setInterval(load, 30_000)
+    return () => clearInterval(timer)
+  }, [])
+
   const handleDelete = async (uuid: string) => {
     if (confirm(t('push.deleteConfirm'))) {
       await pushApi.deleteClient(uuid)

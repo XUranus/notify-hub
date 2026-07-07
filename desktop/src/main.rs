@@ -284,6 +284,7 @@ fn set_connection_mode(
     mode: String,
     state: tauri::State<'_, Arc<Mutex<PollState>>>,
     msg_store: tauri::State<'_, Arc<MessageStore>>,
+    debounce: tauri::State<'_, Arc<poll::NotificationDebounce>>,
 ) -> Result<(), String> {
     log::info!("[cmd] Set connection mode: {}", mode);
     // Save to config
@@ -299,9 +300,9 @@ fn set_connection_mode(
     // Start the appropriate mode
     let cfg = AppConfig::load().ok_or("No config")?;
     match mode.as_str() {
-        "sse" => sse::start_sse(cfg, state.inner().clone(), msg_store.inner().clone()),
-        "ws" => ws::start_ws(cfg, state.inner().clone(), msg_store.inner().clone()),
-        _ => poll::start_polling(cfg, state.inner().clone(), msg_store.inner().clone()),
+        "sse" => sse::start_sse(cfg, state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone()),
+        "ws" => ws::start_ws(cfg, state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone()),
+        _ => poll::start_polling(cfg, state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone()),
     }
     Ok(())
 }
@@ -397,6 +398,7 @@ fn export_messages_json(store: tauri::State<'_, Arc<MessageStore>>) -> String {
 async fn reconnect(
     state: tauri::State<'_, Arc<Mutex<PollState>>>,
     msg_store: tauri::State<'_, Arc<MessageStore>>,
+    debounce: tauri::State<'_, Arc<poll::NotificationDebounce>>,
 ) -> Result<(), String> {
     log::info!("[cmd] Reconnect");
     let mut cfg = AppConfig::load().ok_or("No config found")?;
@@ -448,9 +450,9 @@ async fn reconnect(
     }
     let mode = cfg.connection_mode.clone();
     match mode.as_str() {
-        "sse" => sse::start_sse(cfg.clone(), state.inner().clone(), msg_store.inner().clone()),
-        "ws" => ws::start_ws(cfg.clone(), state.inner().clone(), msg_store.inner().clone()),
-        _ => poll::start_polling(cfg.clone(), state.inner().clone(), msg_store.inner().clone()),
+        "sse" => sse::start_sse(cfg.clone(), state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone()),
+        "ws" => ws::start_ws(cfg.clone(), state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone()),
+        _ => poll::start_polling(cfg.clone(), state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone()),
     }
 
     Ok(())
@@ -571,8 +573,8 @@ struct AppInfo {
 
 // ── Helpers ──
 
-/// Shared tokio runtime for SSE/WS threads (avoids creating a new runtime per connection)
-pub fn shared_runtime() -> tokio::runtime::Runtime {
+/// Create a new tokio runtime for background threads
+pub fn create_runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Runtime::new().expect("failed to create tokio runtime")
 }
 
@@ -741,6 +743,9 @@ fn main() {
             let msg_store = Arc::new(MessageStore::new());
             app.manage(msg_store.clone());
 
+            let debounce = poll::NotificationDebounce::new(msg_store.clone());
+            app.manage(debounce.clone());
+
             let initial_mode = cfg.connection_mode.clone();
             let poll_state = Arc::new(Mutex::new(PollState {
                 running: true,
@@ -752,11 +757,11 @@ fn main() {
             app.manage(poll_state.clone());
 
             // Helper: start the appropriate connection mode
-            fn start_connection_mode(mode: &str, cfg: AppConfig, state: Arc<Mutex<PollState>>, store: Arc<MessageStore>) {
+            fn start_connection_mode(mode: &str, cfg: AppConfig, state: Arc<Mutex<PollState>>, store: Arc<MessageStore>, debounce: Arc<poll::NotificationDebounce>) {
                 match mode {
-                    "sse" => sse::start_sse(cfg, state, store),
-                    "ws" => ws::start_ws(cfg, state, store),
-                    _ => poll::start_polling(cfg, state, store),
+                    "sse" => sse::start_sse(cfg, state, store, debounce),
+                    "ws" => ws::start_ws(cfg, state, store, debounce),
+                    _ => poll::start_polling(cfg, state, store, debounce),
                 }
             }
 
@@ -780,7 +785,7 @@ fn main() {
                     });
                 });
 
-                start_connection_mode(&initial_mode, cfg.clone(), poll_state.clone(), msg_store.clone());
+                start_connection_mode(&initial_mode, cfg.clone(), poll_state.clone(), msg_store.clone(), debounce.clone());
             } else if !cfg.server.username.is_empty() && !cfg.server.password.is_empty() {
                 // No JWT but credentials exist — login first, then register and poll
                 info!("No JWT, logging in with credentials");
@@ -792,6 +797,7 @@ fn main() {
                 let _cfg_clone = cfg.clone();
                 let state_clone = poll_state.clone();
                 let store_clone = msg_store.clone();
+                let debounce_clone = debounce.clone();
 
                 std::thread::spawn(move || {
                     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -817,7 +823,7 @@ fn main() {
                                 // Start connection with updated config
                                 if let Some(c) = AppConfig::load() {
                                     let mode = c.connection_mode.clone();
-                                    start_connection_mode(&mode, c, state_clone, store_clone);
+                                    start_connection_mode(&mode, c, state_clone, store_clone, debounce_clone);
                                 } else {
                                     log::error!("[startup] Config disappeared after login, cannot start connection");
                                 }

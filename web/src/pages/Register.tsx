@@ -6,7 +6,6 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { authApi, setToken, setCurrentUser } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
-import { Bell } from 'lucide-react'
 
 export default function Register() {
   const navigate = useNavigate()
@@ -49,7 +48,7 @@ export default function Register() {
       <Card className="w-[400px]">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <Bell className="h-10 w-10 text-primary" />
+            <img src="/logo.png" alt="NotifyHub" className="h-16 w-16" />
           </div>
           <CardTitle className="text-2xl">{t('register.title')}</CardTitle>
           <CardDescription>{t('register.desc')}</CardDescription>

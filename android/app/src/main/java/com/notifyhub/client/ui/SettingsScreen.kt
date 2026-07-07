@@ -237,6 +237,73 @@ fun SettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
 
+            // ── FCM Settings ──
+            var fcmEnabled by remember { mutableStateOf(ConfigStore.isFcmEnabled(context)) }
+            ListItem(
+                headlineContent = { Text(i18n("fcm_enabled"), fontSize = 15.sp, fontWeight = FontWeight.Medium) },
+                supportingContent = { Text(i18n("fcm_enabled_desc"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                leadingContent = {
+                    Icon(Icons.Default.Notifications, contentDescription = null,
+                        tint = if (fcmEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp))
+                },
+                trailingContent = {
+                    Switch(
+                        checked = fcmEnabled,
+                        onCheckedChange = {
+                            fcmEnabled = it
+                            ConfigStore.setFcmEnabled(context, it)
+                        }
+                    )
+                }
+            )
+
+            // ── FCM Token Timeout ──
+            SettingsSectionHeader(i18n("fcm_token_timeout"))
+            val fcmTimeoutOptions = listOf(1000L, 3000L, 5000L)
+            val fcmTimeoutLabels = listOf(i18n("fcm_token_timeout_1s"), i18n("fcm_token_timeout_3s"), i18n("fcm_token_timeout_5s"))
+            var fcmTimeoutExpanded by remember { mutableStateOf(false) }
+            var fcmTimeoutIndex by remember {
+                val current = ConfigStore.getFcmTokenTimeout(context)
+                mutableStateOf(fcmTimeoutOptions.indexOf(current).coerceAtLeast(1))
+            }
+
+            ListItem(
+                headlineContent = { Text(i18n("fcm_token_timeout"), fontSize = 15.sp, fontWeight = FontWeight.Medium) },
+                supportingContent = { Text(i18n("fcm_token_timeout_desc"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                leadingContent = {
+                    Icon(Icons.Default.Timer, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp))
+                },
+                trailingContent = {
+                    Box {
+                        Text(
+                            fcmTimeoutLabels[fcmTimeoutIndex],
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clickable { fcmTimeoutExpanded = true }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                        DropdownMenu(expanded = fcmTimeoutExpanded, onDismissRequest = { fcmTimeoutExpanded = false }) {
+                            fcmTimeoutLabels.forEachIndexed { idx, label ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        fcmTimeoutIndex = idx
+                                        ConfigStore.setFcmTokenTimeout(context, fcmTimeoutOptions[idx])
+                                        fcmTimeoutExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
             // ── Keep-Alive Settings ──
             SettingsSectionHeader(i18n("settings_keep_alive"))
             var keepAliveMaster by remember { mutableStateOf(ConfigStore.isKeepAliveEnabled(context)) }

@@ -17,6 +17,8 @@ enum Commands {
     Send(commands::send::SendArgs),
     /// Check the status of a message
     Status(commands::status::StatusArgs),
+    /// Listen for push notifications (as a client)
+    Listen(commands::listen::ListenArgs),
     /// Manage CLI configuration
     Config {
         #[command(subcommand)]
@@ -31,6 +33,7 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::Send(args) => commands::send::run(args).await,
         Commands::Status(args) => commands::status::run(args).await,
+        Commands::Listen(args) => commands::listen::run(args).await,
         Commands::Config { action } => config::run(action),
     }
 }
