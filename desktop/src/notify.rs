@@ -1,5 +1,7 @@
 use log::{debug, error, warn};
-use notify_rust::{Image as NotifImage, Notification};
+use notify_rust::Notification;
+#[cfg(target_os = "linux")]
+use notify_rust::Image as NotifImage;
 use std::path::PathBuf;
 
 /// Cache dir for decoded topic icons.
@@ -125,13 +127,20 @@ pub fn show_notification_with_icon(title: &str, body: &str, content_icon_path: O
     // Content image — topic icon when available, otherwise app icon
     // KDE Plasma only renders the content image area; without it, the notification
     // appears to have no icon even when `icon` is set.
-    if let Some(path) = content_icon_path {
-        notif.image_path(&format!("file://{}", path));
-    } else if let Some(app_icon_path) = find_app_icon() {
-        match NotifImage::open(&app_icon_path) {
-            Ok(img) => { notif.image_data(img); }
-            Err(e) => debug!("[notify] Failed to open icon image: {}", e),
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(path) = content_icon_path {
+            notif.image_path(&format!("file://{}", path));
+        } else if let Some(app_icon_path) = find_app_icon() {
+            match NotifImage::open(&app_icon_path) {
+                Ok(img) => { notif.image_data(img); }
+                Err(e) => debug!("[notify] Failed to open icon image: {}", e),
+            }
         }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = content_icon_path;
     }
 
     if let Err(e) = notif.show() {
