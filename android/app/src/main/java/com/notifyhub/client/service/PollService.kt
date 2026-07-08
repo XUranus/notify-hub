@@ -644,14 +644,6 @@ class PollService : Service() {
         return Pair(ApiClient(serverUrl, newJwt), newJwt)
     }
 
-    private fun truncateForNotification(text: String, maxLength: Int = 100): String {
-        return if (text.length > maxLength) {
-            text.take(maxLength - 3) + "..."
-        } else {
-            text
-        }
-    }
-
     private fun showPushNotification(msg: PushMessage) {
         AppLogger.i(TAG, "Showing notification: id=${msg.id} title=${msg.title}")
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

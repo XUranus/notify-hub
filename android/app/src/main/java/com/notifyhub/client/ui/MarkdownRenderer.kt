@@ -56,7 +56,10 @@ fun MarkdownText(
                     maxLines = maxLines,
                     modifier = Modifier.fillMaxWidth()
                 )
-                is MarkdownBlock.Table -> MarkdownTable(block.table)
+                is MarkdownBlock.Table -> MarkdownTable(
+                    table = block.table,
+                    maxRows = if (maxLines < Int.MAX_VALUE) maxLines else 50
+                )
             }
         }
     }
@@ -79,7 +82,13 @@ private fun MarkwonText(
             .build()
     }
 
-    val spanned = remember(markwon, body) { markwon.toMarkdown(body) }
+    val spanned = remember(markwon, body) {
+        try {
+            markwon.toMarkdown(body)
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     AndroidView(
         factory = { ctx ->
@@ -92,7 +101,7 @@ private fun MarkwonText(
         },
         update = { textView ->
             textView.setTextColor(textColor)
-            textView.text = spanned
+            textView.text = spanned ?: body
             textView.maxLines = maxLines
         },
         modifier = modifier
@@ -100,7 +109,7 @@ private fun MarkwonText(
 }
 
 @Composable
-private fun MarkdownTable(table: MarkdownTableBlock) {
+private fun MarkdownTable(table: MarkdownTableBlock, maxRows: Int = 50) {
     val density = LocalDensity.current
     val colorScheme = MaterialTheme.colorScheme
     val borderColor = colorScheme.outline.copy(alpha = 0.55f)
@@ -109,6 +118,7 @@ private fun MarkdownTable(table: MarkdownTableBlock) {
     val evenRowColor = Color.Transparent
     val columnWidths = remember(table) { table.estimatedColumnWidths(density.density) }
     val scrollState = rememberScrollState()
+    val displayRows = table.rows.take(maxRows)
 
     Box(
         modifier = Modifier
@@ -125,11 +135,21 @@ private fun MarkdownTable(table: MarkdownTableBlock) {
                 borderColor = borderColor,
                 header = true
             )
-            table.rows.forEachIndexed { index, row ->
+            displayRows.forEachIndexed { index, row ->
                 TableRow(
                     cells = row,
                     columnWidths = columnWidths,
                     background = if (index % 2 == 0) oddRowColor else evenRowColor,
+                    borderColor = borderColor,
+                    header = false
+                )
+            }
+            if (table.rows.size > maxRows) {
+                val totalWidth = columnWidths.fold(0.dp) { acc, dp -> acc + dp }
+                TableRow(
+                    cells = listOf("… ${table.rows.size - maxRows} more rows"),
+                    columnWidths = listOf(totalWidth),
+                    background = oddRowColor,
                     borderColor = borderColor,
                     header = false
                 )

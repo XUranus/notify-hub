@@ -45,14 +45,10 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Environment
 import android.provider.MediaStore
-import android.util.Base64
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.material.icons.filled.Notifications
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -161,43 +157,13 @@ fun MessageDetailScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 // Avatar
-                val label = msg.topicDisplayName ?: msg.topicName
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(levelColor.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    when {
-                        !msg.topicIcon.isNullOrEmpty() -> {
-                            if (msg.topicIcon.startsWith("data:")) {
-                                val bitmap = remember(msg.topicIcon) {
-                                    try {
-                                        val base64 = msg.topicIcon.substringAfter(",")
-                                        val bytes = Base64.decode(base64, Base64.DEFAULT)
-                                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-                                    } catch (_: Exception) { null }
-                                }
-                                if (bitmap != null) {
-                                    Image(bitmap = bitmap, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                                }
-                            } else {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current).data(msg.topicIcon).crossfade(true).build(),
-                                    contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
-                                )
-                            }
-                        }
-                        !label.isNullOrEmpty() -> {
-                            val initials = if (label.length <= 2) label else label.substring(0, 2)
-                            Text(initials, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = levelColor)
-                        }
-                        else -> {
-                            Icon(Icons.Default.Notifications, contentDescription = null, modifier = Modifier.size(18.dp), tint = levelColor.copy(alpha = 0.6f))
-                        }
-                    }
-                }
+                TopicAvatar(
+                    topicIcon = msg.topicIcon,
+                    topicName = msg.topicName,
+                    topicDisplayName = msg.topicDisplayName,
+                    size = 36,
+                    borderColor = levelColor,
+                )
                 Spacer(Modifier.width(10.dp))
                 Text(
                     text = displayTitle,
