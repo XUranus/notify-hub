@@ -644,6 +644,14 @@ class PollService : Service() {
         return Pair(ApiClient(serverUrl, newJwt), newJwt)
     }
 
+    private fun truncateForNotification(text: String, maxLength: Int = 100): String {
+        return if (text.length > maxLength) {
+            text.take(maxLength - 3) + "..."
+        } else {
+            text
+        }
+    }
+
     private fun showPushNotification(msg: PushMessage) {
         AppLogger.i(TAG, "Showing notification: id=${msg.id} title=${msg.title}")
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -663,10 +671,12 @@ class PollService : Service() {
         val largeIcon = decodeTopicIcon(msg.topicIcon)
             ?: BitmapFactory.decodeResource(resources, R.drawable.logo)
 
+        val displayBody = truncateForNotification(msg.body)
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID_PUSH)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(msg.title)
-            .setContentText(msg.body)
+            .setContentText(displayBody)
             .setStyle(NotificationCompat.BigTextStyle().bigText(msg.body))
             .setLargeIcon(largeIcon)
             .setContentIntent(contentIntent)

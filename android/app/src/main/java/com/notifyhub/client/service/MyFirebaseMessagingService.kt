@@ -134,6 +134,14 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         }
     }
 
+    private fun truncateForNotification(text: String, maxLength: Int = 100): String {
+        return if (text.length > maxLength) {
+            text.take(maxLength - 3) + "..."
+        } else {
+            text
+        }
+    }
+
     private fun showNotification(
         msgId: String,
         title: String,
@@ -157,10 +165,12 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         val isHighPriority = level.lowercase() in listOf("error", "critical", "warning", "warn")
 
+        val displayBody = truncateForNotification(body)
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID_PUSH)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
-            .setContentText(body)
+            .setContentText(displayBody)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setLargeIcon(largeIcon)
             .setContentIntent(contentIntent)
