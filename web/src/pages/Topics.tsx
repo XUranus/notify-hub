@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { topicsApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
-import { Plus, Trash2, Pencil, Tags, Upload, X } from 'lucide-react'
+import { Plus, Trash2, Pencil, Tags, Upload, X, GitFork } from 'lucide-react'
 
 interface Topic {
   id: string
@@ -21,6 +21,7 @@ interface Topic {
   name: string
   displayName: string | null
   icon: string | null
+  preset: boolean
   createdAt: number
   updatedAt: number
 }
@@ -30,8 +31,11 @@ export default function Topics() {
   const { confirm, ConfirmDialog } = useConfirm()
   const [topics, setTopics] = useState<Topic[]>([])
   const [showDialog, setShowDialog] = useState(false)
+  const [showForkDialog, setShowForkDialog] = useState(false)
+  const [forkingTopic, setForkingTopic] = useState<Topic | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [apiError, setApiError] = useState('')
+  const [forkName, setForkName] = useState('')
   const [formData, setFormData] = useState({ name: '', displayName: '' })
   const [iconPreview, setIconPreview] = useState<string | null>(null)
   const [iconBase64, setIconBase64] = useState<string | null>(null)
@@ -139,6 +143,31 @@ export default function Topics() {
     if (result.success) load()
   }
 
+  const openFork = (topic: Topic) => {
+    setForkingTopic(topic)
+    setForkName('')
+    setApiError('')
+    setShowForkDialog(true)
+  }
+
+  const handleFork = async () => {
+    if (!forkingTopic) return
+    setApiError('')
+    if (!forkName.trim()) {
+      setApiError(t('topics.nameRequired'))
+      return
+    }
+
+    const result = await topicsApi.fork(forkingTopic.id, { name: forkName.trim() })
+    if (result.success) {
+      setShowForkDialog(false)
+      setForkingTopic(null)
+      load()
+    } else {
+      setApiError(result.error || t('topics.forkFailed'))
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -212,6 +241,11 @@ export default function Topics() {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-sm truncate">
                     {topic.displayName || topic.name}
+                    {topic.preset && (
+                      <span className="ml-2 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                        {t('topics.preset')}
+                      </span>
+                    )}
                   </h3>
                   {topic.displayName && (
                     <p className="text-xs text-muted-foreground font-mono truncate">
@@ -220,24 +254,39 @@ export default function Topics() {
                   )}
                 </div>
                 <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-full"
-                    onClick={() => openEdit(topic)}
-                    aria-label="Edit"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-full text-destructive"
-                    onClick={() => handleDelete(topic.id)}
-                    aria-label="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {topic.preset ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={() => openFork(topic)}
+                      aria-label="Fork"
+                      title={t('topics.fork')}
+                    >
+                      <GitFork className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-full"
+                        onClick={() => openEdit(topic)}
+                        aria-label="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-full text-destructive"
+                        onClick={() => handleDelete(topic.id)}
+                        aria-label="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
@@ -344,6 +393,61 @@ export default function Topics() {
               </Button>
               <Button className="rounded-full" onClick={handleSubmit}>
                 {editingId ? t('common.save') : t('common.confirm')}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Fork Dialog */}
+      <Dialog open={showForkDialog} onOpenChange={setShowForkDialog}>
+        <DialogContent className="rounded-3xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('topics.forkTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {apiError && (
+              <div className="text-sm text-destructive bg-destructive/10 rounded-xl px-4 py-2">
+                {apiError}
+              </div>
+            )}
+            {forkingTopic && (
+              <div className="flex items-center gap-3 p-3 bg-muted rounded-xl">
+                {forkingTopic.icon ? (
+                  <img src={forkingTopic.icon} alt="" className="h-10 w-10 rounded-xl object-cover" />
+                ) : (
+                  <div className="h-10 w-10 rounded-xl bg-primary-container flex items-center justify-center">
+                    <Tags className="h-5 w-5 text-on-primary-container" />
+                  </div>
+                )}
+                <div>
+                  <p className="font-semibold text-sm">{forkingTopic.displayName || forkingTopic.name}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{forkingTopic.name}</p>
+                </div>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>{t('topics.forkName')}</Label>
+              <Input
+                value={forkName}
+                onChange={(e) => setForkName(e.target.value)}
+                placeholder={t('topics.forkNamePlaceholder')}
+                className="rounded-xl"
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('topics.forkNameHint')}
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="rounded-full"
+                onClick={() => setShowForkDialog(false)}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button className="rounded-full" onClick={handleFork}>
+                {t('topics.fork')}
               </Button>
             </div>
           </div>

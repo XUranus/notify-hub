@@ -1,0 +1,22 @@
+[
+  {
+    "name": "codex",
+    "display": "Codex",
+    "icon": ""
+  },
+  {
+    "name": "claudecode",
+    "display": "Claude Code",
+    "icon": ""
+  },
+  {
+    "name": "openclaw",
+    "display": "OpenClaw",
+    "icon": ""
+  },
+  {
+    "name": "opencode",
+    "display": "OpenCode",
+    "icon": ""
+  }
+]

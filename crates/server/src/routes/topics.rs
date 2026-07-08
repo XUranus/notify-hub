@@ -17,11 +17,17 @@ pub struct TopicQueryParams {
     pub search: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ForkTopicRequest {
+    pub name: String,
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         // User API: topic CRUD (JWT, user manages own topics)
         .route("/api/user/topics", get(list_topics_v2).post(create_topic))
         .route("/api/user/topics/{id}", get(get_topic).put(update_topic).delete(delete_topic))
+        .route("/api/user/topics/{id}/fork", axum::routing::post(fork_topic))
         // Admin API: topic management (admin sees all, can delete any)
         .route("/api/admin/topics", get(admin_list_topics))
         .route("/api/admin/topics/{id}", get(admin_get_topic).delete(admin_delete_topic))
@@ -87,7 +93,7 @@ async fn create_topic(
 
     Ok(Json(ApiResponse::ok(Topic {
         id, user_id, name: req.name, display_name: req.display_name,
-        icon: req.icon, created_at: now, updated_at: now,
+        icon: req.icon, preset: false, created_at: now, updated_at: now,
     })))
 }
 
@@ -114,7 +120,12 @@ async fn update_topic(
             .await?
     };
 
-    let _topic = existing.ok_or_else(|| AppError::NotFound("topic not found".into()))?;
+    let topic = existing.ok_or_else(|| AppError::NotFound("topic not found".into()))?;
+
+    // Prevent modification of preset topics
+    if topic.preset {
+        return Err(AppError::Forbidden("cannot modify preset topic".into()));
+    }
 
     if let Some(ref name) = req.name {
         let exists: (i64,) = sqlx::query_as(
@@ -148,13 +159,25 @@ async fn delete_topic(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let user_id = auth.user_id()?;
 
+    // Check if topic is preset
+    let topic: Option<TopicRow> = sqlx::query_as("SELECT * FROM topics WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await?;
+
+    if let Some(t) = topic {
+        if t.preset {
+            return Err(AppError::Forbidden("cannot delete preset topic".into()));
+        }
+    }
+
     let result = if auth.is_admin() {
-        sqlx::query("DELETE FROM topics WHERE id = ?")
+        sqlx::query("DELETE FROM topics WHERE id = ? AND preset = 0")
             .bind(&id)
             .execute(&state.pool)
             .await?
     } else {
-        sqlx::query("DELETE FROM topics WHERE id = ? AND user_id = ?")
+        sqlx::query("DELETE FROM topics WHERE id = ? AND user_id = ? AND preset = 0")
             .bind(&id)
             .bind(user_id)
             .execute(&state.pool)
@@ -171,6 +194,52 @@ async fn delete_topic(
         .await?;
 
     Ok(Json(ApiResponse::success()))
+}
+
+/// Fork a preset topic: create a new topic with the same display_name and icon
+async fn fork_topic(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+    Json(req): Json<ForkTopicRequest>,
+) -> Result<Json<ApiResponse<Topic>>, AppError> {
+    let user_id = auth.user_id()?;
+    let now = chrono::Utc::now().timestamp();
+
+    // Get the source topic
+    let source: Option<TopicRow> = sqlx::query_as("SELECT * FROM topics WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.pool)
+        .await?;
+
+    let source = source.ok_or_else(|| AppError::NotFound("topic not found".into()))?;
+
+    // Check name uniqueness for this user
+    let exists: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM topics WHERE user_id = ? AND name = ?")
+        .bind(user_id)
+        .bind(&req.name)
+        .fetch_one(&state.pool)
+        .await?;
+    if exists.0 > 0 {
+        return Err(AppError::Conflict("topic name already exists".into()));
+    }
+
+    let new_id = uuid::Uuid::new_v4().to_string();
+
+    sqlx::query(
+        "INSERT INTO topics (id, user_id, name, display_name, icon, preset, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
+    )
+    .bind(&new_id)
+    .bind(user_id)
+    .bind(&req.name)
+    .bind(&source.display_name)
+    .bind(&source.icon)
+    .bind(now)
+    .bind(now)
+    .execute(&state.pool)
+    .await?;
+
+    get_topic(State(state), auth, Path(new_id)).await
 }
 
 /// v1 list topics with pagination and search
@@ -264,12 +333,13 @@ struct TopicRow {
     name: String,
     display_name: Option<String>,
     icon: Option<String>,
+    preset: bool,
     created_at: i64,
     updated_at: i64,
 }
 
 impl From<TopicRow> for Topic {
     fn from(r: TopicRow) -> Self {
-        Topic { id: r.id, user_id: r.user_id, name: r.name, display_name: r.display_name, icon: r.icon, created_at: r.created_at, updated_at: r.updated_at }
+        Topic { id: r.id, user_id: r.user_id, name: r.name, display_name: r.display_name, icon: r.icon, preset: r.preset, created_at: r.created_at, updated_at: r.updated_at }
     }
 }

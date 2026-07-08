@@ -320,6 +320,13 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'topics.nameRequired': '请输入名称',
     'topics.createFailed': '创建失败',
     'topics.updateFailed': '更新失败',
+    'topics.preset': '预置',
+    'topics.fork': '复制',
+    'topics.forkTitle': '复制主题',
+    'topics.forkName': '新主题名称',
+    'topics.forkNamePlaceholder': '例如 my-custom-topic',
+    'topics.forkNameHint': '将复制显示名称和图标到新主题',
+    'topics.forkFailed': '复制失败',
 
     // ── Settings ──
     'settings.title': '设置',
@@ -804,6 +811,13 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'topics.nameRequired': 'Name is required',
     'topics.createFailed': 'Failed to create topic',
     'topics.updateFailed': 'Failed to update topic',
+    'topics.preset': 'Preset',
+    'topics.fork': 'Fork',
+    'topics.forkTitle': 'Fork Topic',
+    'topics.forkName': 'New Topic Name',
+    'topics.forkNamePlaceholder': 'e.g. my-custom-topic',
+    'topics.forkNameHint': 'Display name and icon will be copied to the new topic',
+    'topics.forkFailed': 'Failed to fork topic',
 
     // ── Settings ──
     'settings.title': 'Settings',

@@ -55,6 +55,9 @@ async fn main() -> anyhow::Result<()> {
     // Seed default admin user
     seed_admin(&pool).await?;
 
+    // Seed preset topics
+    seed_preset_topics(&pool).await?;
+
     let state = AppState {
         pool,
         config: Arc::new(config),
@@ -194,6 +197,49 @@ async fn seed_admin(pool: &SqlitePool) -> anyhow::Result<()> {
         .execute(pool)
         .await?;
         tracing::info!("[init] Created default admin user (users): {DEFAULT_ADMIN_USERNAME}");
+    }
+
+    Ok(())
+}
+
+/// Seed preset topics from JSON config
+async fn seed_preset_topics(pool: &SqlitePool) -> anyhow::Result<()> {
+    #[derive(serde::Deserialize)]
+    struct PresetTopic {
+        name: String,
+        display: String,
+        icon: String,
+    }
+
+    let preset_json = include_str!("preset_topics.json");
+    let presets: Vec<PresetTopic> = serde_json::from_str(preset_json)?;
+
+    for preset in &presets {
+        // Check if preset topic already exists
+        let exists: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM topics WHERE name = ? AND preset = 1")
+            .bind(&preset.name)
+            .fetch_one(pool)
+            .await?;
+
+        if exists.0 == 0 {
+            let id = uuid::Uuid::new_v4().to_string();
+            let now = chrono::Utc::now().timestamp();
+            let icon = if preset.icon.is_empty() { None } else { Some(preset.icon.clone()) };
+            let display = if preset.display.is_empty() { None } else { Some(preset.display.clone()) };
+
+            sqlx::query(
+                "INSERT INTO topics (id, user_id, name, display_name, icon, preset, created_at, updated_at) VALUES (99999999, 99999999, ?, ?, ?, 1, ?, ?)"
+            )
+            .bind(&preset.name)
+            .bind(&display)
+            .bind(&icon)
+            .bind(now)
+            .bind(now)
+            .execute(pool)
+            .await?;
+
+            tracing::info!("[init] Created preset topic: {}", preset.name);
+        }
     }
 
     Ok(())

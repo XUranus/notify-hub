@@ -165,6 +165,7 @@ export const topicsApi = {
   create: (data: any) => request<any>('POST', '/user/topics', data),
   update: (id: string, data: any) => request<any>('PUT', `/user/topics/${id}`, data),
   delete: (id: string) => request<any>('DELETE', `/user/topics/${id}`),
+  fork: (id: string, data: { name: string }) => request<any>('POST', `/user/topics/${id}/fork`, data),
 }
 
 export const messagesApi = {

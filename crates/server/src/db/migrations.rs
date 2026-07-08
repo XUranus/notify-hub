@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS topics (
     name TEXT NOT NULL,
     display_name TEXT,
     icon TEXT,
+    preset INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
