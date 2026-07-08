@@ -52,11 +52,11 @@ async fn list_topics(
 
     let rows: Vec<TopicRow> = if let Some(ref search) = params.search {
         let pattern = format!("%{search}%");
-        sqlx::query_as("SELECT * FROM topics WHERE user_id = ? AND (name LIKE ? OR display_name LIKE ?) ORDER BY created_at DESC LIMIT ? OFFSET ?")
+        sqlx::query_as("SELECT * FROM topics WHERE (user_id = ? OR preset = 1) AND (name LIKE ? OR display_name LIKE ?) ORDER BY preset DESC, created_at DESC LIMIT ? OFFSET ?")
             .bind(user_id).bind(&pattern).bind(&pattern).bind(limit).bind(offset)
             .fetch_all(&state.pool).await?
     } else {
-        sqlx::query_as("SELECT * FROM topics WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?")
+        sqlx::query_as("SELECT * FROM topics WHERE user_id = ? OR preset = 1 ORDER BY preset DESC, created_at DESC LIMIT ? OFFSET ?")
             .bind(user_id).bind(limit).bind(offset)
             .fetch_all(&state.pool).await?
     };
