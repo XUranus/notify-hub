@@ -216,84 +216,97 @@ fn markdown_to_plain(input: &str) -> String {
 /// Strip inline markdown formatting (bold, italic, code, links, etc.)
 fn strip_md_formatting(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
-    let chars: Vec<char> = s.chars().collect();
-    let len = chars.len();
-    let mut i = 0;
+    // Collect (byte_offset, char) pairs so we can safely slice the original string
+    let ci: Vec<(usize, char)> = s.char_indices().collect();
+    let len = ci.len();
+    let mut idx = 0; // index into ci
 
-    while i < len {
+    while idx < len {
+        let (bo, ch) = ci[idx];
+
         // Inline code: `code`
-        if chars[i] == '`' {
-            i += 1;
-            let start = i;
-            while i < len && chars[i] != '`' {
-                i += 1;
-            }
-            result.push_str(&s[start..i]);
-            if i < len { i += 1; } // skip closing `
+        if ch == '`' {
+            idx += 1;
+            let start = bo + ch.len_utf8();
+            while idx < len && ci[idx].1 != '`' { idx += 1; }
+            let end = if idx < len { ci[idx].0 } else { s.len() };
+            result.push_str(&s[start..end]);
+            if idx < len { idx += 1; } // skip closing `
             continue;
         }
 
         // Bold+italic: ***text*** or ___text___
-        if i + 2 < len && ((chars[i] == '*' && chars[i+1] == '*' && chars[i+2] == '*')
-            || (chars[i] == '_' && chars[i+1] == '_' && chars[i+2] == '_')) {
-            let marker = s[i..i+3].to_string();
-            i += 3;
-            let start = i;
-            while i + 2 < len && &s[i..i+3] != marker { i += 1; }
-            result.push_str(&s[start..i]);
-            i += 3; // skip closing marker
+        if idx + 2 < len && ((ci[idx].1 == '*' && ci[idx+1].1 == '*' && ci[idx+2].1 == '*')
+            || (ci[idx].1 == '_' && ci[idx+1].1 == '_' && ci[idx+2].1 == '_')) {
+            let marker: String = ci[idx..idx+3].iter().map(|&(_, c)| c).collect();
+            idx += 3;
+            let start = ci[idx].0;
+            while idx + 2 < len {
+                let m: String = ci[idx..idx+3].iter().map(|&(_, c)| c).collect();
+                if m == marker { break; }
+                idx += 1;
+            }
+            let end = if idx < len { ci[idx].0 } else { s.len() };
+            result.push_str(&s[start..end]);
+            idx += 3; // skip closing marker
             continue;
         }
 
         // Bold: **text** or __text__
-        if i + 1 < len && ((chars[i] == '*' && chars[i+1] == '*')
-            || (chars[i] == '_' && chars[i+1] == '_')) {
-            let marker = s[i..i+2].to_string();
-            i += 2;
-            let start = i;
-            while i + 1 < len && &s[i..i+2] != marker { i += 1; }
-            result.push_str(&s[start..i]);
-            i += 2;
+        if idx + 1 < len && ((ci[idx].1 == '*' && ci[idx+1].1 == '*')
+            || (ci[idx].1 == '_' && ci[idx+1].1 == '_')) {
+            let marker: String = ci[idx..idx+2].iter().map(|&(_, c)| c).collect();
+            idx += 2;
+            let start = ci[idx].0;
+            while idx + 1 < len {
+                let m: String = ci[idx..idx+2].iter().map(|&(_, c)| c).collect();
+                if m == marker { break; }
+                idx += 1;
+            }
+            let end = if idx < len { ci[idx].0 } else { s.len() };
+            result.push_str(&s[start..end]);
+            idx += 2;
             continue;
         }
 
         // Italic: *text* or _text_
-        if chars[i] == '*' || (chars[i] == '_' && i > 0 && !chars[i-1].is_alphanumeric()
-            && i + 1 < len && chars[i+1] != ' ') {
-            let ch = chars[i];
-            i += 1;
-            let start = i;
-            while i < len && chars[i] != ch { i += 1; }
-            result.push_str(&s[start..i]);
-            if i < len { i += 1; }
+        if ch == '*' || (ch == '_' && idx > 0 && !ci[idx-1].1.is_alphanumeric()
+            && idx + 1 < len && ci[idx+1].1 != ' ') {
+            idx += 1;
+            let start = ci[idx].0;
+            while idx < len && ci[idx].1 != ch { idx += 1; }
+            let end = if idx < len { ci[idx].0 } else { s.len() };
+            result.push_str(&s[start..end]);
+            if idx < len { idx += 1; }
             continue;
         }
 
         // Link: [text](url) → text
-        if chars[i] == '[' {
-            i += 1;
-            let start = i;
-            while i < len && chars[i] != ']' { i += 1; }
-            result.push_str(&s[start..i]);
-            if i < len { i += 1; } // skip ]
-            if i < len && chars[i] == '(' {
-                i += 1;
-                while i < len && chars[i] != ')' { i += 1; }
-                if i < len { i += 1; } // skip )
+        if ch == '[' {
+            idx += 1;
+            let start = ci[idx].0;
+            while idx < len && ci[idx].1 != ']' { idx += 1; }
+            let end = if idx < len { ci[idx].0 } else { s.len() };
+            result.push_str(&s[start..end]);
+            if idx < len { idx += 1; } // skip ]
+            if idx < len && ci[idx].1 == '(' {
+                idx += 1;
+                while idx < len && ci[idx].1 != ')' { idx += 1; }
+                if idx < len { idx += 1; } // skip )
             }
             continue;
         }
 
         // Header marker: #
-        if chars[i] == '#' && (i == 0 || chars[i-1] == '\n') {
-            i += 1;
-            while i < len && chars[i] == '#' { i += 1; }
-            if i < len && chars[i] == ' ' { i += 1; }
+        if ch == '#' && (idx == 0 || ci[idx-1].1 == '\n') {
+            idx += 1;
+            while idx < len && ci[idx].1 == '#' { idx += 1; }
+            if idx < len && ci[idx].1 == ' ' { idx += 1; }
             continue;
         }
 
-        result.push(chars[i]);
-        i += 1;
+        result.push(ch);
+        idx += 1;
     }
 
     result

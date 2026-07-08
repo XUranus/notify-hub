@@ -118,6 +118,7 @@ export function useApp() {
   const formatRelativeTime = useCallback((dateStr: string) => {
     try {
       const date = new Date(dateStr.replace(' ', 'T'))
+      if (isNaN(date.getTime())) return dateStr || ''
       const diff = Date.now() - date.getTime()
       if (diff < 60000) return T.justNow
       if (diff < 3600000) return Math.floor(diff / 60000) + ' ' + T.minAgo
@@ -125,7 +126,7 @@ export function useApp() {
       if (diff < 2592000000) return Math.floor(diff / 86400000) + ' ' + T.daysAgo
       const m = date.getMonth() + 1, d = date.getDate()
       return (m < 10 ? '0' : '') + m + '/' + (d < 10 ? '0' : '') + d
-    } catch { return dateStr }
+    } catch { return dateStr || '' }
   }, [T])
 
   const parseTags = useCallback((m: Message): string[] => {
@@ -161,6 +162,12 @@ export function useApp() {
       return (b.messages[0]?.received_at || '').localeCompare(a.messages[0]?.received_at || '')
     })
     for (const g of arr) g.messages.sort((a, b) => (b.received_at || '').localeCompare(a.received_at || ''))
+    for (const g of arr) {
+      const unread = g.messages.filter((m: Message) => !m.read).length
+      const total = g.messages.length
+      ;(g as any).unreadCount = unread
+      ;(g as any).totalCount = total
+    }
     return arr
   }, [])
 
@@ -297,7 +304,7 @@ export function useApp() {
         const hasNew = await invoke('drain_has_new')
         if (hasNew) refreshMessages()
       } catch {}
-    }, 500)
+    }, 1500)
     // Also refresh periodically to sync read/flag state
     const refreshTimer = setInterval(() => { if (currentView === 'dashboard') refreshMessages() }, 30000)
     return () => { if (unlisten) unlisten(); clearInterval(checkNewTimer); clearInterval(refreshTimer) }

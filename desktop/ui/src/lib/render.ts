@@ -3,7 +3,9 @@ export function escapeHtml(str: string): string {
 }
 
 export function relativeTime(dateStr: string, t: Record<string, string>): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
+  const ts = new Date(dateStr).getTime()
+  if (isNaN(ts)) return dateStr || ''
+  const diff = Date.now() - ts
   const mins = Math.floor(diff / 60000)
   if (mins < 1) return t.justNow || 'just now'
   if (mins < 60) return `${mins}${t.minAgo || 'min ago'}`
@@ -20,8 +22,34 @@ export function parseTags(raw: unknown): string[] {
 
 export function renderMarkdown(md: string): string {
   let html = escapeHtml(md)
-  // Code blocks
+  // Code blocks (must be first to avoid inner processing)
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="lang-$1">$2</code></pre>')
+  // Tables
+  html = html.replace(/(?:^|\n)((?:\|[^\n]+\|\n)+)/g, (_match, tableBlock: string) => {
+    const lines = tableBlock.trim().split('\n')
+    const rows: string[][] = []
+    let sepIdx = -1
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (!line.startsWith('|')) continue
+      const cells = line.split('|').slice(1, -1).map((c: string) => c.trim())
+      if (sepIdx === -1 && cells.every((c: string) => /^:?-+:?$/.test(c))) {
+        sepIdx = i
+        continue
+      }
+      rows.push(cells)
+    }
+    if (rows.length === 0) return tableBlock
+    let t = '<table>'
+    // Header row
+    t += '<tr>' + rows[0].map(c => `<th>${inlineFormat(c)}</th>`).join('') + '</tr>'
+    // Data rows
+    for (let i = 1; i < rows.length; i++) {
+      t += '<tr>' + rows[i].map(c => `<td>${inlineFormat(c)}</td>`).join('') + '</tr>'
+    }
+    t += '</table>'
+    return '\n' + t + '\n'
+  })
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
   // Bold
@@ -37,6 +65,14 @@ export function renderMarkdown(md: string): string {
   // Line breaks
   html = html.replace(/\n/g, '<br>')
   return html
+}
+
+// Apply inline formatting (bold, italic, code) to table cell content
+function inlineFormat(s: string): string {
+  return s
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
 }
 
 export function renderJsonSyntax(json: string): string {

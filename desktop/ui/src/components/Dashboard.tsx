@@ -1,9 +1,18 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useMemo, startTransition } from 'react'
 import { api } from '../lib/tauri'
 import type { Message, TopicGroup } from '../hooks/useApp'
 import { renderMarkdown, renderJsonSyntax } from '../lib/render'
 
 interface Props { app: any }
+
+// ── Shared image data URL cache ──
+const imageDataCache = new Map<string, Promise<string>>()
+function fetchImageDataUrlCached(url: string): Promise<string> {
+  if (!imageDataCache.has(url)) {
+    imageDataCache.set(url, api.fetchImageDataUrl(url))
+  }
+  return imageDataCache.get(url)!
+}
 
 // ── Avatar component (replaces 3 duplicate avatar renderings) ──
 function Avatar({ icon, name, displayName, className, size }: {
@@ -62,7 +71,7 @@ function ImageAttachment({ att, T }: { att: { name: string; url: string }; T: an
   useEffect(() => {
     let cancelled = false
     setLoading(true); setError(false); setDataUrl(null)
-    api.fetchImageDataUrl(att.url).then(url => {
+    fetchImageDataUrlCached(att.url).then(url => {
       if (!cancelled) { setDataUrl(url); setLoading(false) }
     }).catch(() => {
       if (!cancelled) { setError(true); setLoading(false) }
@@ -107,7 +116,7 @@ function ImageAttachment({ att, T }: { att: { name: string; url: string }; T: an
 }
 
 // ── MessageCard component ──
-function MessageCard({ m, isSelectMode, isSelected, isNew, T, formatRelativeTime, parseTags, parseAttachment }: {
+const MessageCard = React.memo(function MessageCard({ m, isSelectMode, isSelected, isNew, T, formatRelativeTime, parseTags, parseAttachment }: {
   m: Message; isSelectMode: boolean; isSelected: boolean; isNew: boolean
   T: any; formatRelativeTime: (d: string) => string
   parseTags: (m: Message) => string[]; parseAttachment: (m: Message) => any
@@ -120,7 +129,7 @@ function MessageCard({ m, isSelectMode, isSelected, isNew, T, formatRelativeTime
   useEffect(() => {
     if (att?.url && isImageUrl(att.url)) {
       let cancelled = false
-      api.fetchImageDataUrl(att.url).then(url => { if (!cancelled) setThumbUrl(url) }).catch(() => {})
+      fetchImageDataUrlCached(att.url).then(url => { if (!cancelled) setThumbUrl(url) }).catch(() => {})
       return () => { cancelled = true }
     }
   }, [att?.url])
@@ -158,15 +167,19 @@ function MessageCard({ m, isSelectMode, isSelected, isNew, T, formatRelativeTime
       </div>
     </div>
   )
-}
+}, (prev, next) => {
+  return prev.m === next.m && prev.isSelectMode === next.isSelectMode
+    && prev.isSelected === next.isSelected && prev.isNew === next.isNew
+    && prev.T === next.T
+})
 
 // ── TopicCard component ──
 function TopicCard({ group, T, formatRelativeTime }: {
   group: TopicGroup; T: any; formatRelativeTime: (d: string) => string
 }) {
   const latest = group.messages[0]
-  const totalCount = group.messages.length
-  const unreadCount = group.messages.filter(m => !m.read).length
+  const totalCount = (group as any).totalCount || group.messages.length
+  const unreadCount = (group as any).unreadCount || 0
   const displayName = group.topicDisplayName || group.topicName || T.noTopic
   const relTime = latest ? formatRelativeTime(latest.received_at) : ''
   const preview = latest ? (latest.title || latest.body || '').substring(0, 80) : ''
@@ -213,7 +226,7 @@ function CardImagePreview({ att, T }: { att: { name: string; url: string }; T: a
   useEffect(() => {
     let cancelled = false
     setLoading(true); setError(false); setThumbUrl(null)
-    api.fetchImageDataUrl(att.url).then(url => {
+    fetchImageDataUrlCached(att.url).then(url => {
       if (!cancelled) { setThumbUrl(url); setLoading(false) }
     }).catch(() => {
       if (!cancelled) { setError(true); setLoading(false) }
@@ -240,31 +253,23 @@ function CardImagePreview({ att, T }: { att: { name: string; url: string }; T: a
 }
 
 // ── MessageFullCard component (card view with full content) ──
-function MessageFullCard({ m, isSelectMode, isSelected, isNew, T, formatRelativeTime, parseTags, parseAttachment, renderMarkdown, renderJsonSyntax, onMarkRead }: {
+const MessageFullCard = React.memo(function MessageFullCard({ m, isSelectMode, isSelected, isNew, T, formatRelativeTime, parseTags, parseAttachment, renderMarkdown, renderJsonSyntax, onMarkRead }: {
   m: Message; isSelectMode: boolean; isSelected: boolean; isNew: boolean
   T: any; formatRelativeTime: (d: string) => string
   parseTags: (m: Message) => string[]; parseAttachment: (m: Message) => any
   renderMarkdown: (s: string) => string; renderJsonSyntax: (s: string) => string
   onMarkRead: (id: string) => void
 }) {
-  const tags = parseTags(m)
-  const att = parseAttachment(m)
-  const relTime = formatRelativeTime(m.received_at)
+  const tags = useMemo(() => parseTags(m), [m, parseTags])
+  const att = useMemo(() => parseAttachment(m), [m, parseAttachment])
+  const relTime = useMemo(() => formatRelativeTime(m.received_at), [m.received_at, formatRelativeTime])
 
-  let bodyHtml = ''
-  let bodyClass = ''
-  if (m.format === 'json') {
-    bodyHtml = renderJsonSyntax(m.body || '')
-    bodyClass = 'json'
-  } else if (m.format === 'markdown' || m.format === 'md') {
-    bodyHtml = renderMarkdown(m.body || '')
-    bodyClass = 'markdown'
-  } else if (m.format === 'html') {
-    bodyHtml = m.body || ''
-    bodyClass = 'html-content'
-  } else {
-    bodyHtml = (m.body || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
-  }
+  const { bodyHtml, bodyClass } = useMemo(() => {
+    if (m.format === 'json') return { bodyHtml: renderJsonSyntax(m.body || ''), bodyClass: 'json' }
+    if (m.format === 'markdown' || m.format === 'md') return { bodyHtml: renderMarkdown(m.body || ''), bodyClass: 'markdown' }
+    if (m.format === 'html') return { bodyHtml: m.body || '', bodyClass: 'html-content' }
+    return { bodyHtml: (m.body || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>'), bodyClass: '' }
+  }, [m.body, m.format, renderMarkdown, renderJsonSyntax])
 
   return (
     <div className={`msg-full-card ${!m.read ? 'unread' : ''} ${isSelected ? 'selected' : ''} ${isNew ? 'msg-new' : ''}`} data-id={m.id} onClick={() => { if (!m.read) onMarkRead(m.id) }}>
@@ -305,41 +310,47 @@ function MessageFullCard({ m, isSelectMode, isSelected, isNew, T, formatRelative
       )}
     </div>
   )
-}
+}, (prev, next) => {
+  return prev.m === next.m && prev.isSelectMode === next.isSelectMode
+    && prev.isSelected === next.isSelected && prev.isNew === next.isNew
+    && prev.T === next.T && prev.onMarkRead === next.onMarkRead
+})
+
+const CARD_EST_HEIGHT = 150  // initial estimate for card height before measurement
 
 export function Dashboard({ app }: Props) {
   const { T, showToast, invoke, formatRelativeTime, parseTags, parseAttachment, getFilteredMessages, groupMessagesByTopic, MSG_HEIGHT, TOPIC_CARD_HEIGHT, newMsgIds } = app
 
   const [scrollTop, setScrollTop] = useState(0)
+  const [cardScrollTop, setCardScrollTop] = useState(0)
+  const scrollTopRef = useRef(0)
+  const rafRef = useRef<number>(0)
+  const [cardHeights, setCardHeights] = useState<Record<string, number>>({})
+  const [cardsMeasured, setCardsMeasured] = useState(false)
+  const [containerHeight, setContainerHeight] = useState(600)
+  const [showScrollTop, setShowScrollTop] = useState(false)
+  const [viewVisible, setViewVisible] = useState(true)
+  const prevViewRef = useRef(app.viewMode)
   const listRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
 
   // ── Derived data ──
   const filtered = useMemo(() => getFilteredMessages(), [app.allMessages, app.currentFilter, app.searchQuery, getFilteredMessages])
 
-  const topicGroups = useMemo(() => {
+  const { topicGroups, displayMessages, detailTopicGroup } = useMemo(() => {
     if (app.viewMode === 'topics' && !app.topicDetailKey) {
-      return groupMessagesByTopic(filtered)
+      return { topicGroups: groupMessagesByTopic(filtered), displayMessages: [], detailTopicGroup: null }
     }
-    return []
-  }, [app.viewMode, app.topicDetailKey, filtered, groupMessagesByTopic])
-
-  const displayMessages = useMemo(() => {
-    if (app.viewMode === 'topics' && !app.topicDetailKey) return []
     if (app.topicDetailKey) {
       const groups = groupMessagesByTopic(filtered)
-      const group = groups.find((g: TopicGroup) => g.key === app.topicDetailKey)
-      return group ? group.messages : []
+      return {
+        topicGroups: [],
+        displayMessages: groups.find((g: TopicGroup) => g.key === app.topicDetailKey)?.messages || [],
+        detailTopicGroup: groups.find((g: TopicGroup) => g.key === app.topicDetailKey) || null
+      }
     }
-    return filtered
+    return { topicGroups: [], displayMessages: filtered, detailTopicGroup: null }
   }, [app.viewMode, app.topicDetailKey, filtered, groupMessagesByTopic])
-
-  // Find the topic group for the detail bar
-  const detailTopicGroup = useMemo(() => {
-    if (!app.topicDetailKey) return null
-    const groups = groupMessagesByTopic(filtered)
-    return groups.find((g: TopicGroup) => g.key === app.topicDetailKey) || null
-  }, [app.topicDetailKey, filtered, groupMessagesByTopic])
 
   const isEmpty = app.viewMode === 'topics' && !app.topicDetailKey
     ? topicGroups.length === 0
@@ -349,21 +360,27 @@ export function Dashboard({ app }: Props) {
     ? topicGroups.length * TOPIC_CARD_HEIGHT
     : displayMessages.length * MSG_HEIGHT
 
-  // ── Scroll handler for virtual scrolling ──
+  // ── Scroll handler for virtual scrolling (rAF-throttled) ──
   const handleScroll = useCallback(() => {
-    const el = listRef.current
-    if (el) setScrollTop(el.scrollTop)
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      const el = listRef.current
+      if (el) {
+        scrollTopRef.current = el.scrollTop
+        setScrollTop(el.scrollTop)
+        setShowScrollTop(el.scrollTop > 300)
+      }
+    })
   }, [])
 
   useEffect(() => {
     const el = listRef.current
     if (!el) return
     el.addEventListener('scroll', handleScroll, { passive: true })
-    return () => el.removeEventListener('scroll', handleScroll)
+    return () => { el.removeEventListener('scroll', handleScroll); if (rafRef.current) cancelAnimationFrame(rafRef.current) }
   }, [handleScroll])
 
   // Compute visible range for virtual scrolling
-  const containerHeight = listRef.current?.clientHeight || 600
   const itemHeight = (app.viewMode === 'topics' && !app.topicDetailKey) ? TOPIC_CARD_HEIGHT : MSG_HEIGHT
   const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - 5)
   const endIndex = Math.min(
@@ -371,13 +388,136 @@ export function Dashboard({ app }: Props) {
     Math.ceil((scrollTop + containerHeight) / itemHeight) + 5
   )
 
-  // Pop unread badge when new messages arrive
+  // ── Card view virtual scrolling (dynamic height) ──
+  const isCardsView = app.viewMode === 'cards'
+
+  // Update container height on resize
   useEffect(() => {
-    if (newMsgIds.size > 0) {
-      const badge = document.getElementById('headerUnreadBadge')
-      if (badge) { badge.classList.remove('pop'); void (badge as HTMLElement).offsetWidth; badge.classList.add('pop') }
+    if (!isCardsView) return
+    const update = () => { if (listRef.current) setContainerHeight(listRef.current.clientHeight) }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [isCardsView])
+
+  // Card scroll handler (rAF-throttled)
+  const handleCardScroll = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      const el = listRef.current
+      if (el) {
+        scrollTopRef.current = el.scrollTop
+        setCardScrollTop(el.scrollTop)
+        setShowScrollTop(el.scrollTop > 300)
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!isCardsView || !listRef.current) return
+    const el = listRef.current
+    el.addEventListener('scroll', handleCardScroll, { passive: true })
+    return () => { el.removeEventListener('scroll', handleCardScroll); if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  }, [isCardsView, handleCardScroll])
+
+  // Measure card heights (Phase 1 — initial measurement)
+  const measureCard = useCallback((id: string, el: HTMLDivElement | null) => {
+    if (!el) return
+    const h = el.getBoundingClientRect().height
+    setCardHeights(prev => {
+      if (prev[id] === h) return prev
+      return { ...prev, [id]: h }
+    })
+  }, [])
+
+  // Mark measurement complete after render
+  useEffect(() => {
+    if (isCardsView && displayMessages.length > 0) {
+      requestAnimationFrame(() => setCardsMeasured(true))
     }
-  }, [newMsgIds])
+  }, [isCardsView, displayMessages.length])
+
+  // Reset measurement when switching views
+  useEffect(() => {
+    if (!isCardsView) {
+      setCardsMeasured(false)
+      setCardHeights({})
+    }
+  }, [isCardsView])
+
+  // Card virtual scroll: compute visible range with dynamic heights
+  const cardTotalHeight = useMemo(() => {
+    if (!isCardsView) return 0
+    return displayMessages.reduce((sum: number, m: Message) => sum + (cardHeights[m.id] || CARD_EST_HEIGHT), 0)
+  }, [isCardsView, displayMessages, cardHeights])
+
+  const cardVirtualRange = useMemo(() => {
+    if (!isCardsView) return { startIndex: 0, endIndex: 0, offsetY: 0 }
+    const BUFFER = 5
+    if (!cardsMeasured) {
+      return { startIndex: 0, endIndex: displayMessages.length, offsetY: 0 }
+    }
+    let cumH = 0
+    let start = 0
+    for (let i = 0; i < displayMessages.length; i++) {
+      const h = cardHeights[displayMessages[i].id] || CARD_EST_HEIGHT
+      if (cumH + h > cardScrollTop - containerHeight * 0.5) { start = i; break }
+      cumH += h
+      if (i === displayMessages.length - 1) start = i
+    }
+    const visStart = Math.max(0, start - BUFFER)
+    let visEnd = visStart
+    let y = 0
+    for (let i = 0; i < visStart; i++) y += cardHeights[displayMessages[i].id] || CARD_EST_HEIGHT
+    for (let i = visStart; i < displayMessages.length; i++) {
+      y += cardHeights[displayMessages[i].id] || CARD_EST_HEIGHT
+      visEnd = i + 1
+      if (y > cardScrollTop + containerHeight + containerHeight * 0.5) break
+    }
+    return { startIndex: visStart, endIndex: Math.min(visEnd, displayMessages.length), offsetY: 0 }
+  }, [isCardsView, cardsMeasured, displayMessages, cardScrollTop, containerHeight, cardHeights])
+
+  const cardOffsets = useMemo(() => {
+    if (!isCardsView || !cardsMeasured) return []
+    const offsets: number[] = []
+    let sum = 0
+    for (const m of displayMessages) {
+      offsets.push(sum)
+      sum += cardHeights[m.id] || CARD_EST_HEIGHT
+    }
+    return offsets
+  }, [isCardsView, cardsMeasured, displayMessages, cardHeights])
+
+  // ── View transition: fade out → switch → fade in ──
+  useEffect(() => {
+    if (prevViewRef.current !== app.viewMode) {
+      prevViewRef.current = app.viewMode
+      setViewVisible(false)
+      const t = setTimeout(() => startTransition(() => setViewVisible(true)), 150)
+      return () => clearTimeout(t)
+    }
+  }, [app.viewMode])
+
+  // Phase 2: ResizeObserver to re-measure cards when images load asynchronously
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+
+  useEffect(() => {
+    if (!cardsMeasured || !isCardsView) return
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const id = (entry.target as HTMLElement).dataset.cardId
+        if (!id) continue
+        const h = entry.borderBoxSize?.[0]?.blockSize ?? entry.target.getBoundingClientRect().height
+        setCardHeights(prev => {
+          if (prev[id] === h) return prev
+          return { ...prev, [id]: h }
+        })
+      }
+    })
+    // Observe all currently rendered card wrappers
+    cardRefs.current.forEach(el => { if (el) observer.observe(el) })
+    return () => observer.disconnect()
+  }, [cardsMeasured, isCardsView, cardVirtualRange.startIndex, cardVirtualRange.endIndex])
 
   // ── Click handler with event delegation ──
   const handleViewportClick = useCallback(async (e: React.MouseEvent) => {
@@ -452,27 +592,23 @@ export function Dashboard({ app }: Props) {
   // ── Filtered count for badge ──
   const unreadCount = app.allMessages.filter((m: Message) => !m.read).length
 
+  // ── Detail body memo (for renderDetail) ──
+  const detailBody = useMemo(() => {
+    if (!app.detailMsg) return { bodyHtml: '', bodyClass: '' }
+    const m = app.detailMsg
+    if (m.format === 'json') return { bodyHtml: renderJsonSyntax(m.body), bodyClass: 'json' }
+    if (m.format === 'markdown' || m.format === 'md') return { bodyHtml: renderMarkdown(m.body), bodyClass: 'markdown' }
+    if (m.format === 'html') return { bodyHtml: m.body || '', bodyClass: 'html-content' }
+    return { bodyHtml: (m.body || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>'), bodyClass: '' }
+  }, [app.detailMsg, renderMarkdown, renderJsonSyntax])
+
   // ── Detail view ──
   const renderDetail = useCallback(() => {
     if (!app.detailMsg) return null
     const m = app.detailMsg
     const tags = parseTags(m)
     const att = parseAttachment(m)
-
-    let bodyHtml = ''
-    let bodyClass = ''
-    if (m.format === 'json') {
-      bodyHtml = renderJsonSyntax(m.body)
-      bodyClass = 'json'
-    } else if (m.format === 'markdown' || m.format === 'md') {
-      bodyHtml = renderMarkdown(m.body)
-      bodyClass = 'markdown'
-    } else if (m.format === 'html') {
-      bodyHtml = m.body  // HTML content rendered as-is
-      bodyClass = 'html-content'
-    } else {
-      bodyHtml = (m.body || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
-    }
+    const { bodyHtml, bodyClass } = detailBody
 
     return (
       <div className="detail-overlay open" id="detailOverlay">
@@ -537,7 +673,7 @@ export function Dashboard({ app }: Props) {
         </div>
       </div>
     )
-  }, [app.detailMsg, T, showToast, invoke, formatRelativeTime, parseTags, parseAttachment])
+  }, [app.detailMsg, T, showToast, invoke, formatRelativeTime, parseTags, parseAttachment, detailBody])
 
   return (
     <div className="view active" id="viewDashboard">
@@ -551,7 +687,6 @@ export function Dashboard({ app }: Props) {
 
       {/* Filter chips and action buttons */}
       <div style={{display:'flex',gap:'6px',alignItems:'center',marginBottom:'8px',padding:'0 2px'}}>
-        {unreadCount > 0 && <span className="unread-badge" id="headerUnreadBadge">{unreadCount}</span>}
         <div className="filter-chips" style={{display: app.topicDetailKey ? 'none' : undefined}}>
           {(['all','unread','read','flagged'] as const).map(f => (
             <span key={f} className={`chip ${app.currentFilter === f ? 'active' : ''}`} data-filter={f} onClick={() => app.setCurrentFilter(f)}>{T[`filter${f.charAt(0).toUpperCase() + f.slice(1)}`]}</span>
@@ -584,7 +719,7 @@ export function Dashboard({ app }: Props) {
           </div>
         )}
 
-        <div className="card-body-scroll">
+        <div className="card-body-scroll" style={{ opacity: viewVisible ? 1 : 0, transition: 'opacity 0.15s ease' }}>
           {/* Topic detail bar — driven by topicDetailKey state instead of DOM manipulation */}
           {app.topicDetailKey && detailTopicGroup && (
             <div id="topicDetailBar" style={{display:'flex',padding:'8px 14px',borderBottom:'1px solid var(--border)',flexShrink:0,alignItems:'center',gap:'10px'}}>
@@ -602,25 +737,80 @@ export function Dashboard({ app }: Props) {
 
           <div className="msg-scroll" id="msgListBody" ref={listRef} onClick={handleViewportClick}>
             {app.viewMode === 'cards' ? (
-              // Card view - full content, no virtual scroll
-              <div className="cards-container">
-                {displayMessages.map((m: Message) => (
-                  <MessageFullCard
-                    key={m.id}
-                    m={m}
-                    isSelectMode={app.selectMode}
-                    isSelected={app.selectedIds.has(m.id)}
-                    isNew={newMsgIds.has(m.id)}
-                    T={T}
-                    formatRelativeTime={formatRelativeTime}
-                    parseTags={parseTags}
-                    parseAttachment={parseAttachment}
-                    renderMarkdown={renderMarkdown}
-                    renderJsonSyntax={renderJsonSyntax}
-                    onMarkRead={app.markAsRead}
-                  />
-                ))}
-              </div>
+              // Card view - virtual scroll with dynamic heights
+              isEmpty ? (
+                <EmptyState searchQuery={app.searchQuery} T={T} />
+              ) : <>
+                {/* Phase 1: skeleton measuring (all cards rendered hidden, skeletons visible) */}
+                {!cardsMeasured && (
+                  <div className="cards-measuring" style={{ position: 'relative' }}>
+                    {/* Visible skeleton placeholders */}
+                    {Array.from({ length: Math.min(displayMessages.length, 15) }, (_, i) => (
+                      <div key={`skel-${i}`} className="skeleton-card">
+                        <div className="skeleton-header">
+                          <div className="skeleton-avatar" />
+                          <div className="skeleton-title-area">
+                            <div className="skeleton-title" />
+                            <div className="skeleton-meta" />
+                          </div>
+                        </div>
+                        <div className="skeleton-body" />
+                        <div className="skeleton-body-short" />
+                      </div>
+                    ))}
+                    {/* Hidden cards for height measurement */}
+                    {displayMessages.map((m: Message) => (
+                      <div key={m.id} ref={el => measureCard(m.id, el)} style={{ visibility: 'hidden', position: 'relative', pointerEvents: 'none' }}>
+                        <MessageFullCard
+                          m={m}
+                          isSelectMode={false}
+                          isSelected={false}
+                          isNew={false}
+                          T={T}
+                          formatRelativeTime={formatRelativeTime}
+                          parseTags={parseTags}
+                          parseAttachment={parseAttachment}
+                          renderMarkdown={renderMarkdown}
+                          renderJsonSyntax={renderJsonSyntax}
+                          onMarkRead={app.markAsRead}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Phase 2: visible cards only */}
+                {cardsMeasured && (
+                  <div className="cards-container" style={{ position: 'relative', height: cardTotalHeight }}>
+                    {displayMessages.slice(cardVirtualRange.startIndex, cardVirtualRange.endIndex).map((m: Message, i: number) => {
+                      const top = cardOffsets[cardVirtualRange.startIndex + i] || 0
+                      return (
+                        <div
+                          key={m.id}
+                          data-card-id={m.id}
+                          ref={el => {
+                            if (el) cardRefs.current.set(m.id, el); else cardRefs.current.delete(m.id)
+                          }}
+                          style={{ position: 'absolute', top, left: 0, right: 0 }}
+                        >
+                          <MessageFullCard
+                            m={m}
+                            isSelectMode={app.selectMode}
+                            isSelected={app.selectedIds.has(m.id)}
+                            isNew={newMsgIds.has(m.id)}
+                            T={T}
+                            formatRelativeTime={formatRelativeTime}
+                            parseTags={parseTags}
+                            parseAttachment={parseAttachment}
+                            renderMarkdown={renderMarkdown}
+                            renderJsonSyntax={renderJsonSyntax}
+                            onMarkRead={app.markAsRead}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="msg-viewport" id="msgViewport" ref={viewportRef} style={{ height: isEmpty ? 'auto' : viewportHeight }}>
                 {isEmpty ? (
@@ -661,6 +851,10 @@ export function Dashboard({ app }: Props) {
           <button className="snackbar-undo" id="undoBtn" onClick={handleUndo}>{T.undo}</button>
         </div>
       )}
+
+      <button className={`scroll-top-btn ${showScrollTop ? 'visible' : ''}`} title={T.scrollTop} onClick={() => { listRef.current?.scrollTo({ top: 0, behavior: 'smooth' }) }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+      </button>
 
       {renderDetail()}
 

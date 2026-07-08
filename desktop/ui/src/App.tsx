@@ -11,6 +11,7 @@ import { Toast } from './components/Toast'
 
 export default function App() {
   const app = useApp()
+  const unreadCount = app.allMessages.filter((m: any) => !m.read).length
 
   return (
     <>
@@ -29,6 +30,7 @@ export default function App() {
           app.setShowSearch(newVal)
           if (!newVal) app.setSearchQuery('')
         }}
+        unreadCount={unreadCount}
       />
 
       {app.currentView === 'connect' && (

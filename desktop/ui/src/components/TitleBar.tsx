@@ -9,12 +9,13 @@ interface Props {
   setErrorDetailOpen: (open: boolean) => void
   showSearch: boolean
   onToggleSearch: () => void
+  unreadCount: number
 }
-export function TitleBar({ T, invoke, connStatus, onCompose, onViewToggle, viewMode, onSettings, setErrorDetailOpen, showSearch, onToggleSearch }: Props) {
+export function TitleBar({ T, invoke, connStatus, onCompose, onViewToggle, viewMode, onSettings, setErrorDetailOpen, showSearch, onToggleSearch, unreadCount }: Props) {
   return (
     <div id="titlebar">
       <div className="titlebar-left">
-        <img src="logo-32.png" alt="" className="titlebar-logo" />
+        {unreadCount > 0 && <span className="titlebar-unread-dot" title={`${unreadCount}`}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
         <span id="connStatus" style={{fontSize:'11px',color:'var(--text3)',display:'flex',alignItems:'center',gap:'4px'}}>
           {connStatus.connected ? (
             <>
