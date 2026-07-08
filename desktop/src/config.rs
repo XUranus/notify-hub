@@ -133,6 +133,9 @@ pub struct AppConfig {
     /// Log retention in days: 7, 30, 365
     #[serde(default = "default_log_retention_days")]
     pub log_retention_days: u32,
+    /// Language: "en", "zh", "ja", "ko" (default: auto-detect)
+    #[serde(default = "default_language")]
+    pub language: String,
 }
 
 fn default_connection_mode() -> String {
@@ -145,6 +148,10 @@ fn default_log_level() -> String {
 
 fn default_log_retention_days() -> u32 {
     30
+}
+
+fn default_language() -> String {
+    "auto".to_string()
 }
 
 impl AppConfig {
@@ -221,6 +228,7 @@ impl AppConfig {
             connection_mode: "sse".to_string(),
             log_level: default_log_level(),
             log_retention_days: default_log_retention_days(),
+            language: default_language(),
         }
     }
 }

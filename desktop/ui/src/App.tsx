@@ -23,6 +23,12 @@ export default function App() {
         viewMode={app.viewMode}
         onSettings={() => app.setSettingsOpen(true)}
         setErrorDetailOpen={app.setErrorDetailOpen}
+        showSearch={app.showSearch}
+        onToggleSearch={() => {
+          const newVal = !app.showSearch
+          app.setShowSearch(newVal)
+          if (!newVal) app.setSearchQuery('')
+        }}
       />
 
       {app.currentView === 'connect' && (

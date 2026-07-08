@@ -32,6 +32,7 @@ export function useApp() {
   const setLang = useCallback((l: Locale) => {
     setLangState(l); setT(getTranslations(l)); localStorage.setItem('nh_lang', l)
     document.documentElement.lang = l
+    invoke('set_language', { language: l }).catch(() => {})
   }, [])
 
   // ── Theme ──
@@ -83,6 +84,7 @@ export function useApp() {
   useEffect(() => { allMessagesRef.current = allMessages }, [allMessages])
   const [currentFilter, setCurrentFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
   const lastDeletedRef = useRef<{ msg: Message; idx: number } | null>(null)
@@ -332,9 +334,9 @@ export function useApp() {
     // View
     currentView, setCurrentView, viewMode, setViewMode, toggleViewMode, offlineMode,
     // Messages
-    allMessages, currentFilter, searchQuery, selectedIds, selectMode, lastDeleted, newMsgIds,
+    allMessages, currentFilter, searchQuery, showSearch, selectedIds, selectMode, lastDeleted, newMsgIds,
     detailMsg, topicDetailKey,
-    setCurrentFilter, setSearchQuery, setSelectedIds, setSelectMode, setDetailMsg, setTopicDetailKey,
+    setCurrentFilter, setSearchQuery, setShowSearch, setSelectedIds, setSelectMode, setDetailMsg, setTopicDetailKey,
     // Actions
     refreshMessages, markAsRead, toggleFlag, deleteWithUndo, undoDelete, markAllRead, clearAll, deleteSelected,
     // Helpers

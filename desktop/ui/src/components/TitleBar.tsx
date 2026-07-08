@@ -7,8 +7,10 @@ interface Props {
   viewMode: string
   onSettings: () => void
   setErrorDetailOpen: (open: boolean) => void
+  showSearch: boolean
+  onToggleSearch: () => void
 }
-export function TitleBar({ T, invoke, connStatus, onCompose, onViewToggle, viewMode, onSettings, setErrorDetailOpen }: Props) {
+export function TitleBar({ T, invoke, connStatus, onCompose, onViewToggle, viewMode, onSettings, setErrorDetailOpen, showSearch, onToggleSearch }: Props) {
   return (
     <div id="titlebar">
       <div className="titlebar-left">
@@ -43,6 +45,9 @@ export function TitleBar({ T, invoke, connStatus, onCompose, onViewToggle, viewM
       <div className="titlebar-controls">
         <button className="titlebar-btn" title={T.composeTitle} onClick={onCompose}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+        </button>
+        <button className={`titlebar-btn ${showSearch ? 'active' : ''}`} title={T.search || 'Search'} onClick={onToggleSearch}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
         </button>
         <button className={`titlebar-btn ${viewMode !== 'messages' ? 'active' : ''}`} title={viewMode === 'messages' ? T.topicView : viewMode === 'topics' ? T.cardView : T.messageView} onClick={onViewToggle}>
           {viewMode === 'messages'

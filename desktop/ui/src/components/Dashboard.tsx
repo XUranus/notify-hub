@@ -362,8 +362,10 @@ export function Dashboard({ app }: Props) {
     const flagEl = target.closest('[data-action="flag"]') as HTMLElement | null
     if (flagEl) {
       e.stopPropagation()
+      flagEl.classList.add('pop')
       await invoke('toggle_flag', { id: flagEl.dataset.id })
       app.refreshMessages()
+      setTimeout(() => flagEl.classList.remove('pop'), 350)
       return
     }
     const delEl = target.closest('[data-action="delete"]') as HTMLElement | null
@@ -500,24 +502,28 @@ export function Dashboard({ app }: Props) {
 
   return (
     <div className="view active" id="viewDashboard">
-      {/* Toolbar above card */}
+      {/* Search bar - conditionally shown */}
+      {app.showSearch && (
+        <div className="search-box" id="toolbarArea" style={{marginBottom:'8px'}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+          <input type="text" id="searchInput" placeholder={T.search} value={app.searchQuery} onChange={e => app.setSearchQuery(e.target.value)} autoFocus />
+        </div>
+      )}
+
+      {/* Filter chips and action buttons */}
       <div style={{display:'flex',gap:'6px',alignItems:'center',marginBottom:'8px',padding:'0 2px'}}>
         {unreadCount > 0 && <span className="unread-badge" id="headerUnreadBadge">{unreadCount}</span>}
-        <div style={{flex:1}} />
-        <div className="search-box" style={{maxWidth:'180px'}} id="toolbarArea">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-          <input type="text" id="searchInput" placeholder={T.search} value={app.searchQuery} onChange={e => app.setSearchQuery(e.target.value)} style={{fontSize:'11px'}} />
-        </div>
         <div className="filter-chips" style={{display: app.topicDetailKey ? 'none' : undefined}}>
           {(['all','unread','read','flagged'] as const).map(f => (
-            <span key={f} className={`chip ${app.currentFilter === f ? 'active' : ''}`} data-filter={f} onClick={() => app.setCurrentFilter(f)} style={{fontSize:'10px',padding:'2px 8px'}}>{T[`filter${f.charAt(0).toUpperCase() + f.slice(1)}`]}</span>
+            <span key={f} className={`chip ${app.currentFilter === f ? 'active' : ''}`} data-filter={f} onClick={() => app.setCurrentFilter(f)}>{T[`filter${f.charAt(0).toUpperCase() + f.slice(1)}`]}</span>
           ))}
         </div>
+        <div style={{flex:1}} />
         <button className="icon-btn" id="markAllReadBtn" title={T.markAllRead} onClick={() => { app.markAllRead(); const btn = document.getElementById('markAllReadBtn'); if (btn) { btn.classList.remove('pulse-success'); void (btn as HTMLElement).offsetWidth; btn.classList.add('pulse-success') } }} style={{display: app.allMessages.length ? '' : 'none'}}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
         </button>
         <button className="icon-btn danger" id="clearMsgsBtn" title={T.clearAll} onClick={() => app.showDeleteConfirm(T.clearConfirm, () => app.clearAll())} style={{display: app.allMessages.length ? '' : 'none'}}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
         </button>
       </div>
 

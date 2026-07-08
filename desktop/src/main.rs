@@ -34,6 +34,15 @@ fn save_config(cfg: AppConfig) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn set_language(language: String) -> Result<(), String> {
+    if let Some(mut cfg) = AppConfig::load() {
+        cfg.language = language;
+        cfg.save()?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn get_poll_state(state: tauri::State<'_, Arc<Mutex<PollState>>>) -> PollStateSnapshot {
     let s = lock_mutex(&state);
     PollStateSnapshot {
@@ -265,6 +274,7 @@ async fn fetch_image_data_url(url: String) -> Result<String, String> {
 struct TrayMenuItems {
     status: MenuItem<tauri::Wry>,
     unread: MenuItem<tauri::Wry>,
+    translations: TrayTranslations,
 }
 
 #[derive(serde::Deserialize)]
@@ -566,7 +576,7 @@ fn update_tray_status(tray_items: tauri::State<'_, TrayMenuItems>, connected: bo
             _ => "● Connected (Poll)".to_string(),
         }
     } else {
-        "● Connecting...".to_string()
+        tray_items.translations.connecting.clone()
     };
     let _ = tray_items.status.set_text(&text);
 }
@@ -574,7 +584,7 @@ fn update_tray_status(tray_items: tauri::State<'_, TrayMenuItems>, connected: bo
 #[tauri::command]
 fn update_tray_unread(tray_items: tauri::State<'_, TrayMenuItems>, count: usize) {
     let text = if count == 0 {
-        "No unread".to_string()
+        tray_items.translations.no_unread.clone()
     } else {
         format!("Unread: {}", count)
     };
@@ -676,6 +686,71 @@ pub fn detect_desktop_env() -> String {
             }
         }
     }
+}
+
+/// Detect system locale for tray menu translations
+fn detect_system_locale() -> String {
+    // Check environment variables in order of priority
+    for var in &["LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"] {
+        if let Ok(val) = std::env::var(var) {
+            let lang = val.split('.').next().unwrap_or(&val).to_lowercase();
+            if lang.starts_with("zh") {
+                return "zh".to_string();
+            }
+            if lang.starts_with("ja") {
+                return "ja".to_string();
+            }
+            if lang.starts_with("ko") {
+                return "ko".to_string();
+            }
+            return "en".to_string();
+        }
+    }
+    // Default to English
+    "en".to_string()
+}
+
+/// Get tray menu translations based on system locale
+fn get_tray_translations(locale: &str) -> TrayTranslations {
+    match locale {
+        "zh" => TrayTranslations {
+            connecting: "● 连接中...".to_string(),
+            no_unread: "没有未读".to_string(),
+            toggle_window: "切换窗口".to_string(),
+            reconnect: "重新连接".to_string(),
+            quit: "退出".to_string(),
+        },
+        "ja" => TrayTranslations {
+            connecting: "● 接続中...".to_string(),
+            no_unread: "未読なし".to_string(),
+            toggle_window: "ウィンドウ切替".to_string(),
+            reconnect: "再接続".to_string(),
+            quit: "終了".to_string(),
+        },
+        "ko" => TrayTranslations {
+            connecting: "● 연결 중...".to_string(),
+            no_unread: "읽지 않음 없음".to_string(),
+            toggle_window: "창 전환".to_string(),
+            reconnect: "재연결".to_string(),
+            quit: "종료".to_string(),
+        },
+        _ => TrayTranslations {
+            connecting: "● Connecting...".to_string(),
+            no_unread: "No unread".to_string(),
+            toggle_window: "Toggle Window".to_string(),
+            reconnect: "Reconnect".to_string(),
+            quit: "Quit".to_string(),
+        },
+    }
+}
+
+#[derive(Clone)]
+struct TrayTranslations {
+    connecting: String,
+    no_unread: String,
+    toggle_window: String,
+    reconnect: String,
+    quit: String,
 }
 
 // ── Single Instance Lock ──
@@ -866,6 +941,7 @@ fn main() {
         ))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_shell::init())
         .on_window_event(|window, event| {
@@ -1000,14 +1076,20 @@ fn main() {
                 });
             }
 
-            // System tray
-            let status_item = MenuItem::with_id(app, "status", "● Connecting...", false, None::<&str>)?;
-            let unread_item = MenuItem::with_id(app, "unread", "No unread", false, None::<&str>)?;
+            // System tray with locale-aware translations
+            let locale = if cfg.language == "auto" {
+                detect_system_locale()
+            } else {
+                cfg.language.clone()
+            };
+            let tray_i18n = get_tray_translations(&locale);
+            let status_item = MenuItem::with_id(app, "status", &tray_i18n.connecting, false, None::<&str>)?;
+            let unread_item = MenuItem::with_id(app, "unread", &tray_i18n.no_unread, false, None::<&str>)?;
             let separator1 = PredefinedMenuItem::separator(app)?;
-            let toggle_item = MenuItem::with_id(app, "toggle", "Toggle Window", true, None::<&str>)?;
-            let reconnect_item = MenuItem::with_id(app, "reconnect", "Reconnect", true, None::<&str>)?;
+            let toggle_item = MenuItem::with_id(app, "toggle", &tray_i18n.toggle_window, true, None::<&str>)?;
+            let reconnect_item = MenuItem::with_id(app, "reconnect", &tray_i18n.reconnect, true, None::<&str>)?;
             let separator2 = PredefinedMenuItem::separator(app)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", &tray_i18n.quit, true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&status_item, &unread_item, &separator1, &toggle_item, &reconnect_item, &separator2, &quit_item])?;
 
             let icon = app
@@ -1015,7 +1097,7 @@ fn main() {
                 .map(|i| i.clone())
                 .expect("app icon not found");
 
-            app.manage(TrayMenuItems { status: status_item, unread: unread_item });
+            app.manage(TrayMenuItems { status: status_item, unread: unread_item, translations: tray_i18n });
 
             let _tray = TrayIconBuilder::new()
                 .icon(icon)
@@ -1046,6 +1128,16 @@ fn main() {
                     }
                 })
                 .build(app)?;
+
+            // Register global shortcut: Win+Space to toggle window
+            use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+            let shortcut = Shortcut::new(Some(Modifiers::SUPER), Code::Space);
+            let handle = app.handle().clone();
+            let _ = app.global_shortcut().on_shortcut(shortcut, move |_app, _event, _shortcut| {
+                if let Some(win) = handle.get_webview_window("main") {
+                    toggle_docked_window(&win);
+                }
+            });
 
             // Position window on the right side of the screen with slide-in animation
             if let Some(win) = app.get_webview_window("main") {
@@ -1095,7 +1187,8 @@ fn main() {
             get_log_settings,
             set_log_level,
             set_log_retention,
-            get_log_file_path
+            get_log_file_path,
+            set_language
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
