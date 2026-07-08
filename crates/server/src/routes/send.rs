@@ -24,9 +24,9 @@ async fn send_message(
     let user_id: i64 = auth.claims.sub.parse()
         .map_err(|_| AppError::BadRequest("invalid user id".into()))?;
 
-    // Validate that either body or template is provided
-    if req.body.is_none() && req.template_name.is_none() {
-        return Err(AppError::BadRequest("either body or template is required".into()));
+    // Validate that body, template, or attachment is provided
+    if req.body.is_none() && req.template_name.is_none() && req.attachment.is_none() {
+        return Err(AppError::BadRequest("body, template, or attachment is required".into()));
     }
 
     // Check idempotency

@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { messagesApi, topicsApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
-import { RefreshCw, RotateCw, Trash2, Download, Paperclip, ExternalLink, SlidersHorizontal, ChevronDown } from 'lucide-react'
+import { RefreshCw, RotateCw, Trash2, Download, Paperclip, ExternalLink, SlidersHorizontal, ChevronDown, Copy, Check } from 'lucide-react'
 import { formatDate, toDate } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -165,6 +165,7 @@ export default function Messages() {
   const [error, setError] = useState('')
   const [visibleCols, setVisibleCols] = useState<Set<ColumnKey>>(new Set(ALL_COLUMNS.filter((c) => !['tags', 'priority', 'format', 'topic', 'retries', 'duration'].includes(c))))
   const [showColPicker, setShowColPicker] = useState(false)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
   const colPickerRef = useRef<HTMLDivElement>(null)
   const pageRef = useRef(page)
   const statusFilterRef = useRef(statusFilter)
@@ -187,6 +188,24 @@ export default function Messages() {
       document.removeEventListener('keydown', handleKey)
     }
   }, [showColPicker])
+
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedField(field)
+      setTimeout(() => setCopiedField(null), 2000)
+    } catch {
+      // fallback
+      const ta = document.createElement('textarea')
+      ta.value = text
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      setCopiedField(field)
+      setTimeout(() => setCopiedField(null), 2000)
+    }
+  }
 
   const toggleCol = (key: ColumnKey) => {
     setVisibleCols((prev) => {
@@ -724,8 +743,23 @@ export default function Messages() {
               {/* Body - takes remaining space */}
               {selectedMsg.body && (
                 <div>
-                  <span className="text-xs text-muted-foreground">{t('messages.colBody')}</span>
-                  <pre className="text-sm mt-0.5 p-3 bg-muted rounded-md whitespace-pre-wrap break-all max-h-[400px] overflow-y-auto">{selectedMsg.body}</pre>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{t('messages.colBody')}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => copyToClipboard(selectedMsg.body!, 'body')}
+                    >
+                      {copiedField === 'body' ? (
+                        <Check className="h-3 w-3 mr-1 text-green-500" />
+                      ) : (
+                        <Copy className="h-3 w-3 mr-1" />
+                      )}
+                      {copiedField === 'body' ? t('messages.copied') : t('messages.copy')}
+                    </Button>
+                  </div>
+                  <pre className="text-sm mt-0.5 p-3 bg-muted rounded-md whitespace-pre-wrap break-all">{selectedMsg.body}</pre>
                 </div>
               )}
             </div>

@@ -1,5 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 
+/** Replace /home/user or $HOME prefix with ~ */
+function shortenPath(p: string): string {
+  if (!p) return p
+  // Replace $HOME prefix
+  if (p.startsWith('$HOME/')) return '~/' + p.slice(6)
+  if (p === '$HOME') return '~'
+  // Replace /home/username or /root prefix
+  const m = p.match(/^\/home\/[^/]+/)
+  if (m) return '~' + p.slice(m[0].length)
+  if (p.startsWith('/root/')) return '~/' + p.slice(6)
+  if (p === '/root') return '~'
+  return p
+}
+
 interface Props { app: any }
 
 export function SettingsModal({ app }: Props) {
@@ -119,10 +133,7 @@ export function SettingsModal({ app }: Props) {
               <div className="info-list">
                 <div className="info-row"><span className="info-label">URL</span><span className="info-value mono">{cfg?.server?.url || '—'}</span></div>
                 <div className="info-row"><span className="info-label">{T.username}</span><span className="info-value">{cfg?.server?.username || '—'}</span></div>
-              </div>
-              <div className="field" style={{ marginTop: '12px' }}>
-                <label>{T.name}</label>
-                <input type="text" placeholder="My Desktop" value={clientName} onChange={e => setClientName(e.target.value)} />
+                <div className="info-row"><span className="info-label">{T.name}</span><input type="text" placeholder="My Desktop" value={clientName} onChange={e => setClientName(e.target.value)} style={{ maxWidth: '200px', flex: 1, padding: '4px 8px', border: '1px solid var(--outline-variant)', borderRadius: '8px', fontSize: '13px', color: 'var(--text)', background: 'var(--input-bg)' }} /></div>
               </div>
               <div className="appearance-row" style={{ marginTop: '12px' }}>
                 <label className="appearance-label">{T.connectionMode}</label>
@@ -205,12 +216,6 @@ export function SettingsModal({ app }: Props) {
                   <option value="365">{T.logRetentionYear}</option>
                 </select>
               </div>
-              {logFilePath && (
-                <div className="appearance-row">
-                  <label className="appearance-label">{T.logFile}</label>
-                  <span className="info-value mono" style={{ fontSize: '12px', wordBreak: 'break-all' }}>{logFilePath}</span>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -249,13 +254,14 @@ export function SettingsModal({ app }: Props) {
           <div className="tab-pane active">
             <div className="modal-body">
               <div className="info-list">
-                <div className="info-row"><span className="info-label">UUID</span><span className="info-value mono" style={{ cursor: 'pointer' }} onClick={() => { navigator.clipboard.writeText(cfg?.client?.uuid || ''); showToast(T.copied, 'success') }}>{cfg?.client?.uuid || '—'}</span></div>
+                <div className="info-row"><span className="info-label">UUID</span><span className="info-value mono" style={{ cursor: 'pointer', fontWeight: 600 }} onClick={() => { navigator.clipboard.writeText(cfg?.client?.uuid || ''); showToast(T.copied, 'success') }}>{cfg?.client?.uuid || '—'}</span></div>
                 {sysInfo && <div className="info-row"><span className="info-label">{T.system}</span><span className="info-value">{sysInfo.os} / {sysInfo.arch} / {sysInfo.desktop_env}</span></div>}
                 <div className="info-row"><span className="info-label">{T.messages}</span><span className="info-value">{app.allMessages.length}</span></div>
                 {appInfo && <>
                   <div className="info-row"><span className="info-label">{T.appVersion}</span><span className="info-value">{appInfo.version}</span></div>
-                  <div className="info-row"><span className="info-label">{T.configFile}</span><span className="info-value mono">{appInfo.config_path}</span></div>
-                  <div className="info-row"><span className="info-label">{T.messagesFile}</span><span className="info-value mono">{appInfo.messages_path}</span></div>
+                  <div className="info-row"><span className="info-label">{T.configFile}</span><span className="info-value mono">{shortenPath(appInfo.config_path)}</span></div>
+                  <div className="info-row"><span className="info-label">{T.messagesFile}</span><span className="info-value mono">{shortenPath(appInfo.messages_path)}</span></div>
+                  {logFilePath && <div className="info-row"><span className="info-label">{T.logDir}</span><span className="info-value mono">{shortenPath(logFilePath.substring(0, logFilePath.lastIndexOf('/')))}</span></div>}
                 </>}
               </div>
               <hr className="section-divider" />

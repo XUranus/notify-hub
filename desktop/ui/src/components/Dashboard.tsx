@@ -115,11 +115,15 @@ function MessageCard({ m, isSelectMode, isSelected, isNew, T, formatRelativeTime
   const tags = parseTags(m)
   const att = parseAttachment(m)
   const relTime = formatRelativeTime(m.received_at)
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null)
 
-  const formatLabel = m.format === 'json' ? 'JSON'
-    : m.format === 'markdown' || m.format === 'md' ? 'Markdown'
-    : m.format === 'html' ? 'HTML'
-    : m.format
+  useEffect(() => {
+    if (att?.url && isImageUrl(att.url)) {
+      let cancelled = false
+      api.fetchImageDataUrl(att.url).then(url => { if (!cancelled) setThumbUrl(url) }).catch(() => {})
+      return () => { cancelled = true }
+    }
+  }, [att?.url])
 
   return (
     <div className={`msg-card ${!m.read ? 'unread' : ''} ${isSelected ? 'selected' : ''} ${isNew ? 'msg-new' : ''}`} data-id={m.id}>
@@ -131,10 +135,12 @@ function MessageCard({ m, isSelectMode, isSelected, isNew, T, formatRelativeTime
         <div className="msg-title-row"><span className="msg-title-text">{m.title || T.untitled}</span></div>
         <div className="msg-body-preview">{(m.body || '').substring(0, 120)}</div>
       </div>
-      {(tags.length > 0 || (m.format && m.format !== 'text')) && (
+      {thumbUrl && (
+        <img className="msg-thumb" src={thumbUrl} alt="" />
+      )}
+      {tags.length > 0 && (
         <div className="msg-tags-col">
           {tags.map(t => <span key={t} className="msg-tag">{t}</span>)}
-          {m.format && m.format !== 'text' && <span className="msg-tag msg-format-tag" title={m.format}>{formatLabel}</span>}
         </div>
       )}
       <div className="msg-info-col">
@@ -198,6 +204,41 @@ function EmptyState({ searchQuery, T }: { searchQuery: string; T: any }) {
   )
 }
 
+// ── Card image preview (lightweight, for MessageFullCard) ──
+function CardImagePreview({ att, T }: { att: { name: string; url: string }; T: any }) {
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true); setError(false); setThumbUrl(null)
+    api.fetchImageDataUrl(att.url).then(url => {
+      if (!cancelled) { setThumbUrl(url); setLoading(false) }
+    }).catch(() => {
+      if (!cancelled) { setError(true); setLoading(false) }
+    })
+    return () => { cancelled = true }
+  }, [att.url])
+
+  if (error) return <div className="msg-full-card-attachment"><span className="att-name">{att.name || 'attachment'}</span></div>
+
+  return (
+    <div className="msg-full-card-image">
+      {loading && <div className="att-image-loading">⏳</div>}
+      {thumbUrl && (
+        <img
+          className="msg-full-card-image-img"
+          src={thumbUrl}
+          alt={att.name || 'image'}
+          title={att.name || 'image'}
+          onClick={async e => { e.stopPropagation(); try { await api.downloadFile(att.url, att.name || 'image') } catch {} }}
+        />
+      )}
+    </div>
+  )
+}
+
 // ── MessageFullCard component (card view with full content) ──
 function MessageFullCard({ m, isSelectMode, isSelected, isNew, T, formatRelativeTime, parseTags, parseAttachment, renderMarkdown, renderJsonSyntax, onMarkRead }: {
   m: Message; isSelectMode: boolean; isSelected: boolean; isNew: boolean
@@ -209,11 +250,6 @@ function MessageFullCard({ m, isSelectMode, isSelected, isNew, T, formatRelative
   const tags = parseTags(m)
   const att = parseAttachment(m)
   const relTime = formatRelativeTime(m.received_at)
-
-  const formatLabel = m.format === 'json' ? 'JSON'
-    : m.format === 'markdown' || m.format === 'md' ? 'Markdown'
-    : m.format === 'html' ? 'HTML'
-    : m.format
 
   let bodyHtml = ''
   let bodyClass = ''
@@ -255,16 +291,17 @@ function MessageFullCard({ m, isSelectMode, isSelected, isNew, T, formatRelative
       {tags.length > 0 && (
         <div className="msg-full-card-tags">
           {tags.map(t => <span key={t} className="msg-tag">{t}</span>)}
-          {m.format && m.format !== 'text' && <span className="msg-tag msg-format-tag" title={m.format}>{formatLabel}</span>}
         </div>
       )}
       {m.body && (
         <div className={`msg-full-card-body ${bodyClass}`} dangerouslySetInnerHTML={{ __html: bodyHtml }} />
       )}
       {att && att.url && (
-        <div className="msg-full-card-attachment">
-          <span className="att-name">{att.name || 'attachment'}</span>
-        </div>
+        isImageUrl(att.url)
+          ? <CardImagePreview att={att} T={T} />
+          : <div className="msg-full-card-attachment">
+              <span className="att-name">{att.name || 'attachment'}</span>
+            </div>
       )}
     </div>
   )
@@ -475,6 +512,7 @@ export function Dashboard({ app }: Props) {
           </div>
           <div className="detail-meta"><span className="detail-time">{formatRelativeTime(m.received_at)}</span></div>
           {m.url && <a className="detail-url-btn" href="#" onClick={async e => { e.preventDefault(); try { await invoke('download_file', { url: m.url, filename: m.title || 'file' }) } catch {} }} >🔗 {m.url}</a>}
+          {m.body && (
           <div className="detail-content-card">
             <div className="detail-content-header">
               <span className="detail-format-label">{m.format === 'json' ? '{ } JSON' : m.format === 'markdown' || m.format === 'md' ? 'M↓ Markdown' : m.format === 'html' ? '</> HTML' : 'Content'}</span>
@@ -484,6 +522,7 @@ export function Dashboard({ app }: Props) {
             </div>
             <div className={`detail-content-body ${bodyClass}`} dangerouslySetInnerHTML={{ __html: bodyHtml }} />
           </div>
+          )}
           {tags.length > 0 && <><div className="detail-section-title">{T.tags}</div><div className="detail-tags">{tags.map((t: string) => <span key={t} className="detail-tag">{t}</span>)}</div></>}
           {att && <><div className="detail-section-title">{T.attachment}</div>
             {att.url && isImageUrl(att.url)
