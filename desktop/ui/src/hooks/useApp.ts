@@ -54,6 +54,39 @@ export function useApp() {
   // Apply theme on mount
   useEffect(() => { setTheme(theme); setColorScheme(colorScheme) }, [])
 
+  // ── Font Settings ──
+  const FONT_SIZES = ['12', '13', '14', '15', '16', '18', '20']
+  const FONT_FAMILIES = [
+    { label: 'System', value: '' },
+    { label: 'Sans-serif', value: 'system-ui, -apple-system, sans-serif' },
+    { label: 'Serif', value: 'Georgia, "Times New Roman", serif' },
+    { label: 'Monospace', value: '"SF Mono", "Fira Code", "Cascadia Code", monospace' },
+  ]
+  const [fontSize, setFontSizeState] = useState<string>(() => localStorage.getItem('nh_font_size') || '14')
+  const [fontFamily, setFontFamilyState] = useState<string>(() => localStorage.getItem('nh_font_family') || '')
+
+  const applyFont = useCallback((size: string, family: string) => {
+    const root = document.documentElement
+    root.style.setProperty('--app-font-size', size + 'px')
+    if (family) {
+      root.style.setProperty('--app-font-family', family)
+    } else {
+      root.style.removeProperty('--app-font-family')
+    }
+  }, [])
+
+  const setFontSize = useCallback((s: string) => {
+    setFontSizeState(s); localStorage.setItem('nh_font_size', s)
+    applyFont(s, fontFamily)
+  }, [fontFamily, applyFont])
+
+  const setFontFamily = useCallback((f: string) => {
+    setFontFamilyState(f); localStorage.setItem('nh_font_family', f)
+    applyFont(fontSize, f)
+  }, [fontSize, applyFont])
+
+  useEffect(() => { applyFont(fontSize, fontFamily) }, [])
+
   // ── Toast ──
   const [toast, setToast] = useState({ text: '', type: 'info' as string, visible: false })
   const toastTimer = useRef<number | null>(null)
@@ -338,6 +371,8 @@ export function useApp() {
     lang, T, setLang,
     // Theme
     theme, colorScheme, setTheme, setColorScheme, colorSchemes: COLOR_SCHEMES,
+    // Font
+    fontSize, fontFamily, setFontSize, setFontFamily, fontSizes: FONT_SIZES, fontFamilies: FONT_FAMILIES,
     // Toast
     toast, showToast,
     // View

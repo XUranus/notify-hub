@@ -92,6 +92,7 @@ export const api = {
   getPollState: () => invoke<PollStateSnapshot>('get_poll_state'),
   getSystemInfo: () => invoke<SystemInfo>('get_system_info'),
   getAppInfo: () => invoke<AppInfo>('get_app_info'),
+  getSystemFonts: () => invoke<string[]>('get_system_fonts'),
   getClients: () => invoke<Client[]>('get_clients'),
   updateClientName: (name: string) => invoke('update_client_name', { name }),
 

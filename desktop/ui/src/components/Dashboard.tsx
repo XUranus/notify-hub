@@ -156,14 +156,12 @@ const MessageCard = React.memo(function MessageCard({ m, isSelectMode, isSelecte
         {att && <span className="msg-att-icon">📎</span>}
         {m.url && <span className="msg-att-icon">🔗</span>}
         <span className="msg-time">{relTime}</span>
+        <span className={`msg-flag-icon ${m.flagged ? 'flagged' : ''}`} data-action="flag" data-id={m.id} title={m.flagged ? T.unflag : T.flag}>⚑</span>
       </div>
       <div className="msg-right">
-        <div className="msg-flags">
-          <span className={`msg-flag-icon ${m.flagged ? 'flagged' : ''}`} data-action="flag" data-id={m.id} title={m.flagged ? T.unflag : T.flag}>⚑</span>
-          <button className="msg-del-btn" data-action="delete" data-id={m.id} title={T.delete}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-          </button>
-        </div>
+        <button className="msg-del-btn" data-action="delete" data-id={m.id} title={T.delete}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+        </button>
       </div>
     </div>
   )
@@ -684,22 +682,6 @@ export function Dashboard({ app }: Props) {
           <input type="text" id="searchInput" placeholder={T.search} value={app.searchQuery} onChange={e => app.setSearchQuery(e.target.value)} autoFocus />
         </div>
       )}
-
-      {/* Filter chips and action buttons */}
-      <div style={{display:'flex',gap:'6px',alignItems:'center',marginBottom:'8px',padding:'0 2px'}}>
-        <div className="filter-chips" style={{display: app.topicDetailKey ? 'none' : undefined}}>
-          {(['all','unread','read','flagged'] as const).map(f => (
-            <span key={f} className={`chip ${app.currentFilter === f ? 'active' : ''}`} data-filter={f} onClick={() => app.setCurrentFilter(f)}>{T[`filter${f.charAt(0).toUpperCase() + f.slice(1)}`]}</span>
-          ))}
-        </div>
-        <div style={{flex:1}} />
-        <button className="icon-btn" id="markAllReadBtn" title={T.markAllRead} onClick={() => { app.markAllRead(); const btn = document.getElementById('markAllReadBtn'); if (btn) { btn.classList.remove('pulse-success'); void (btn as HTMLElement).offsetWidth; btn.classList.add('pulse-success') } }} style={{display: app.allMessages.length ? '' : 'none'}}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-        </button>
-        <button className="icon-btn danger" id="clearMsgsBtn" title={T.clearAll} onClick={() => app.showDeleteConfirm(T.clearConfirm, () => app.clearAll())} style={{display: app.allMessages.length ? '' : 'none'}}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-        </button>
-      </div>
 
       <div className="card">
         {app.selectMode && (

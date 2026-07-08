@@ -80,6 +80,29 @@ fn get_app_info() -> AppInfo {
 }
 
 #[tauri::command]
+fn get_system_fonts() -> Vec<String> {
+    use std::process::Command;
+    // fc-list : family lists unique font family names
+    let output = Command::new("fc-list")
+        .arg(":")
+        .arg("family")
+        .output()
+        .unwrap_or_else(|_| {
+            // Fallback: return empty if fc-list not available
+            Command::new("echo").output().unwrap()
+        });
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut fonts: Vec<String> = stdout
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect();
+    fonts.sort();
+    fonts.dedup();
+    fonts
+}
+
+#[tauri::command]
 fn get_autostart() -> bool {
     AppConfig::load().map(|c| c.autostart).unwrap_or(false)
 }
@@ -1152,6 +1175,7 @@ fn main() {
             get_poll_state,
             get_system_info,
             get_app_info,
+            get_system_fonts,
             get_autostart,
             set_autostart,
             get_connection_mode,

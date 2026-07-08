@@ -320,10 +320,16 @@ pub fn show_notification(title: &str, body: &str) {
 pub fn show_notification_with_icon(title: &str, body: &str, content_icon_path: Option<&str>) {
     debug!("[notify] Showing notification with icon: {}", title);
     let plain_body = markdown_to_plain(body);
+    let display_body = if plain_body.chars().count() > 100 {
+        let truncated: String = plain_body.chars().take(97).collect();
+        format!("{}...", truncated)
+    } else {
+        plain_body
+    };
     let mut notif = Notification::new();
     notif
         .summary(title)
-        .body(&plain_body)
+        .body(&display_body)
         .appname("NotifyHub")
         .timeout(10000);
 

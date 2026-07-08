@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { api } from '../lib/tauri'
 
 /** Replace /home/user or $HOME prefix with ~ */
 function shortenPath(p: string): string {
@@ -17,7 +18,7 @@ function shortenPath(p: string): string {
 interface Props { app: any }
 
 export function SettingsModal({ app }: Props) {
-  const { T, lang, setLang, theme, setTheme, colorScheme, setColorScheme, colorSchemes, showToast, invoke } = app
+  const { T, lang, setLang, theme, setTheme, colorScheme, setColorScheme, colorSchemes, fontSize, fontFamily, setFontSize, setFontFamily, fontSizes, fontFamilies, showToast, invoke } = app
   const [tab, setTab] = useState('server')
   const [cfg, setCfg] = useState<any>(null)
   const [sysInfo, setSysInfo] = useState<any>(null)
@@ -29,6 +30,7 @@ export function SettingsModal({ app }: Props) {
   const [logLevel, setLogLevel] = useState('info')
   const [logRetention, setLogRetention] = useState(30)
   const [logFilePath, setLogFilePath] = useState('')
+  const [systemFonts, setSystemFonts] = useState<string[]>([])
 
   const loadSystemTab = useCallback(async () => {
     try { const c = await invoke('get_config'); if (c) { setCfg(c); setClientName(c.client.name) } } catch {}
@@ -38,6 +40,7 @@ export function SettingsModal({ app }: Props) {
     try { const c = await invoke('get_config'); if (c) setAutoDownload(!!c.auto_download_images) } catch {}
     try { const m = await invoke('get_connection_mode'); setConnectionMode(m || 'sse') } catch {}
     try { const ls = await invoke('get_log_settings'); if (ls) { setLogLevel(ls.level || 'info'); setLogRetention(ls.retentionDays || 30); setLogFilePath(ls.logPath || '') } } catch {}
+    try { const fonts = await api.getSystemFonts(); setSystemFonts(fonts || []) } catch {}
   }, [invoke])
 
   useEffect(() => { if (app.settingsOpen) loadSystemTab() }, [app.settingsOpen, loadSystemTab])
@@ -189,6 +192,20 @@ export function SettingsModal({ app }: Props) {
                     <button key={s} className={`color-swatch ${colorScheme === s ? 'active' : ''}`} style={{ background: schemeColors[s] }} title={schemeLabels[s]} onClick={() => setColorScheme(s)} />
                   ))}
                 </div>
+              </div>
+              <div className="appearance-row">
+                <label className="appearance-label">{T.fontSize || 'Font Size'}</label>
+                <select className="appearance-select" value={fontSize} onChange={e => setFontSize(e.target.value)}>
+                  {fontSizes.map((s: string) => <option key={s} value={s}>{s}px</option>)}
+                </select>
+              </div>
+              <div className="appearance-row">
+                <label className="appearance-label">{T.fontFamily || 'Font'}</label>
+                <select className="appearance-select" value={fontFamily} onChange={e => setFontFamily(e.target.value)}>
+                  {fontFamilies.map((f: any) => <option key={f.value} value={f.value} style={{ fontFamily: f.value || undefined }}>{f.label}</option>)}
+                  {systemFonts.length > 0 && <option disabled>──────────</option>}
+                  {systemFonts.map((f: string) => <option key={f} value={`"${f}"`} style={{ fontFamily: `"${f}"` }}>{f}</option>)}
+                </select>
               </div>
 
               <hr className="section-divider" />

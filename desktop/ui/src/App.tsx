@@ -31,6 +31,11 @@ export default function App() {
           if (!newVal) app.setSearchQuery('')
         }}
         unreadCount={unreadCount}
+        hasMessages={app.allMessages.length > 0}
+        onMarkAllRead={() => app.markAllRead()}
+        onClearAll={() => app.showDeleteConfirm(app.T.clearConfirm, () => app.clearAll())}
+        currentFilter={app.currentFilter}
+        onSetFilter={app.setCurrentFilter}
       />
 
       {app.currentView === 'connect' && (
