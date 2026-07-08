@@ -136,7 +136,7 @@ export function SettingsModal({ app }: Props) {
               <div className="info-list">
                 <div className="info-row"><span className="info-label">URL</span><span className="info-value mono">{cfg?.server?.url || '—'}</span></div>
                 <div className="info-row"><span className="info-label">{T.username}</span><span className="info-value">{cfg?.server?.username || '—'}</span></div>
-                <div className="info-row"><span className="info-label">{T.name}</span><input type="text" placeholder="My Desktop" value={clientName} onChange={e => setClientName(e.target.value)} style={{ maxWidth: '200px', flex: 1, padding: '4px 8px', border: '1px solid var(--outline-variant)', borderRadius: '8px', fontSize: '13px', color: 'var(--text)', background: 'var(--input-bg)' }} /></div>
+                <div className="info-row"><span className="info-label">{T.name}</span><input type="text" placeholder="My Desktop" value={clientName} onChange={e => setClientName(e.target.value)} style={{ minWidth: '120px', maxWidth: '180px', flex: 1, padding: '6px 12px', border: '1px solid var(--outline-variant)', borderRadius: '12px', fontSize: '13px', color: 'var(--text)', background: 'var(--input-bg)', fontFamily: 'inherit' }} /></div>
               </div>
               <div className="appearance-row" style={{ marginTop: '12px' }}>
                 <label className="appearance-label">{T.connectionMode}</label>
