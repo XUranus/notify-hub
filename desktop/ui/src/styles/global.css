@@ -510,6 +510,27 @@
     .channel-badge:hover { background: var(--accent-soft); color: var(--accent); }
     .channel-badge.active { background: var(--secondary-container); color: var(--on-primary-container); border-color: transparent; }
 
+    /* ── Client Dropdown ── */
+    .client-dropdown { position: relative; }
+    .client-dropdown-trigger { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border: 1px solid var(--outline-variant); border-radius: 12px; background: var(--input-bg); cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
+    .client-dropdown-trigger:hover { border-color: var(--accent); }
+    .client-dropdown-value { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+    .client-dropdown-value svg { flex-shrink: 0; color: var(--text2); }
+    .client-dropdown-value span { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .client-dropdown-placeholder { color: var(--text3); }
+    .client-dropdown-arrow { flex-shrink: 0; color: var(--text3); transition: transform 0.2s; }
+    .client-dropdown-menu { position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); z-index: 1000; max-height: 200px; overflow-y: auto; animation: slideDown 0.15s ease; }
+    .client-dropdown-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; transition: background 0.15s; }
+    .client-dropdown-item:hover { background: var(--accent-soft); }
+    .client-dropdown-item.disabled { opacity: 0.5; cursor: not-allowed; }
+    .client-dropdown-item.offline { opacity: 0.6; }
+    .client-item-icon { flex-shrink: 0; display: flex; align-items: center; color: var(--text2); }
+    .client-item-name { flex: 1; font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .client-local-badge { font-size: 11px; color: var(--accent); font-weight: 500; }
+    .client-item-status { flex-shrink: 0; display: flex; align-items: center; }
+    .client-item-status svg { color: var(--success); }
+    .client-dropdown-item.offline .client-item-status svg { color: var(--text3); }
+
     /* ── Appearance Selectors ── */
     .appearance-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; }
     .appearance-label { font-size: 13px; color: var(--text2); }

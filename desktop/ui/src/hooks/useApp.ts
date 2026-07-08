@@ -68,6 +68,7 @@ export function useApp() {
   const [currentView, setCurrentView] = useState<'connect' | 'dashboard'>('connect')
   const [viewMode, setViewMode] = useState<string>(() => localStorage.getItem('viewMode') || 'messages')
   const [offlineMode, setOfflineMode] = useState(false)
+  const [clientUuid, setClientUuid] = useState<string>('')
 
   const toggleViewMode = useCallback(() => {
     const modes = ['messages', 'topics', 'cards']
@@ -281,6 +282,7 @@ export function useApp() {
     const init = async () => {
       try {
         const cfg = await invoke('get_config')
+        if (cfg?.client?.uuid) setClientUuid(cfg.client.uuid)
         if (cfg?.server?.jwt) { setCurrentView('dashboard'); refreshMessages(); return }
         if (cfg?.server?.url) { /* pre-fill connect form */ }
       } catch {}
@@ -350,6 +352,8 @@ export function useApp() {
     showDeleteConfirm,
     // Connection
     connStatus, handleConnect,
+    // Client
+    clientUuid,
     // Tauri
     invoke,
   }
