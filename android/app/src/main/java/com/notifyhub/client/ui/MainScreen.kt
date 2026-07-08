@@ -322,6 +322,29 @@ fun MainScreen(
     val hasError = !isConnected && !isOfflineMode && lastError != null
     var isMuted by remember { mutableStateOf(ConfigStore.isMuted(context)) }
 
+    // Connection timeout: show offline dialog after 5 seconds of connecting
+    var connectionStartTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    var hasTimedOut by remember { mutableStateOf(false) }
+
+    // Reset timeout when connection state changes
+    LaunchedEffect(isConnected) {
+        if (isConnected) {
+            hasTimedOut = false
+        }
+    }
+
+    // Start timeout timer when not connected
+    LaunchedEffect(isConnected, isOfflineMode) {
+        if (!isConnected && !isOfflineMode) {
+            connectionStartTime = System.currentTimeMillis()
+            hasTimedOut = false
+            kotlinx.coroutines.delay(5000)
+            if (!isConnected && !isOfflineMode) {
+                hasTimedOut = true
+            }
+        }
+    }
+
     // Refresh mute state periodically
     LaunchedEffect(Unit) {
         while (true) {
@@ -1141,7 +1164,7 @@ fun MainScreen(
 
     // Offline dialog
     val showOfflineDialog = pollService?.showOfflineDialog?.value == true
-    if (showOfflineDialog) {
+    if (showOfflineDialog || hasTimedOut) {
         AlertDialog(
             onDismissRequest = {
                 // Click outside = enter offline mode
@@ -1381,142 +1404,167 @@ private fun MessageCard(
             androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
         }
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.Top
+                .padding(14.dp)
         ) {
-            // Left accent bar for unread
-            if (!msg.read) {
-                Box(
-                    modifier = Modifier
-                        .width(3.dp)
-                        .height(56.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.primary)
-                )
-                Spacer(Modifier.width(10.dp))
-            }
+            // Left accent bar + header row: avatar, topic name, time
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (!msg.read) {
+                    Box(
+                        modifier = Modifier
+                            .width(3.dp)
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                }
 
-            if (selectionMode) {
-                Checkbox(
-                    checked = isSelected,
-                    onCheckedChange = { onClick() },
-                    modifier = Modifier.padding(end = 8.dp).size(20.dp)
-                )
-            } else {
-                TopicAvatar(
-                    topicIcon = msg.topicIcon,
-                    topicName = msg.topicName,
-                    topicDisplayName = msg.topicDisplayName,
-                    size = 40,
-                    borderColor = levelColor,
-                )
-                Spacer(Modifier.width(12.dp))
-            }
+                if (selectionMode) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onClick() },
+                        modifier = Modifier.padding(end = 8.dp).size(20.dp)
+                    )
+                } else {
+                    TopicAvatar(
+                        topicIcon = msg.topicIcon,
+                        topicName = msg.topicName,
+                        topicDisplayName = msg.topicDisplayName,
+                        size = 40,
+                        borderColor = levelColor,
+                    )
+                    Spacer(Modifier.width(12.dp))
+                }
 
-            Column(modifier = Modifier.weight(1f)) {
-                val displayTitle = if (msg.title.isNotBlank()) msg.title else I18n["untitled"]
-                Text(
-                    displayTitle,
-                    fontWeight = if (msg.read) FontWeight.Medium else FontWeight.Bold,
-                    fontSize = 15.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = if (msg.title.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    msg.body,
-                    fontSize = 13.sp,
-                    fontWeight = if (msg.read) FontWeight.Normal else FontWeight.SemiBold,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    color = if (msg.read) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
-                )
+                // Topic name + title
+                Column(modifier = Modifier.weight(1f)) {
+                    val topicName = msg.topicDisplayName ?: msg.topicName
+                    if (!topicName.isNullOrEmpty()) {
+                        Text(
+                            topicName,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    val displayTitle = if (msg.title.isNotBlank()) msg.title else I18n["untitled"]
+                    Text(
+                        displayTitle,
+                        fontWeight = if (msg.read) FontWeight.Medium else FontWeight.Bold,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = if (msg.title.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
-                // Tags as chips
-                val parsedTags: List<String> = try {
-                    if (msg.tags != null && msg.tags != "[]") {
-                        com.google.gson.Gson().fromJson(msg.tags, object : com.google.gson.reflect.TypeToken<List<String>>() {}.type)
-                    } else emptyList()
-                } catch (_: Exception) { emptyList() }
-                val hasExtendedFields = parsedTags.isNotEmpty() || msg.url != null || msg.attachment != null
-                if (hasExtendedFields) {
-                    Spacer(Modifier.height(6.dp))
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(3.dp)
-                    ) {
-                        if (msg.url != null) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                            ) {
-                                Text(
-                                    "🔗 Link",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                        if (msg.attachment != null) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
-                            ) {
-                                Text(
-                                    "📎 File",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.tertiary,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                        parsedTags.forEach { tag ->
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                border = androidx.compose.foundation.BorderStroke(
-                                    0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                )
-                            ) {
-                                Text(
-                                    tag,
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
+                Spacer(Modifier.width(8.dp))
+
+                // Time + flag
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.heightIn(min = 36.dp)
+                ) {
+                    Text(
+                        formatRelativeTime(msg.receivedAt),
+                        fontSize = 11.sp,
+                        color = if (msg.read) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                        fontWeight = if (msg.read) FontWeight.Normal else FontWeight.Bold
+                    )
+                    if (msg.flagged) {
+                        Spacer(Modifier.weight(1f))
+                        Icon(
+                            Icons.Default.Flag,
+                            contentDescription = I18n["flagged"],
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
                     }
                 }
             }
 
-            Spacer(Modifier.width(8.dp))
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.heightIn(min = 48.dp)
-            ) {
-                Text(
-                    formatRelativeTime(msg.receivedAt),
-                    fontSize = 11.sp,
-                    color = if (msg.read) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
-                    fontWeight = if (msg.read) FontWeight.Normal else FontWeight.Bold
+            // Full-width body content
+            Spacer(Modifier.height(8.dp))
+            val format = msg.format ?: "text"
+            when (format) {
+                "markdown" -> MarkdownText(
+                    body = msg.body,
+                    maxLines = 20
                 )
-                if (msg.flagged) {
-                    Spacer(Modifier.weight(1f))
-                    Icon(
-                        Icons.Default.Flag,
-                        contentDescription = I18n["flagged"],
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(14.dp)
-                    )
+                else -> Text(
+                    msg.body,
+                    fontSize = 13.sp,
+                    fontWeight = if (msg.read) FontWeight.Normal else FontWeight.SemiBold,
+                    color = if (msg.read) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            // Tags as chips
+            val parsedTags: List<String> = try {
+                if (msg.tags != null && msg.tags != "[]") {
+                    com.google.gson.Gson().fromJson(msg.tags, object : com.google.gson.reflect.TypeToken<List<String>>() {}.type)
+                } else emptyList()
+            } catch (_: Exception) { emptyList() }
+            val hasExtendedFields = parsedTags.isNotEmpty() || msg.url != null || msg.attachment != null
+            if (hasExtendedFields) {
+                Spacer(Modifier.height(8.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    if (msg.url != null) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        ) {
+                            Text(
+                                "🔗 Link",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    if (msg.attachment != null) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                        ) {
+                            Text(
+                                "📎 File",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    parsedTags.forEach { tag ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            border = androidx.compose.foundation.BorderStroke(
+                                0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Text(
+                                tag,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
