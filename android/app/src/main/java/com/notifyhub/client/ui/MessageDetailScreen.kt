@@ -47,6 +47,8 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Base64
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.border
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.material.icons.filled.Notifications
@@ -503,30 +505,213 @@ fun MessageDetailScreen(
 
 @Composable
 private fun MarkdownText(body: String) {
-    val rendered = remember(body) {
-        body
-            .replace(Regex("^#{1,6}\\s+", RegexOption.MULTILINE), "")
-            .replace(Regex("\\*\\*(.*?)\\*\\*"), "$1")
-            .replace(Regex("\\*(.*?)\\*"), "$1")
-            .replace(Regex("__(.*?)__"), "$1")
-            .replace(Regex("_(.*?)_"), "$1")
-            .replace(Regex("~~(.*?)~~"), "$1")
-            .replace(Regex("\\[(.*?)\\]\\(.*?\\)"), "$1")
-            .replace(Regex("!\\[.*?\\]\\(.*?\\)"), "[image]")
-            .replace(Regex("^>\\s+", RegexOption.MULTILINE), "")
-            .replace(Regex("^[-*+]\\s+", RegexOption.MULTILINE), "• ")
-            .replace(Regex("^\\d+\\.\\s+", RegexOption.MULTILINE), "")
-            .replace(Regex("```[\\s\\S]*?```"), "[code block]")
-            .replace(Regex("`([^`]+)`"), "$1")
-            .trim()
+    // Split body into segments: table blocks and non-table text
+    val segments = remember(body) {
+        parseMarkdownSegments(body)
     }
 
-    Text(
-        text = rendered,
-        fontSize = 14.sp,
-        lineHeight = 22.sp,
-        color = MaterialTheme.colorScheme.onSurface
+    Column {
+        segments.forEach { segment ->
+            when (segment) {
+                is MarkdownSegment.Table -> MarkdownTable(segment)
+                is MarkdownSegment.Text -> {
+                    val rendered = remember(segment.content) {
+                        stripMarkdown(segment.content)
+                    }
+                    if (rendered.isNotBlank()) {
+                        Text(
+                            text = rendered,
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private sealed class MarkdownSegment {
+    data class Table(
+        val headers: List<String>,
+        val alignments: List<CellAlignment>,
+        val rows: List<List<String>>
+    ) : MarkdownSegment()
+
+    data class Text(val content: String) : MarkdownSegment()
+}
+
+private enum class CellAlignment { LEFT, CENTER, RIGHT }
+
+private fun parseMarkdownSegments(body: String): List<MarkdownSegment> {
+    val lines = body.split("\n")
+    val segments = mutableListOf<MarkdownSegment>()
+    var i = 0
+
+    while (i < lines.size) {
+        val line = lines[i].trim()
+        // Detect table: line starts and ends with |
+        if (line.startsWith("|") && line.endsWith("|") && line.length > 1) {
+            val tableLines = mutableListOf<String>()
+            while (i < lines.size) {
+                val tl = lines[i].trim()
+                if (tl.startsWith("|") && tl.endsWith("|") && tl.length > 1) {
+                    tableLines.add(tl)
+                    i++
+                } else {
+                    break
+                }
+            }
+            val table = parseTable(tableLines)
+            if (table != null) {
+                segments.add(table)
+            } else {
+                // Not a valid table, add as text
+                segments.add(MarkdownSegment.Text(tableLines.joinToString("\n")))
+            }
+        } else {
+            // Collect consecutive non-table lines into one text segment
+            val textLines = mutableListOf<String>()
+            while (i < lines.size) {
+                val tl = lines[i].trim()
+                if (tl.startsWith("|") && tl.endsWith("|") && tl.length > 1) break
+                textLines.add(lines[i])
+                i++
+            }
+            if (textLines.isNotEmpty()) {
+                segments.add(MarkdownSegment.Text(textLines.joinToString("\n")))
+            }
+        }
+    }
+
+    return segments
+}
+
+private fun parseTable(tableLines: List<String>): MarkdownSegment.Table? {
+    if (tableLines.size < 2) return null
+
+    // Parse header row
+    val headerCells = splitTableRow(tableLines[0])
+
+    // Check if second row is separator (e.g., | --- | --- |)
+    val separatorLine = tableLines[1].trim()
+    val separatorCells = splitTableRow(separatorLine)
+    if (!separatorCells.all { cell -> Regex("^:?-{1,}:?$").matches(cell.trim()) }) {
+        return null
+    }
+
+    // Parse alignments from separator
+    val alignments = separatorCells.map { cell ->
+        val c = cell.trim()
+        when {
+            c.startsWith(":") && c.endsWith(":") -> CellAlignment.CENTER
+            c.endsWith(":") -> CellAlignment.RIGHT
+            else -> CellAlignment.LEFT
+        }
+    }
+
+    // Parse data rows
+    val dataRows = mutableListOf<List<String>>()
+    for (i in 2 until tableLines.size) {
+        dataRows.add(splitTableRow(tableLines[i]))
+    }
+
+    return MarkdownSegment.Table(
+        headers = headerCells,
+        alignments = alignments,
+        rows = dataRows
     )
+}
+
+private fun splitTableRow(line: String): List<String> {
+    // Remove leading/trailing | and split
+    val inner = line.removePrefix("|").removeSuffix("|")
+    return inner.split("|").map { it.trim() }
+}
+
+private fun stripMarkdown(content: String): String {
+    return content
+        .replace(Regex("^#{1,6}\\s+", RegexOption.MULTILINE), "")
+        .replace(Regex("\\*\\*(.*?)\\*\\*"), "$1")
+        .replace(Regex("\\*(.*?)\\*"), "$1")
+        .replace(Regex("__(.*?)__"), "$1")
+        .replace(Regex("_(.*?)_"), "$1")
+        .replace(Regex("~~(.*?)~~"), "$1")
+        .replace(Regex("\\[(.*?)\\]\\(.*?\\)"), "$1")
+        .replace(Regex("!\\[.*?\\]\\(.*?\\)"), "[image]")
+        .replace(Regex("^>\\s+", RegexOption.MULTILINE), "")
+        .replace(Regex("^[-*+]\\s+", RegexOption.MULTILINE), "• ")
+        .replace(Regex("^\\d+\\.\\s+", RegexOption.MULTILINE), "")
+        .replace(Regex("```[\\s\\S]*?```"), "[code block]")
+        .replace(Regex("`([^`]+)`"), "$1")
+        .trim()
+}
+
+@Composable
+private fun MarkdownTable(table: MarkdownSegment.Table) {
+    val borderColor = MaterialTheme.colorScheme.outlineVariant
+    val headerBg = MaterialTheme.colorScheme.surfaceVariant
+    val cellPaddingHorizontal = 10.dp
+    val cellPaddingVertical = 6.dp
+    val minCellWidth = 60.dp
+    val horizontalScrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .horizontalScroll(horizontalScrollState)
+            .border(1.dp, borderColor, RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(6.dp))
+    ) {
+        // Header row
+        Row(modifier = Modifier.background(headerBg)) {
+            table.headers.forEachIndexed { index, header ->
+                val alignment = table.alignments.getOrElse(index) { CellAlignment.LEFT }
+                Text(
+                    text = header,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = when (alignment) {
+                        CellAlignment.LEFT -> TextAlign.Start
+                        CellAlignment.CENTER -> TextAlign.Center
+                        CellAlignment.RIGHT -> TextAlign.End
+                    },
+                    modifier = Modifier
+                        .defaultMinSize(minWidth = minCellWidth)
+                        .padding(horizontal = cellPaddingHorizontal, vertical = cellPaddingVertical)
+                        .weight(1f, fill = false)
+                )
+            }
+        }
+        // Separator line under header
+        HorizontalDivider(color = borderColor, thickness = 1.dp)
+
+        // Data rows
+        table.rows.forEach { row ->
+            Row {
+                row.forEachIndexed { index, cell ->
+                    val alignment = table.alignments.getOrElse(index) { CellAlignment.LEFT }
+                    Text(
+                        text = cell,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = when (alignment) {
+                            CellAlignment.LEFT -> TextAlign.Start
+                            CellAlignment.CENTER -> TextAlign.Center
+                            CellAlignment.RIGHT -> TextAlign.End
+                        },
+                        modifier = Modifier
+                            .defaultMinSize(minWidth = minCellWidth)
+                            .padding(horizontal = cellPaddingHorizontal, vertical = cellPaddingVertical)
+                            .weight(1f, fill = false)
+                    )
+                }
+            }
+            // Subtle row separator
+            HorizontalDivider(color = borderColor.copy(alpha = 0.5f), thickness = 0.5.dp)
+        }
+    }
 }
 
 @Composable

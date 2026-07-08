@@ -6,11 +6,16 @@ import android.widget.Toast
 import com.notifyhub.client.R
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -27,6 +32,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -54,9 +60,11 @@ import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -104,7 +112,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -133,6 +143,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.CreditCard
 
 // ── Topic Grouping ──
 private data class TopicGroup(
@@ -240,6 +251,19 @@ fun MainScreen(
     // Reactive state from Room (auto-updates on DB changes)
     val allMessages by MessageStore.getAllFlow(context).collectAsState(initial = emptyList())
     val unreadCount by MessageStore.getUnreadCountFlow(context).collectAsState(initial = 0)
+    var roomDataLoaded by remember { mutableStateOf(false) }
+    var startupDelayDone by remember { mutableStateOf(false) }
+
+    // Mark Room data as loaded once the flow emits (even if empty)
+    LaunchedEffect(allMessages) {
+        if (!roomDataLoaded) roomDataLoaded = true
+    }
+    // Ensure skeleton shows for at least a short duration on cold start
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(400)
+        startupDelayDone = true
+    }
+    val isLoading = !roomDataLoaded || !startupDelayDone
 
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -260,6 +284,11 @@ fun MainScreen(
     var rangeSelectPrevId by remember { mutableStateOf<String?>(null) }
     val listState = remember { androidx.compose.foundation.lazy.LazyListState(0, 0) }
     var listTopPx by remember { mutableStateOf(0f) }
+
+    // Scroll-to-top FAB visibility: show when scrolled past 5 items
+    val showScrollToTop by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 5 }
+    }
 
     // Detail screen state
     var selectedMessage by remember { mutableStateOf<LocalMessage?>(null) }
@@ -393,14 +422,40 @@ fun MainScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            if (!selectionMode) {
-                FloatingActionButton(
-                    onClick = onCompose,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = CircleShape,
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Scroll-to-top FAB (appears when scrolled down)
+                AnimatedVisibility(
+                    visible = showScrollToTop && !selectionMode,
+                    enter = fadeIn(animationSpec = tween(300)),
+                    exit = fadeOut(animationSpec = tween(200))
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = i18n("compose_title"))
+                    SmallFloatingActionButton(
+                        onClick = {
+                            scope.launch { listState.animateScrollToItem(0) }
+                        },
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        shape = CircleShape,
+                    ) {
+                        Icon(
+                            Icons.Default.KeyboardArrowUp,
+                            contentDescription = "Scroll to top",
+                        )
+                    }
+                }
+                // Compose FAB
+                if (!selectionMode) {
+                    FloatingActionButton(
+                        onClick = onCompose,
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shape = CircleShape,
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = i18n("compose_title"))
+                    }
                 }
             }
         },
@@ -489,9 +544,21 @@ fun MainScreen(
                             ) {
                                 // View toggle
                                 DropdownMenuItem(
-                                    text = { Text(if (viewMode == "messages") I18n["topic_view"] else I18n["message_view"]) },
+                                    text = {
+                                        Text(when (viewMode) {
+                                            "messages" -> I18n["topic_view"]
+                                            "topics" -> I18n["card_view"]
+                                            "cards" -> I18n["message_view"]
+                                            else -> I18n["topic_view"]
+                                        })
+                                    },
                                     onClick = {
-                                        val newMode = if (viewMode == "messages") "topics" else "messages"
+                                        val newMode = when (viewMode) {
+                                            "messages" -> "topics"
+                                            "topics" -> "cards"
+                                            "cards" -> "messages"
+                                            else -> "messages"
+                                        }
                                         viewMode = newMode
                                         topicDetailKey = null
                                         ConfigStore.setViewMode(context, newMode)
@@ -499,9 +566,14 @@ fun MainScreen(
                                     },
                                     leadingIcon = {
                                         Icon(
-                                            if (viewMode == "messages") Icons.Default.GridView else Icons.Default.ViewList,
+                                            when (viewMode) {
+                                                "messages" -> Icons.Default.GridView
+                                                "topics" -> Icons.Default.CreditCard
+                                                "cards" -> Icons.Default.ViewList
+                                                else -> Icons.Default.GridView
+                                            },
                                             contentDescription = null,
-                                            tint = if (viewMode == "topics") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                            tint = MaterialTheme.colorScheme.primary
                                         )
                                     }
                                 )
@@ -647,45 +719,33 @@ fun MainScreen(
                 }
             }
 
-            if (filtered.isEmpty()) {
-                val emptyMessage = when {
+            if (isLoading) {
+                SkeletonLoading(
+                    itemCount = 6,
+                    isTopicView = viewMode == "topics" && topicDetailKey == null,
+                    isCardView = viewMode == "cards" && topicDetailKey == null
+                )
+            } else if (filtered.isEmpty()) {
+                val emptyIcon = when {
+                    searchQuery.isNotBlank() -> Icons.Default.SearchOff
+                    currentFilter == MessageFilter.UNREAD -> Icons.Default.Check
+                    currentFilter == MessageFilter.READ -> Icons.Default.DoneAll
+                    currentFilter == MessageFilter.FLAGGED -> Icons.Default.Flag
+                    else -> Icons.Default.Inbox
+                }
+                val emptyTitle = when {
                     searchQuery.isNotBlank() -> i18n("no_messages_search")
                     currentFilter == MessageFilter.UNREAD -> i18n("no_messages_unread")
                     currentFilter == MessageFilter.READ -> i18n("no_messages_read")
                     currentFilter == MessageFilter.FLAGGED -> i18n("no_messages_flagged")
                     else -> i18n("no_messages")
                 }
-                val emptyHint = if (currentFilter == MessageFilter.ALL && searchQuery.isBlank()) i18n("no_messages_hint") else null
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            if (searchQuery.isNotBlank()) Icons.Default.SearchOff else Icons.Default.Inbox,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            emptyMessage,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (emptyHint != null) {
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                emptyHint,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+                val emptySubtitle = if (currentFilter == MessageFilter.ALL && searchQuery.isBlank()) i18n("no_messages_hint") else null
+                EmptyState(
+                    icon = emptyIcon,
+                    title = emptyTitle,
+                    subtitle = emptySubtitle,
+                )
             } else AnimatedContent(
                 targetState = topicDetailKey,
                 transitionSpec = {
@@ -741,6 +801,144 @@ fun MainScreen(
                             }
                             Spacer(Modifier.width(8.dp))
                             Text(formatRelativeTime(latest.receivedAt), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            } else if (viewMode == "cards" && topicKey == null) {
+                // ── Card View ──
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .onGloballyPositioned { listTopPx = it.positionInWindow().y }
+                        .pointerInput(selectionMode) {
+                            if (!selectionMode) return@pointerInput
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { offset ->
+                                    rangeSelectStartY = offset.y
+                                    rangeSelectPrevId = rangeSelectStartId
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    rangeSelectStartY += dragAmount.y
+                                    val fingerY = rangeSelectStartY + listTopPx
+                                    val visibleItems = listState.layoutInfo.visibleItemsInfo
+                                    val targetItem = visibleItems.lastOrNull { item ->
+                                        val itemTop = listTopPx + item.offset
+                                        val itemBottom = itemTop + item.size
+                                        fingerY >= itemTop && fingerY < itemBottom
+                                    } ?: visibleItems.lastOrNull { item ->
+                                        listTopPx + item.offset <= fingerY
+                                    }
+                                    if (targetItem != null && targetItem.key is String) {
+                                        val targetId = targetItem.key as String
+                                        if (targetId != rangeSelectPrevId) {
+                                            rangeSelectPrevId = targetId
+                                            selectRange(filtered, rangeSelectStartId!!, targetId)
+                                        }
+                                    }
+                                },
+                                onDragEnd = { rangeSelectPrevId = null },
+                                onDragCancel = { rangeSelectPrevId = null }
+                            )
+                        },
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    items(filtered, key = { it.id }) { msg ->
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { value ->
+                                when (value) {
+                                    SwipeToDismissBoxValue.EndToStart -> {
+                                        scope.launch {
+                                            val deleted = MessageStore.delete(context, msg.id)
+                                            if (deleted != null) {
+                                                lastDeletedMessage = deleted
+                                                lastDeletedIndex = allMessages.indexOfFirst { it.id == msg.id }
+                                            }
+                                        }
+                                        true
+                                    }
+                                    SwipeToDismissBoxValue.StartToEnd -> {
+                                        scope.launch { MessageStore.toggleFlag(context, msg.id) }
+                                        false
+                                    }
+                                    else -> false
+                                }
+                            }
+                        )
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            enableDismissFromStartToEnd = true,
+                            enableDismissFromEndToStart = true,
+                            backgroundContent = {
+                                val direction = dismissState.dismissDirection
+                                val color = when (direction) {
+                                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primary
+                                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.error
+                                    else -> Color.Transparent
+                                }
+                                val icon = when (direction) {
+                                    SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Flag
+                                    SwipeToDismissBoxValue.EndToStart -> Icons.Default.Delete
+                                    else -> Icons.Default.Delete
+                                }
+                                val alignment = when (direction) {
+                                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                                    else -> Alignment.CenterEnd
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(color)
+                                        .padding(horizontal = 20.dp),
+                                    contentAlignment = alignment
+                                ) {
+                                    Icon(icon, contentDescription = null, tint = Color.White)
+                                }
+                            }
+                        ) {
+                            MessageCard(
+                                msg = msg,
+                                selectionMode = selectionMode,
+                                isSelected = selectedIds.contains(msg.id),
+                                onLongClick = {
+                                    if (!selectionMode) {
+                                        selectionMode = true
+                                        selectedIds.add(msg.id)
+                                    }
+                                    rangeSelectStartId = msg.id
+                                },
+                                onClick = {
+                                    if (selectionMode) {
+                                        if (selectedIds.contains(msg.id)) {
+                                            selectedIds.remove(msg.id)
+                                            if (selectedIds.isEmpty()) exitSelectionMode()
+                                        } else {
+                                            selectedIds.add(msg.id)
+                                        }
+                                    } else {
+                                        if (!msg.read) {
+                                            scope.launch { MessageStore.markAsRead(context, msg.id) }
+                                        }
+                                        selectedMessage = msg
+                                    }
+                                },
+                                onDoubleClick = {
+                                    if (!msg.url.isNullOrEmpty()) {
+                                        try {
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(msg.url)))
+                                        } catch (_: Exception) {
+                                            Toast.makeText(context, "Invalid URL", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                        val clip = android.content.ClipData.newPlainText("message", msg.body)
+                                        clipboard.setPrimaryClip(clip)
+                                        Toast.makeText(context, I18n["copied"], Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            )
                         }
                     }
                 }
@@ -973,6 +1171,44 @@ fun MainScreen(
     } // AnimatedContent
 }
 
+@Composable
+private fun EmptyState(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String? = null,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (subtitle != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    subtitle,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun MessageItem(
@@ -1101,6 +1337,390 @@ private fun MessageItem(
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(14.dp)
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
+@Composable
+private fun MessageCard(
+    msg: LocalMessage,
+    selectionMode: Boolean,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onDoubleClick: () -> Unit,
+) {
+    val levelColor = when (msg.level.uppercase()) {
+        "ERROR" -> MaterialTheme.colorScheme.error
+        "WARN", "WARNING" -> Color(0xFFF59E0B)
+        "DEBUG" -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.primary
+    }
+
+    val cardBg = when {
+        selectionMode && isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        else -> MaterialTheme.colorScheme.surface
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                onDoubleClick = onDoubleClick
+            ),
+        shape = RoundedCornerShape(12.dp),
+        color = cardBg,
+        tonalElevation = if (!msg.read) 2.dp else 0.dp,
+        border = if (!msg.read) {
+            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+        } else {
+            androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+        }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            // Left accent bar for unread
+            if (!msg.read) {
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(56.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.primary)
+                )
+                Spacer(Modifier.width(10.dp))
+            }
+
+            if (selectionMode) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onClick() },
+                    modifier = Modifier.padding(end = 8.dp).size(20.dp)
+                )
+            } else {
+                TopicAvatar(
+                    topicIcon = msg.topicIcon,
+                    topicName = msg.topicName,
+                    topicDisplayName = msg.topicDisplayName,
+                    size = 40,
+                    borderColor = levelColor,
+                )
+                Spacer(Modifier.width(12.dp))
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                val displayTitle = if (msg.title.isNotBlank()) msg.title else I18n["untitled"]
+                Text(
+                    displayTitle,
+                    fontWeight = if (msg.read) FontWeight.Medium else FontWeight.Bold,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (msg.title.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    msg.body,
+                    fontSize = 13.sp,
+                    fontWeight = if (msg.read) FontWeight.Normal else FontWeight.SemiBold,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (msg.read) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                )
+
+                // Tags as chips
+                val parsedTags: List<String> = try {
+                    if (msg.tags != null && msg.tags != "[]") {
+                        com.google.gson.Gson().fromJson(msg.tags, object : com.google.gson.reflect.TypeToken<List<String>>() {}.type)
+                    } else emptyList()
+                } catch (_: Exception) { emptyList() }
+                val hasExtendedFields = parsedTags.isNotEmpty() || msg.url != null || msg.attachment != null
+                if (hasExtendedFields) {
+                    Spacer(Modifier.height(6.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        if (msg.url != null) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                            ) {
+                                Text(
+                                    "🔗 Link",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        if (msg.attachment != null) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                            ) {
+                                Text(
+                                    "📎 File",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        parsedTags.forEach { tag ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                )
+                            ) {
+                                Text(
+                                    tag,
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.width(8.dp))
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) {
+                Text(
+                    formatRelativeTime(msg.receivedAt),
+                    fontSize = 11.sp,
+                    color = if (msg.read) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                    fontWeight = if (msg.read) FontWeight.Normal else FontWeight.Bold
+                )
+                if (msg.flagged) {
+                    Spacer(Modifier.weight(1f))
+                    Icon(
+                        Icons.Default.Flag,
+                        contentDescription = I18n["flagged"],
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ── Skeleton Loading ──
+
+private val SkeletonBase = Color(0xFFE0E0E0)
+private val SkeletonHighlight = Color(0xFFF5F5F5)
+
+@Composable
+private fun shimmerBrush(): Brush {
+    val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
+    val shimmerX by infiniteTransition.animateFloat(
+        initialValue = -300f,
+        targetValue = 1200f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "shimmerX",
+    )
+    return Brush.linearGradient(
+        colors = listOf(SkeletonBase, SkeletonHighlight, SkeletonBase),
+        start = Offset(shimmerX, 0f),
+        end = Offset(shimmerX + 300f, 0f),
+    )
+}
+
+@Composable
+private fun SkeletonBox(
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(4.dp),
+) {
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(shimmerBrush())
+    )
+}
+
+@Composable
+private fun SkeletonMessageItem() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        // Avatar placeholder (circular)
+        SkeletonBox(
+            modifier = Modifier.size(36.dp),
+            shape = CircleShape,
+        )
+        Spacer(Modifier.width(10.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            // Title line placeholder
+            SkeletonBox(
+                modifier = Modifier
+                    .fillMaxWidth(0.65f)
+                    .height(14.dp),
+                shape = RoundedCornerShape(4.dp),
+            )
+            Spacer(Modifier.height(6.dp))
+            // Body line placeholder
+            SkeletonBox(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .height(12.dp),
+                shape = RoundedCornerShape(4.dp),
+            )
+            Spacer(Modifier.height(4.dp))
+            SkeletonBox(
+                modifier = Modifier
+                    .fillMaxWidth(0.5f)
+                    .height(12.dp),
+                shape = RoundedCornerShape(4.dp),
+            )
+        }
+
+        Spacer(Modifier.width(8.dp))
+
+        // Time placeholder
+        SkeletonBox(
+            modifier = Modifier
+                .width(40.dp)
+                .height(11.dp),
+            shape = RoundedCornerShape(4.dp),
+        )
+    }
+}
+
+@Composable
+private fun SkeletonTopicItem() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Topic avatar placeholder
+        SkeletonBox(
+            modifier = Modifier.size(40.dp),
+            shape = CircleShape,
+        )
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            // Topic name placeholder
+            SkeletonBox(
+                modifier = Modifier
+                    .fillMaxWidth(0.45f)
+                    .height(14.dp),
+                shape = RoundedCornerShape(4.dp),
+            )
+            Spacer(Modifier.height(6.dp))
+            // Preview text placeholder
+            SkeletonBox(
+                modifier = Modifier
+                    .fillMaxWidth(0.75f)
+                    .height(12.dp),
+                shape = RoundedCornerShape(4.dp),
+            )
+        }
+
+        Spacer(Modifier.width(8.dp))
+        // Time placeholder
+        SkeletonBox(
+            modifier = Modifier
+                .width(40.dp)
+                .height(11.dp),
+            shape = RoundedCornerShape(4.dp),
+        )
+    }
+}
+
+@Composable
+private fun SkeletonCardItem() {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            SkeletonBox(
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                SkeletonBox(
+                    modifier = Modifier
+                        .fillMaxWidth(0.6f)
+                        .height(15.dp),
+                    shape = RoundedCornerShape(4.dp),
+                )
+                Spacer(Modifier.height(6.dp))
+                SkeletonBox(
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .height(12.dp),
+                    shape = RoundedCornerShape(4.dp),
+                )
+                Spacer(Modifier.height(4.dp))
+                SkeletonBox(
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .height(12.dp),
+                    shape = RoundedCornerShape(4.dp),
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            SkeletonBox(
+                modifier = Modifier
+                    .width(40.dp)
+                    .height(11.dp),
+                shape = RoundedCornerShape(4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SkeletonLoading(
+    itemCount: Int = 6,
+    isTopicView: Boolean = false,
+    isCardView: Boolean = false,
+) {
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        items(itemCount) {
+            when {
+                isTopicView -> SkeletonTopicItem()
+                isCardView -> SkeletonCardItem()
+                else -> SkeletonMessageItem()
             }
         }
     }
