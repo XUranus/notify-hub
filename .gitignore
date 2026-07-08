@@ -33,3 +33,7 @@ android/.cxx/
 # android/app/google-services.json  # committed — contains public identifiers only
 *.apk
 *.aab
+
+# Runtime data
+data/
+crates/data/

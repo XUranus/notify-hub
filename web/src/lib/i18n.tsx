@@ -296,6 +296,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'push.online': '在线',
     'push.offline': '离线',
     'push.empty': '暂无注册客户端。',
+    'push.delete': '删除',
     'push.deleteConfirm': '确定要删除此客户端吗？',
 
     // ── Topics ──
@@ -315,6 +316,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'topics.icon': '图标',
     'topics.iconHint': 'PNG、JPG、SVG 或 WebP，最大 512KB',
     'topics.uuid': 'UUID',
+    'topics.delete': '删除',
     'topics.deleteConfirm': '确定删除此主题？关联的消息将被取消关联但不会被删除。',
     'topics.iconTooLarge': '图标大小不能超过 512KB',
     'topics.nameRequired': '请输入名称',
@@ -787,6 +789,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'push.online': 'Online',
     'push.offline': 'Offline',
     'push.empty': 'No registered clients.',
+    'push.delete': 'Delete',
     'push.deleteConfirm': 'Delete this client?',
 
     // ── Topics ──
@@ -806,6 +809,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     'topics.icon': 'Icon',
     'topics.iconHint': 'PNG, JPG, SVG or WebP. Max 512KB.',
     'topics.uuid': 'UUID',
+    'topics.delete': 'Delete',
     'topics.deleteConfirm': 'Delete this topic? Messages will be unlinked but not deleted.',
     'topics.iconTooLarge': 'Icon must be under 512KB',
     'topics.nameRequired': 'Name is required',

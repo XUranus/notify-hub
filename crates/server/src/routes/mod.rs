@@ -14,5 +14,6 @@ pub mod templates;
 pub mod tokens;
 pub mod topics;
 pub mod upload;
+pub mod v1_topics;
 pub mod user_settings;
 pub mod users;

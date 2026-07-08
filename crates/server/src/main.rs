@@ -78,6 +78,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(routes::push::router())
         .merge(routes::clients::router())
         .merge(routes::topics::router())
+        .merge(routes::v1_topics::router())
         .merge(routes::channels::router())
         .merge(routes::templates::router())
         .merge(routes::tokens::router())
@@ -228,8 +229,9 @@ async fn seed_preset_topics(pool: &SqlitePool) -> anyhow::Result<()> {
             let display = if preset.display.is_empty() { None } else { Some(preset.display.clone()) };
 
             sqlx::query(
-                "INSERT INTO topics (id, user_id, name, display_name, icon, preset, created_at, updated_at) VALUES (99999999, 99999999, ?, ?, ?, 1, ?, ?)"
+                "INSERT INTO topics (id, user_id, name, display_name, icon, preset, created_at, updated_at) VALUES (?, 0, ?, ?, ?, 1, ?, ?)"
             )
+            .bind(&id)
             .bind(&preset.name)
             .bind(&display)
             .bind(&icon)
