@@ -425,7 +425,7 @@
     .detail-content-body.markdown tr:hover,
     .msg-full-card-body.markdown tr:hover { background: var(--hover); }
     .detail-content-body.markdown hr,
-    .msg-full-card-body.markdown hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+    .msg-full-card-body.markdown hr { border: none; border-top: 1px solid var(--outline); margin: 12px 0; opacity: 0.5; }
     .detail-content-body.json { font-family: 'SF Mono','Fira Code',monospace; font-size: 12px; background: var(--badge-bg); border-radius: 6px; padding: 12px; }
     .detail-content-body.html-content { font-family: inherit; padding: 16px 20px; }
     .detail-section-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.05em; }
