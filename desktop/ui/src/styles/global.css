@@ -324,8 +324,8 @@
     .msg-del-btn:active { transform: scale(0.85); }
 
     /* ── Cards View ── */
-    .cards-container { display: flex; flex-direction: column; padding: 0; gap: 2px; }
-    .msg-full-card { padding: 12px 10px; transition: background 0.15s, border-color 0.15s; cursor: pointer; border: none; border-bottom: 1px solid var(--border); overflow: hidden; min-width: 0; }
+    .cards-container { display: flex; flex-direction: column; padding: 0; }
+    .msg-full-card { padding: 12px 8px; transition: background 0.15s, border-color 0.15s; cursor: pointer; border-bottom: 1px solid var(--border); overflow: hidden; min-width: 0; }
     .msg-full-card:hover { background: var(--hover); }
     .msg-full-card:hover .msg-del-btn { opacity: 1; }
     .msg-full-card.unread { border-left: 3px solid var(--accent); }
@@ -340,7 +340,7 @@
     .msg-full-card-meta { display: flex; align-items: center; gap: 8px; }
     .msg-full-card-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
     .msg-full-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
-    .msg-full-card-body { font-size: 13px; line-height: 1.6; color: var(--text2); white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; padding: 10px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
+    .msg-full-card-body { font-size: 13px; line-height: 1.6; color: var(--text2); white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; padding: 10px; border-radius: 8px; min-width: 0; }
     .msg-full-card-body pre { white-space: pre-wrap; word-break: break-all; overflow-wrap: anywhere; max-width: 100%; background: var(--badge-bg); padding: 8px 10px; border-radius: 6px; margin: 4px 0; font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 12px; }
     .msg-full-card-body code { font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 12px; background: var(--badge-bg); padding: 1px 4px; border-radius: 3px; }
     .msg-full-card-body table { display: block; overflow-x: auto; max-width: 100%; }
