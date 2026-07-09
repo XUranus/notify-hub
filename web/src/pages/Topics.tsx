@@ -20,6 +20,7 @@ interface Topic {
   userId: number
   name: string
   displayName: string | null
+  description: string | null
   icon: string | null
   preset: boolean
   createdAt: number
@@ -36,7 +37,7 @@ export default function Topics() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [apiError, setApiError] = useState('')
   const [forkName, setForkName] = useState('')
-  const [formData, setFormData] = useState({ name: '', displayName: '' })
+  const [formData, setFormData] = useState({ name: '', displayName: '', description: '' })
   const [iconPreview, setIconPreview] = useState<string | null>(null)
   const [iconBase64, setIconBase64] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -60,7 +61,7 @@ export default function Topics() {
 
   const openCreate = () => {
     setEditingId(null)
-    setFormData({ name: '', displayName: '' })
+    setFormData({ name: '', displayName: '', description: '' })
     setIconPreview(null)
     setIconBase64(null)
     setApiError('')
@@ -69,7 +70,7 @@ export default function Topics() {
 
   const openEdit = (topic: Topic) => {
     setEditingId(topic.id)
-    setFormData({ name: topic.name, displayName: topic.displayName || '' })
+    setFormData({ name: topic.name, displayName: topic.displayName || '', description: topic.description || '' })
     setIconPreview(topic.icon)
     setIconBase64(topic.icon)
     setApiError('')
@@ -110,6 +111,9 @@ export default function Topics() {
     }
     if (formData.displayName.trim()) {
       data.displayName = formData.displayName.trim()
+    }
+    if (formData.description.trim()) {
+      data.description = formData.description.trim()
     }
 
     if (editingId) {
@@ -199,6 +203,7 @@ export default function Topics() {
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-32" />
                   <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-3 w-40" />
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
@@ -250,6 +255,11 @@ export default function Topics() {
                   {topic.displayName && (
                     <p className="text-xs text-muted-foreground font-mono truncate">
                       {topic.name}
+                    </p>
+                  )}
+                  {topic.description && (
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                      {topic.description}
                     </p>
                   )}
                 </div>
@@ -339,6 +349,17 @@ export default function Topics() {
               />
             </div>
             <div className="space-y-2">
+              <Label>{t('topics.description')}</Label>
+              <Input
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                placeholder={t('topics.descriptionPlaceholder')}
+                className="rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
               <Label>{t('topics.icon')}</Label>
               <div className="flex items-center gap-3">
                 {iconPreview ? (
@@ -423,6 +444,9 @@ export default function Topics() {
                 <div>
                   <p className="font-semibold text-sm">{forkingTopic.displayName || forkingTopic.name}</p>
                   <p className="text-xs text-muted-foreground font-mono">{forkingTopic.name}</p>
+                  {forkingTopic.description && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{forkingTopic.description}</p>
+                  )}
                 </div>
               </div>
             )}
