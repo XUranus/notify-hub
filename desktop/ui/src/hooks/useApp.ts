@@ -21,7 +21,7 @@ export interface TopicGroup {
 
 // ── Constants ──
 const MSG_HEIGHT = 72
-const TOPIC_CARD_HEIGHT = 88
+const TOPIC_CARD_HEIGHT = 110
 const COLOR_SCHEMES = ['purple', 'blue', 'teal', 'green', 'orange', 'rose']
 
 export function useApp() {
