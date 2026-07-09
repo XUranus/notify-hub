@@ -810,7 +810,8 @@ fun MainScreen(
                         val totalCount = group.messages.size
                         val unreadCount = group.messages.count { !it.read }
                         val displayName = group.topicDisplayName ?: group.topicName ?: I18n["no_topic"]
-                        val preview = latest.title.ifBlank { latest.body }.take(80)
+                        val topicDesc = group.topicDescription ?: ""
+                        val preview = latest.body.ifBlank { latest.title }.take(200)
 
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { value ->
@@ -857,7 +858,7 @@ fun MainScreen(
                                         .fillMaxWidth()
                                         .background(MaterialTheme.colorScheme.surface)
                                         .clickable { topicDetailKey = group.key }
-                                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     TopicAvatar(
@@ -881,8 +882,14 @@ fun MainScreen(
                                                 }
                                             }
                                         }
-                                        Spacer(Modifier.height(2.dp))
-                                        Text(preview, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        if (topicDesc.isNotEmpty()) {
+                                            Spacer(Modifier.height(1.dp))
+                                            Text(topicDesc, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        }
+                                        if (preview.isNotEmpty()) {
+                                            Spacer(Modifier.height(2.dp))
+                                            Text(preview, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                        }
                                     }
                                     Spacer(Modifier.width(8.dp))
                                     Text(formatRelativeTime(latest.receivedAt), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1137,6 +1144,7 @@ fun MainScreen(
                                 msg = msg,
                                 selectionMode = selectionMode,
                                 isSelected = selectedIds.contains(msg.id),
+                                isTopicDetail = topicDetailKey != null,
                                 onLongClick = {
                                     if (!selectionMode) {
                                         selectionMode = true
@@ -1358,6 +1366,7 @@ private fun MessageItem(
     msg: LocalMessage,
     selectionMode: Boolean,
     isSelected: Boolean,
+    isTopicDetail: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onDoubleClick: () -> Unit,
@@ -1392,6 +1401,15 @@ private fun MessageItem(
                 onCheckedChange = { onClick() },
                 modifier = Modifier.padding(end = 8.dp).size(20.dp)
             )
+        } else if (isTopicDetail) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(levelColor)
+                    .padding(top = 2.dp)
+            )
+            Spacer(Modifier.width(10.dp))
         } else {
             TopicAvatar(
                 topicIcon = msg.topicIcon,
