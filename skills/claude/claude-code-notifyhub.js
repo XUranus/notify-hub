@@ -53,6 +53,8 @@ const input = JSON.parse(fs.readFileSync(0, "utf-8") || "{}");
 // ===== Find or create topic =====
 async function ensureTopic(sessionId) {
   const topicName = `claudecode_${sessionId}`;
+  const topicDisplayName = `Claude Code ${sessionId.split('-')[0]}`
+  const description = `Claude Code session ${sessionId}`
 
   // 1. Search if already exists
   const listRes = await api("GET", `/api/v1/topic?search=${encodeURIComponent(topicName)}`);
@@ -69,7 +71,7 @@ async function ensureTopic(sessionId) {
     if (preset) presetId = preset.id;
   }
 
-  const createBody = { name: topicName };
+  const createBody = { name: topicName, displayName: topicDisplayName, description };
   if (presetId) {
     createBody.forkFrom = presetId;
   }
@@ -110,14 +112,10 @@ if (hookEventName === "Stop") {
 const summary = lastAssistantMessage || "(empty)";
 
 const body = [
-  // `${JSON.stringify(input)}`,
-  // "______________________________________________________",
-  // `${JSON.stringify(items)}`,
-  // "______________________________________________________",
   summary,
-  //"______________________________________________",
-  //` - **🧠 SSID: **  \`**${session}**\`   `,
-  //` - **📁 Path: ** \`**${cwdDisplay}**\` `,
+  "",
+  "---",
+  `📁 \`${cwdDisplay}\``,
 ].join("\n");
 
 // ===== Main =====

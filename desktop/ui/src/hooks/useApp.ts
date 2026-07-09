@@ -273,6 +273,20 @@ export function useApp() {
     setSelectedIds(new Set()); setSelectMode(false); refreshMessages()
   }, [selectedIds, refreshMessages])
 
+  const deleteTopic = useCallback(async (topicId: string) => {
+    try { await invoke('delete_topic', { id: topicId }) } catch { /* topic may already be gone on server */ }
+    const ids = allMessages.filter(m => m.topic_id === topicId).map(m => m.id)
+    for (const id of ids) await invoke('delete_message', { id })
+    setAllMessages(prev => prev.filter(m => m.topic_id !== topicId))
+    setTopicDetailKey(null)
+  }, [allMessages])
+
+  const clearTopicMessages = useCallback(async (topicId: string) => {
+    const ids = allMessages.filter(m => m.topic_id === topicId).map(m => m.id)
+    for (const id of ids) await invoke('delete_message', { id })
+    setAllMessages(prev => prev.filter(m => m.topic_id !== topicId))
+  }, [allMessages])
+
   // ── Delete Modal ──
   const showDeleteConfirm = useCallback((text: string, callback: () => void) => {
     setDeleteModalText(text); setDeleteModalCallback(() => callback); setDeleteModalOpen(true)
@@ -382,7 +396,7 @@ export function useApp() {
     detailMsg, topicDetailKey,
     setCurrentFilter, setSearchQuery, setShowSearch, setSelectedIds, setSelectMode, setDetailMsg, setTopicDetailKey,
     // Actions
-    refreshMessages, markAsRead, toggleFlag, deleteWithUndo, undoDelete, markAllRead, clearAll, deleteSelected,
+    refreshMessages, markAsRead, toggleFlag, deleteWithUndo, undoDelete, markAllRead, clearAll, deleteSelected, deleteTopic, clearTopicMessages,
     // Helpers
     escHtml, formatRelativeTime, parseTags, parseAttachment, getFilteredMessages, groupMessagesByTopic,
     // Constants

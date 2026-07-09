@@ -203,6 +203,22 @@ async fn seed_admin(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Embedded preset topic icon files (compiled into binary)
+const ICON_CLAUDECODE: &[u8] = include_bytes!("preset_icons/claudecode.png");
+const ICON_CODEX: &[u8] = include_bytes!("preset_icons/codex.png");
+const ICON_OPENCLAW: &[u8] = include_bytes!("preset_icons/openclaw.png");
+const ICON_OPENCODE: &[u8] = include_bytes!("preset_icons/opencode.png");
+
+fn get_preset_icon_bytes(name: &str) -> Option<&'static [u8]> {
+    match name {
+        "claudecode" => Some(ICON_CLAUDECODE),
+        "codex" => Some(ICON_CODEX),
+        "openclaw" => Some(ICON_OPENCLAW),
+        "opencode" => Some(ICON_OPENCODE),
+        _ => None,
+    }
+}
+
 /// Seed preset topics from JSON config
 async fn seed_preset_topics(pool: &SqlitePool) -> anyhow::Result<()> {
     #[derive(serde::Deserialize)]
@@ -226,7 +242,21 @@ async fn seed_preset_topics(pool: &SqlitePool) -> anyhow::Result<()> {
         if exists.0 == 0 {
             let id = uuid::Uuid::new_v4().to_string();
             let now = chrono::Utc::now().timestamp();
-            let icon = if preset.icon.is_empty() { None } else { Some(preset.icon.clone()) };
+            let icon = if preset.icon.is_empty() {
+                None
+            } else {
+                use base64::Engine;
+                match get_preset_icon_bytes(&preset.name) {
+                    Some(bytes) => {
+                        let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+                        Some(format!("data:image/png;base64,{}", b64))
+                    }
+                    None => {
+                        tracing::warn!("[init] No embedded icon for preset topic: {}", preset.name);
+                        None
+                    }
+                }
+            };
             let display = if preset.display.is_empty() { None } else { Some(preset.display.clone()) };
 
             sqlx::query(
@@ -254,6 +284,22 @@ async fn seed_preset_topics(pool: &SqlitePool) -> anyhow::Result<()> {
                 .bind(&preset.name)
                 .execute(pool)
                 .await?;
+        }
+    }
+
+    // Update icon for existing preset topics that have NULL or empty icon
+    for preset in &presets {
+        if !preset.icon.is_empty() {
+            if let Some(bytes) = get_preset_icon_bytes(&preset.name) {
+                use base64::Engine;
+                let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+                let icon_uri = format!("data:image/png;base64,{}", b64);
+                sqlx::query("UPDATE topics SET icon = ? WHERE name = ? AND preset = 1 AND (icon IS NULL OR icon = '')")
+                    .bind(&icon_uri)
+                    .bind(&preset.name)
+                    .execute(pool)
+                    .await?;
+            }
         }
     }
 

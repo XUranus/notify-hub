@@ -94,7 +94,6 @@ private fun MarkwonText(
         factory = { ctx ->
             TextView(ctx).apply {
                 movementMethod = LinkMovementMethod.getInstance()
-                setTextIsSelectable(true)
                 setLineSpacing(0f, 1.2f)
                 textSize = 14f
             }

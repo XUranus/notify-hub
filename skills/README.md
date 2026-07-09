@@ -187,3 +187,91 @@ Built-in topics with icons:
 | `opencode` | OpenCode | OpenCode notifications |
 
 Fork a preset to create your own topic with the same icon and display name.
+
+---
+
+## Hook Scripts
+
+Ready-to-use hook scripts for AI coding agents. Each script automatically creates a topic (forking from the preset) and sends notifications when tasks complete.
+
+### Claude Code
+
+**File:** `claude/claude-code-notifyhub.js`
+
+**Hook type:** Claude Code Stop/Notification hooks (stdin JSON)
+
+**Config:** `~/.claude/settings.json`
+```json
+{
+  "hooks": {
+    "Stop": [{ "matcher": "", "hooks": ["node /path/to/claude-code-notifyhub.js"] }],
+    "Notification": [{ "matcher": "", "hooks": ["node /path/to/claude-code-notifyhub.js"] }]
+  }
+}
+```
+
+**Input:** `{ session_id, hook_event_name, last_assistant_message, cwd, ... }`
+
+---
+
+### OpenAI Codex CLI
+
+**File:** `codex/codex-notifyhub.js`
+
+**Hook type:** Shell command hooks (stdin JSON, env var fallback)
+
+**Config:** `~/.codex/config.json`
+```json
+{
+  "hooks": {
+    "on_task_complete": "node /path/to/codex-notifyhub.js",
+    "on_task_error": "node /path/to/codex-notifyhub.js"
+  }
+}
+```
+
+**Input:** `{ session_id, hook_event, response, error, cwd, ... }` via stdin. Also reads `CODEX_SESSION_ID` and `CODEX_HOOK_EVENT` env vars as fallback.
+
+---
+
+### OpenCode (SST)
+
+**File:** `opencode/opencode-notifyhub.ts`
+
+**Hook type:** Plugin (`@opencode-ai/plugin` SDK, event.subscribe)
+
+**Config:** `~/.config/opencode/config.json`
+```json
+{
+  "plugin": ["./opencode-notifyhub.ts"]
+}
+```
+
+**Events:** Subscribes to `session.created`, `session.status`, `session.error`, `session.deleted`. Notifies on `idle`, `completed`, `error` status.
+
+---
+
+### OpenClaw
+
+**File:** `openclaw/openclaw-notifyhub.ts`
+
+**Hook type:** Hook (`@openclaw/sdk` defineHook, workspace hooks/ directory)
+
+**Config:** Place in workspace `hooks/` directory, then `openclaw restart`
+
+**Events:** `agent_end` (primary — sends agent reply). Optional `session_end` (commented out by default).
+
+---
+
+### Common Setup
+
+All scripts require two env vars:
+```bash
+export NOTIFYHUB_BASE=http://your-server:3000
+export NOTIFYHUB_KEY=nfkey_xxxxx
+```
+
+Each script:
+1. Searches for an existing topic named `{tool}_{session_id}`
+2. If not found, forks from the matching preset topic (e.g. `codex`, `claudecode`)
+3. Sends the notification to that topic via `/api/v1/send`

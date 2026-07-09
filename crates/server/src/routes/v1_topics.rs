@@ -95,13 +95,17 @@ async fn create_topic(
         .map_err(|_| AppError::BadRequest("invalid user id".into()))?;
 
     let (display_name, description, icon) = if let Some(ref fork_id) = req.fork_from {
-        // Fork from existing topic: copy display_name, description, and icon from source
+        // Fork from existing topic: use request values if provided, otherwise copy from source
         let source: Option<TopicRow> = sqlx::query_as("SELECT * FROM topics WHERE id = ?")
             .bind(fork_id)
             .fetch_optional(&state.pool)
             .await?;
         let source = source.ok_or_else(|| AppError::NotFound("fork source topic not found".into()))?;
-        (source.display_name, source.description, source.icon)
+        (
+            req.display_name.clone().or(source.display_name),
+            req.description.clone().or(source.description),
+            req.icon.clone().or(source.icon),
+        )
     } else {
         (req.display_name.clone(), req.description.clone(), req.icon.clone())
     };
@@ -218,8 +222,16 @@ async fn delete_topic(
         .execute(&state.pool)
         .await?;
 
+    // Idempotent: if topic already gone (0 rows affected), still return success
     if result.rows_affected() == 0 {
-        return Err(AppError::NotFound("topic not found".into()));
+        // Only error if topic exists but belongs to someone else or is preset
+        let exists: bool = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM topics WHERE id = ?")
+            .bind(&id)
+            .fetch_one(&state.pool)
+            .await? > 0;
+        if exists {
+            return Err(AppError::NotFound("topic not found".into()));
+        }
     }
 
     sqlx::query("UPDATE messages SET topic_id = NULL WHERE topic_id = ?")

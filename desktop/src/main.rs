@@ -354,6 +354,16 @@ async fn update_client_name(name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn delete_topic(id: String) -> Result<(), String> {
+    let cfg = AppConfig::load().ok_or("No config found")?;
+    if cfg.server.jwt.is_empty() {
+        return Err("Not logged in".to_string());
+    }
+    let api = api::ApiClient::new(&cfg.server.url, &cfg.server.jwt);
+    api.delete_topic(&id).await
+}
+
+#[tauri::command]
 fn get_connection_mode(state: tauri::State<'_, Arc<Mutex<PollState>>>) -> String {
     let s = lock_mutex(&state);
     s.mode.clone()
@@ -1197,6 +1207,7 @@ fn main() {
             send_message,
             get_clients,
             update_client_name,
+            delete_topic,
             logout,
             backup_messages_json,
             restore_messages_json,

@@ -346,6 +346,28 @@ class ApiClient(private val serverUrl: String, private val jwtToken: String) {
         }
     }
 
+    fun deleteTopic(topicId: String): Boolean {
+        val request = Request.Builder()
+            .url("${serverUrl.trimEnd('/')}/api/v1/topic/$topicId")
+            .delete()
+            .header("Authorization", "Bearer $jwtToken")
+            .build()
+
+        return try {
+            client.newCall(request).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    AppLogger.w(TAG, "Delete topic failed: ${resp.code}")
+                } else {
+                    AppLogger.i(TAG, "Topic deleted: $topicId")
+                }
+                resp.isSuccessful
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Delete topic error", e)
+            false
+        }
+    }
+
     fun listClients(): List<Map<String, Any?>> {
         val request = Request.Builder()
             .url("${serverUrl.trimEnd('/')}/api/user/clients")

@@ -172,8 +172,9 @@ const MessageCard = React.memo(function MessageCard({ m, isSelectMode, isSelecte
 })
 
 // ── TopicCard component ──
-function TopicCard({ group, T, formatRelativeTime }: {
+function TopicCard({ group, T, formatRelativeTime, onDelete }: {
   group: TopicGroup; T: any; formatRelativeTime: (d: string) => string
+  onDelete?: (group: TopicGroup) => void
 }) {
   const latest = group.messages[0]
   const totalCount = (group as any).totalCount || group.messages.length
@@ -196,6 +197,11 @@ function TopicCard({ group, T, formatRelativeTime }: {
         <div className="topic-preview">{preview}</div>
       </div>
       <span className="topic-time">{relTime}</span>
+      {onDelete && (
+        <button className="topic-del-btn" title={T.clearMessages} onClick={(e) => { e.stopPropagation(); onDelete(group) }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+        </button>
+      )}
     </div>
   )
 }
@@ -328,6 +334,8 @@ export function Dashboard({ app }: Props) {
   const [containerHeight, setContainerHeight] = useState(600)
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [viewVisible, setViewVisible] = useState(true)
+  const [deleteTopicTarget, setDeleteTopicTarget] = useState<TopicGroup | null>(null)
+  const [deleteTopicAlsoServer, setDeleteTopicAlsoServer] = useState(false)
   const prevViewRef = useRef(app.viewMode)
   const listRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -722,6 +730,13 @@ export function Dashboard({ app }: Props) {
                     </div>
                   )}
                 </div>
+                {detailTopicGroup.topicId && (
+                  <button className="icon-btn danger" title={T.clearMessages} style={{flexShrink:0}} onClick={() => {
+                    setDeleteTopicTarget(detailTopicGroup)
+                  }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -810,7 +825,7 @@ export function Dashboard({ app }: Props) {
                   // Topic list view with virtual scrolling
                   topicGroups.slice(startIndex, endIndex).map((group: TopicGroup, i: number) => (
                     <div key={group.key} style={{ position: 'absolute', top: (startIndex + i) * TOPIC_CARD_HEIGHT, left: 0, right: 0, height: TOPIC_CARD_HEIGHT }}>
-                      <TopicCard group={group} T={T} formatRelativeTime={formatRelativeTime} />
+                      <TopicCard group={group} T={T} formatRelativeTime={formatRelativeTime} onDelete={setDeleteTopicTarget} />
                     </div>
                   ))
                 ) : (
@@ -886,6 +901,45 @@ export function Dashboard({ app }: Props) {
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => app.setErrorDetailOpen(false)}>{T.close}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Topic Dialog */}
+      {deleteTopicTarget && (
+        <div className="modal-overlay open" onClick={() => { setDeleteTopicTarget(null); setDeleteTopicAlsoServer(false) }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{maxWidth:'400px'}}>
+            <div className="modal-header">
+              <h3 className="modal-title">{T.deleteTopic}</h3>
+              <button className="modal-close" onClick={() => { setDeleteTopicTarget(null); setDeleteTopicAlsoServer(false) }}>×</button>
+            </div>
+            <div className="modal-body" style={{padding:'16px 20px'}}>
+              <p style={{margin:'0 0 12px',fontSize:'13px',color:'var(--text-secondary)'}}>
+                {T.deleteTopicDialogDesc} <strong>{deleteTopicTarget.topicDisplayName || deleteTopicTarget.topicName}</strong>?
+              </p>
+              <label style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'13px',cursor:'pointer'}}>
+                <input
+                  type="checkbox"
+                  checked={deleteTopicAlsoServer}
+                  onChange={e => setDeleteTopicAlsoServer(e.target.checked)}
+                />
+                {T.deleteTopicAlsoServer}
+              </label>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => { setDeleteTopicTarget(null); setDeleteTopicAlsoServer(false) }}>{T.cancel}</button>
+              <button className="btn btn-danger" onClick={async () => {
+                const topicId = deleteTopicTarget.topicId
+                if (!topicId) return
+                if (deleteTopicAlsoServer) {
+                  await app.deleteTopic(topicId)
+                } else {
+                  await app.clearTopicMessages(topicId)
+                }
+                setDeleteTopicTarget(null)
+                setDeleteTopicAlsoServer(false)
+              }}>{T.confirm}</button>
             </div>
           </div>
         </div>

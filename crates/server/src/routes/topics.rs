@@ -20,6 +20,8 @@ pub struct TopicQueryParams {
 #[derive(Debug, Deserialize)]
 pub struct ForkTopicRequest {
     pub name: String,
+    pub display_name: Option<String>,
+    pub description: Option<String>,
 }
 
 pub fn router() -> Router<AppState> {
@@ -238,8 +240,8 @@ async fn fork_topic(
     .bind(&new_id)
     .bind(user_id)
     .bind(&req.name)
-    .bind(&source.display_name)
-    .bind(&source.description)
+    .bind(req.display_name.as_ref().or(source.display_name.as_ref()))
+    .bind(req.description.as_ref().or(source.description.as_ref()))
     .bind(&source.icon)
     .bind(now)
     .bind(now)

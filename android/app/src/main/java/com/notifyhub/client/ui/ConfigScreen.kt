@@ -7,6 +7,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -28,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -173,13 +175,19 @@ fun ConfigScreen(
             }
             // Logo on top
             if (logoBitmap != null) {
-                Image(
-                    bitmap = logoBitmap,
-                    contentDescription = "NotifyHub",
+                Box(
                     modifier = Modifier
                         .size(72.dp)
                         .clip(CircleShape)
-                )
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        bitmap = logoBitmap,
+                        contentDescription = "NotifyHub",
+                        modifier = Modifier.size(64.dp).clip(CircleShape)
+                    )
+                }
             }
         }
     } else {
@@ -200,20 +208,27 @@ fun ConfigScreen(
 
                 // Product logo
                 if (logoBitmap != null) {
-                    Image(
-                        bitmap = logoBitmap,
-                        contentDescription = "NotifyHub",
+                    Box(
                         modifier = Modifier
                             .size(72.dp)
                             .clip(CircleShape)
-                    )
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            bitmap = logoBitmap,
+                            contentDescription = "NotifyHub",
+                            modifier = Modifier.size(64.dp).clip(CircleShape)
+                        )
+                    }
                 }
 
                 // App name
                 Text(
                     text = i18n("app_name"),
                     style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 // Description

@@ -326,6 +326,31 @@ impl ApiClient {
         Ok(messages)
     }
 
+    /// Delete a topic by ID.
+    pub async fn delete_topic(&self, topic_id: &str) -> Result<(), String> {
+        info!("[api] Delete topic: id={}", topic_id);
+        let url = format!("{}/api/v1/topic/{}", self.base_url, topic_id);
+        let resp = self
+            .client
+            .delete(&url)
+            .header("Authorization", format!("Bearer {}", self.jwt))
+            .send()
+            .await
+            .map_err(|e| { error!("[api] Delete topic request failed: {}", e); e.to_string() })?;
+
+        let status = resp.status();
+        let api_resp: ApiResponse<serde_json::Value> =
+            resp.json().await.map_err(|e| { error!("[api] Delete topic response parse failed: {}", e); e.to_string() })?;
+
+        if !status.is_success() || !api_resp.success {
+            let msg = api_resp.error.unwrap_or_else(|| "delete topic failed".to_string());
+            error!("[api] Delete topic HTTP error: {} - {}", status, msg);
+            return Err(format!("HTTP {}: {}", status, msg));
+        }
+        info!("[api] Topic deleted: {}", topic_id);
+        Ok(())
+    }
+
     /// Acknowledge received push messages so they won't be re-delivered.
     pub async fn ack(&self, uuid: &str, message_ids: &[String]) -> Result<(), String> {
         debug!("[api] ACK: uuid={}, count={}", uuid, message_ids.len());

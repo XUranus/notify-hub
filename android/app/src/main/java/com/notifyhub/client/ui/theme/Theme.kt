@@ -86,8 +86,9 @@ private fun buildDarkScheme(p: AppPalette) = darkColorScheme(
     tertiaryContainer = p.tertiaryContainer,
     background = darkBg,
     surface = darkBg,
-    surfaceVariant = Color(0xFF22252E),
-    onSurfaceVariant = Color(0xFF9CA3AF),
+    surfaceVariant = Color(0xFF282B33),
+    onSurfaceVariant = Color(0xFFB0B8C4),
+    onSurface = Color(0xFFE8EAF0),
     error = Color(0xFFF87171),
     errorContainer = Color(0xFF450A0A),
 )

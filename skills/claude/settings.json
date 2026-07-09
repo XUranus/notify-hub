@@ -1,0 +1,30 @@
+{
+  "env": {
+    "NOTIFYHUB_BASE": "http****************************",
+    "NOTIFYHUB_KEY": "nfkey_***************************"
+  },
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/.claude/hooks/claude-code-notifyhub.js"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/.claude/hooks/claude-code-notifyhub.js"
+          }
+        ]
+      }
+    ]
+  }
+}

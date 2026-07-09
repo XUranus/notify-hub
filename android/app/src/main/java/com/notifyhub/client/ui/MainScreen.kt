@@ -3,6 +3,8 @@ package com.notifyhub.client.ui
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.ui.platform.LocalConfiguration
+import com.notifyhub.client.data.ApiClient
 import com.notifyhub.client.R
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -59,6 +61,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Drafts
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.HorizontalDivider
@@ -204,11 +208,14 @@ fun MainScreen(
     // Filter state
     var currentFilter by remember { mutableStateOf(MessageFilter.ALL) }
     var showFilterMenu by remember { mutableStateOf(false) }
+    var showFilterDropdown by remember { mutableStateOf(false) }
 
     // Selection mode state
     var selectionMode by remember { mutableStateOf(false) }
     val selectedIds = remember { mutableStateListOf<String>() }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showDeleteTopicConfirm by remember { mutableStateOf(false) }
+    var deleteTopicAlsoServer by remember { mutableStateOf(false) }
     var showClearAllConfirm by remember { mutableStateOf(false) }
 
     // Range selection state (long-press + drag)
@@ -247,6 +254,8 @@ fun MainScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var lastDeletedMessage by remember { mutableStateOf<LocalMessage?>(null) }
     var lastDeletedIndex by remember { mutableStateOf(0) }
+    var lastDeletedTopicMessages by remember { mutableStateOf<List<LocalMessage>?>(null) }
+    var lastDeletedTopicName by remember { mutableStateOf("") }
 
     val isConnected = pollService?.isConnected?.value == true
     val connectionMode = pollService?.actualConnectionMode?.value ?: "poll"
@@ -343,6 +352,25 @@ fun MainScreen(
                 scope.launch { MessageStore.insert(context, deleted, lastDeletedIndex) }
             }
             lastDeletedMessage = null
+        }
+    }
+
+    // Show snackbar when topic messages are deleted
+    LaunchedEffect(lastDeletedTopicMessages) {
+        lastDeletedTopicMessages?.let { deleted ->
+            val result = snackbarHostState.showSnackbar(
+                message = "${I18n["topic_deleted"]} ($lastDeletedTopicName)",
+                actionLabel = I18n["undo"],
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                scope.launch {
+                    for (msg in deleted) {
+                        MessageStore.insert(context, msg, 0)
+                    }
+                }
+            }
+            lastDeletedTopicMessages = null
         }
     }
 
@@ -486,10 +514,55 @@ fun MainScreen(
                             Icon(Icons.Default.Close, contentDescription = i18n("cancel"))
                         }
                     } else {
+                        val isWideScreen = LocalConfiguration.current.screenWidthDp >= 600
+
                         IconButton(onClick = { showSearch = !showSearch }) {
                             Icon(Icons.Default.Search, contentDescription = i18n("search"))
                         }
-                        // Menu button
+
+                        if (isWideScreen) {
+                            // View toggle
+                            IconButton(onClick = {
+                                val newMode = when (viewMode) {
+                                    "messages" -> "topics"
+                                    "topics" -> "cards"
+                                    "cards" -> "messages"
+                                    else -> "messages"
+                                }
+                                viewMode = newMode
+                                topicDetailKey = null
+                                ConfigStore.setViewMode(context, newMode)
+                            }) {
+                                Icon(
+                                    when (viewMode) {
+                                        "messages" -> Icons.Default.GridView
+                                        "topics" -> Icons.Default.CreditCard
+                                        "cards" -> Icons.Default.ViewList
+                                        else -> Icons.Default.GridView
+                                    },
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            // Filter dropdown
+                            Box {
+                                IconButton(onClick = { showFilterDropdown = true }) {
+                                    Icon(Icons.Default.FilterList, contentDescription = i18n("filter"), tint = if (currentFilter != MessageFilter.ALL) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                DropdownMenu(expanded = showFilterDropdown, onDismissRequest = { showFilterDropdown = false }) {
+                                    DropdownMenuItem(text = { Text(i18n("filter_all")) }, onClick = { currentFilter = MessageFilter.ALL; showFilterDropdown = false }, leadingIcon = { if (currentFilter == MessageFilter.ALL) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) })
+                                    DropdownMenuItem(text = { Text(i18n("filter_unread")) }, onClick = { currentFilter = MessageFilter.UNREAD; showFilterDropdown = false }, leadingIcon = { if (currentFilter == MessageFilter.UNREAD) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) })
+                                    DropdownMenuItem(text = { Text(i18n("filter_read")) }, onClick = { currentFilter = MessageFilter.READ; showFilterDropdown = false }, leadingIcon = { if (currentFilter == MessageFilter.READ) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) })
+                                    DropdownMenuItem(text = { Text(i18n("filter_flagged")) }, onClick = { currentFilter = MessageFilter.FLAGGED; showFilterDropdown = false }, leadingIcon = { if (currentFilter == MessageFilter.FLAGGED) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) })
+                                }
+                            }
+                            // Settings
+                            IconButton(onClick = { onOpenSettings() }) {
+                                Icon(Icons.Default.Settings, contentDescription = i18n("settings"))
+                            }
+                        }
+
+                        // Menu button (always visible, but fewer items on wide screen)
                         Box {
                             IconButton(onClick = { showFilterMenu = true }) {
                                 Icon(Icons.Default.MoreVert, contentDescription = i18n("settings"))
@@ -498,64 +571,66 @@ fun MainScreen(
                                 expanded = showFilterMenu,
                                 onDismissRequest = { showFilterMenu = false }
                             ) {
-                                // View toggle
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(when (viewMode) {
-                                            "messages" -> I18n["topic_view"]
-                                            "topics" -> I18n["card_view"]
-                                            "cards" -> I18n["message_view"]
-                                            else -> I18n["topic_view"]
-                                        })
-                                    },
-                                    onClick = {
-                                        val newMode = when (viewMode) {
-                                            "messages" -> "topics"
-                                            "topics" -> "cards"
-                                            "cards" -> "messages"
-                                            else -> "messages"
+                                if (!isWideScreen) {
+                                    // View toggle
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(when (viewMode) {
+                                                "messages" -> I18n["topic_view"]
+                                                "topics" -> I18n["card_view"]
+                                                "cards" -> I18n["message_view"]
+                                                else -> I18n["topic_view"]
+                                            })
+                                        },
+                                        onClick = {
+                                            val newMode = when (viewMode) {
+                                                "messages" -> "topics"
+                                                "topics" -> "cards"
+                                                "cards" -> "messages"
+                                                else -> "messages"
+                                            }
+                                            viewMode = newMode
+                                            topicDetailKey = null
+                                            ConfigStore.setViewMode(context, newMode)
+                                            showFilterMenu = false
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                when (viewMode) {
+                                                    "messages" -> Icons.Default.GridView
+                                                    "topics" -> Icons.Default.CreditCard
+                                                    "cards" -> Icons.Default.ViewList
+                                                    else -> Icons.Default.GridView
+                                                },
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
                                         }
-                                        viewMode = newMode
-                                        topicDetailKey = null
-                                        ConfigStore.setViewMode(context, newMode)
-                                        showFilterMenu = false
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            when (viewMode) {
-                                                "messages" -> Icons.Default.GridView
-                                                "topics" -> Icons.Default.CreditCard
-                                                "cards" -> Icons.Default.ViewList
-                                                else -> Icons.Default.GridView
-                                            },
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                )
-                                HorizontalDivider()
-                                // Filter options
-                                DropdownMenuItem(
-                                    text = { Text(i18n("filter_all")) },
-                                    onClick = { currentFilter = MessageFilter.ALL; showFilterMenu = false },
-                                    leadingIcon = { if (currentFilter == MessageFilter.ALL) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(i18n("filter_unread")) },
-                                    onClick = { currentFilter = MessageFilter.UNREAD; showFilterMenu = false },
-                                    leadingIcon = { if (currentFilter == MessageFilter.UNREAD) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(i18n("filter_read")) },
-                                    onClick = { currentFilter = MessageFilter.READ; showFilterMenu = false },
-                                    leadingIcon = { if (currentFilter == MessageFilter.READ) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(i18n("filter_flagged")) },
-                                    onClick = { currentFilter = MessageFilter.FLAGGED; showFilterMenu = false },
-                                    leadingIcon = { if (currentFilter == MessageFilter.FLAGGED) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
-                                )
-                                HorizontalDivider()
+                                    )
+                                    HorizontalDivider()
+                                    // Filter options
+                                    DropdownMenuItem(
+                                        text = { Text(i18n("filter_all")) },
+                                        onClick = { currentFilter = MessageFilter.ALL; showFilterMenu = false },
+                                        leadingIcon = { if (currentFilter == MessageFilter.ALL) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(i18n("filter_unread")) },
+                                        onClick = { currentFilter = MessageFilter.UNREAD; showFilterMenu = false },
+                                        leadingIcon = { if (currentFilter == MessageFilter.UNREAD) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(i18n("filter_read")) },
+                                        onClick = { currentFilter = MessageFilter.READ; showFilterMenu = false },
+                                        leadingIcon = { if (currentFilter == MessageFilter.READ) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(i18n("filter_flagged")) },
+                                        onClick = { currentFilter = MessageFilter.FLAGGED; showFilterMenu = false },
+                                        leadingIcon = { if (currentFilter == MessageFilter.FLAGGED) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
+                                    )
+                                    HorizontalDivider()
+                                }
                                 // Mark all as read
                                 DropdownMenuItem(
                                     text = { Text(i18n("mark_all_read")) },
@@ -565,21 +640,23 @@ fun MainScreen(
                                     },
                                     leadingIcon = { Icon(Icons.Default.DoneAll, contentDescription = null) }
                                 )
-                                // Clear all messages
+                                // Clear messages
                                 DropdownMenuItem(
-                                    text = { Text(i18n("clear_all_messages")) },
+                                    text = { Text(if (topicDetailKey != null) I18n["clear_topic_messages"] else i18n("clear_all_messages")) },
                                     onClick = {
                                         showFilterMenu = false
                                         showClearAllConfirm = true
                                     },
                                     leadingIcon = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
                                 )
-                                // Settings
-                                DropdownMenuItem(
-                                    text = { Text(i18n("settings")) },
-                                    onClick = { showFilterMenu = false; onOpenSettings() },
-                                    leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) }
-                                )
+                                if (!isWideScreen) {
+                                    // Settings
+                                    DropdownMenuItem(
+                                        text = { Text(i18n("settings")) },
+                                        onClick = { showFilterMenu = false; onOpenSettings() },
+                                        leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -735,40 +812,83 @@ fun MainScreen(
                         val displayName = group.topicDisplayName ?: group.topicName ?: I18n["no_topic"]
                         val preview = latest.title.ifBlank { latest.body }.take(80)
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { topicDetailKey = group.key }
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            TopicAvatar(
-                                topicIcon = group.topicIcon,
-                                topicName = group.topicName,
-                                topicDisplayName = group.topicDisplayName,
-                                size = 40,
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(displayName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, false))
-                                    Spacer(Modifier.width(6.dp))
-                                    Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                                        Text(totalCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Medium)
-                                    }
-                                    if (unreadCount > 0) {
-                                        Spacer(Modifier.width(4.dp))
-                                        Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error), contentAlignment = Alignment.Center) {
-                                            Text(unreadCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { value ->
+                                when (value) {
+                                    SwipeToDismissBoxValue.EndToStart -> {
+                                        scope.launch {
+                                            val topicId = group.topicId
+                                            val messagesToDelete = group.messages.toList()
+                                            lastDeletedTopicName = displayName
+                                            for (msg in messagesToDelete) {
+                                                MessageStore.delete(context, msg.id)
+                                            }
+                                            lastDeletedTopicMessages = messagesToDelete
                                         }
+                                        true
                                     }
+                                    else -> false
                                 }
-                                Spacer(Modifier.height(2.dp))
-                                Text(preview, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
-                            Spacer(Modifier.width(8.dp))
-                            Text(formatRelativeTime(latest.receivedAt), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        )
+
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            enableDismissFromStartToEnd = false,
+                            enableDismissFromEndToStart = true,
+                            backgroundContent = {
+                                val color = when (dismissState.dismissDirection) {
+                                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.error
+                                    else -> Color.Transparent
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(color)
+                                        .padding(horizontal = 20.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White)
+                                }
+                            },
+                            content = {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .clickable { topicDetailKey = group.key }
+                                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    TopicAvatar(
+                                        topicIcon = group.topicIcon,
+                                        topicName = group.topicName,
+                                        topicDisplayName = group.topicDisplayName,
+                                        size = 40,
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(displayName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, false))
+                                            Spacer(Modifier.width(6.dp))
+                                            Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                                                Text(totalCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                                            }
+                                            if (unreadCount > 0) {
+                                                Spacer(Modifier.width(4.dp))
+                                                Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error), contentAlignment = Alignment.Center) {
+                                                    Text(unreadCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                }
+                                            }
+                                        }
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(preview, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(formatRelativeTime(latest.receivedAt), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        )
                     }
                 }
             } else if (viewMode == "cards" && topicKey == null) {
@@ -1086,14 +1206,23 @@ fun MainScreen(
     }
 
     if (showClearAllConfirm) {
+        val isTopicDetail = topicDetailKey != null
         AlertDialog(
             onDismissRequest = { showClearAllConfirm = false },
-            title = { Text(i18n("clear_all_messages")) },
-            text = { Text(i18n("dash_clear_confirm")) },
+            title = { Text(if (isTopicDetail) I18n["clear_topic_messages"] else i18n("clear_all_messages")) },
+            text = { Text(if (isTopicDetail) I18n["clear_topic_messages_confirm"] else i18n("dash_clear_confirm")) },
             confirmButton = {
                 TextButton(onClick = {
                     showClearAllConfirm = false
-                    scope.launch { MessageStore.deleteAll(context) }
+                    scope.launch {
+                        if (isTopicDetail) {
+                            val ids = allMessages.filter { (it.topicId ?: "__no_topic__") == topicDetailKey }.map { it.id }
+                            MessageStore.deleteByIds(context, ids)
+                            topicDetailKey = null
+                        } else {
+                            MessageStore.deleteAll(context)
+                        }
+                    }
                 }) {
                     Text(i18n("confirm"), color = MaterialTheme.colorScheme.error)
                 }
@@ -1101,6 +1230,53 @@ fun MainScreen(
             dismissButton = {
                 TextButton(onClick = { showClearAllConfirm = false }) {
                     Text(i18n("cancel"))
+                }
+            }
+        )
+    }
+
+    if (showDeleteTopicConfirm && topicDetailKey != null) {
+        val topicGroup = groupByTopic(filtered).find { it.key == topicDetailKey }
+        AlertDialog(
+            onDismissRequest = { showDeleteTopicConfirm = false },
+            title = { Text(I18n["delete_topic"]) },
+            text = {
+                Column {
+                    Text("${I18n["delete_topic_dialog_desc"]} \"${topicGroup?.topicDisplayName ?: topicGroup?.topicName ?: ""}\"?")
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = deleteTopicAlsoServer,
+                            onCheckedChange = { deleteTopicAlsoServer = it }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(I18n["delete_topic_also_server"], fontSize = 13.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val topicId = topicGroup?.topicId
+                    showDeleteTopicConfirm = false
+                    if (topicId != null) {
+                        scope.launch {
+                            val ids = allMessages.filter { it.topicId == topicId }.map { it.id }
+                            MessageStore.deleteByIds(context, ids)
+                            if (deleteTopicAlsoServer) {
+                                val api = ApiClient(config.serverUrl, config.jwtToken)
+                                api.deleteTopic(topicId)
+                            }
+                            topicDetailKey = null
+                        }
+                    }
+                    deleteTopicAlsoServer = false
+                }) {
+                    Text(I18n["confirm"], color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteTopicConfirm = false; deleteTopicAlsoServer = false }) {
+                    Text(I18n["cancel"])
                 }
             }
         )
