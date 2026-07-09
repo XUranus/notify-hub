@@ -166,7 +166,7 @@
     @keyframes iconPulseSuccess { 0% { transform: scale(1); background: var(--card); border-color: var(--outline-variant); color: var(--text2); } 50% { transform: scale(1.25); background: var(--success-soft); border-color: var(--success); color: var(--success); } 100% { transform: scale(1); background: var(--card); border-color: var(--outline-variant); color: var(--text2); } }
     .icon-btn.shake-danger { animation: iconShakeDanger 0.45s cubic-bezier(0.36,0.07,0.19,0.97); }
     @keyframes iconShakeDanger { 0% { transform: translateX(0); background: var(--card); border-color: var(--outline-variant); color: var(--text2); } 15% { transform: translateX(-3px); background: var(--error-soft); border-color: var(--error); color: var(--error); } 30% { transform: translateX(3px); background: var(--error-soft); border-color: var(--error); color: var(--error); } 45% { transform: translateX(-2px); background: var(--error-soft); border-color: var(--error); color: var(--error); } 60% { transform: translateX(2px); background: var(--error-soft); border-color: var(--error); color: var(--error); } 75% { transform: translateX(-1px); background: var(--error-soft); border-color: var(--error); color: var(--error); } 100% { transform: translateX(0); background: var(--card); border-color: var(--outline-variant); color: var(--text2); } }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
+    .card { background: var(--card); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); border-left: none; border-right: none; border-radius: 0; box-shadow: none; margin-bottom: 14px; overflow: hidden; }
     .card-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
     .card-header-left { display: flex; align-items: center; gap: 8px; }
     .card-header-left svg { color: var(--text2); flex-shrink: 0; }
@@ -328,7 +328,7 @@
     .msg-full-card { padding: 12px 8px; transition: background 0.15s, border-color 0.15s; cursor: pointer; border-bottom: 1px solid var(--border); overflow: hidden; min-width: 0; }
     .msg-full-card:hover { background: var(--hover); }
     .msg-full-card:hover .msg-del-btn { opacity: 1; }
-    .msg-full-card.unread { }
+    .msg-full-card.unread { border-left: 3px solid var(--accent); }
     .msg-full-card.unread .msg-full-card-body { background: var(--accent-soft); }
     .msg-full-card.selected { background: var(--accent-soft); }
     .msg-full-card.msg-new { animation: msgFadeIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards; }
