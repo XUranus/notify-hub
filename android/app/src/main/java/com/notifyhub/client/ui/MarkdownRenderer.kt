@@ -88,25 +88,40 @@ fun MarkdownText(
     }
 }
 
+// Pre-compiled regexes for stripMarkdownForPreview (avoid per-render compilation)
+private val RE_CODE_BLOCK = Regex("```[\\s\\S]*?```")
+private val RE_INLINE_CODE = Regex("`([^`]+)`")
+private val RE_BOLD = Regex("\\*\\*(.+?)\\*\\*")
+private val RE_ITALIC_STAR = Regex("\\*(.+?)\\*")
+private val RE_BOLD_UNDER = Regex("__(.+?)__")
+private val RE_ITALIC_UNDER = Regex("_(.+?)_")
+private val RE_STRIKE = Regex("~~(.+?)~~")
+private val RE_HEADING = Regex("^#{1,6}\\s+", RegexOption.MULTILINE)
+private val RE_BULLET = Regex("^\\s*[-*+]\\s+", RegexOption.MULTILINE)
+private val RE_ORDERED = Regex("^\\s*\\d+\\.\\s+", RegexOption.MULTILINE)
+private val RE_IMAGE = Regex("!\\[.*?]\\(.*?\\)")
+private val RE_LINK = Regex("\\[([^]]+)]\\([^)]+\\)")
+private val RE_HR = Regex("^---+$", RegexOption.MULTILINE)
+
 /**
  * Strip markdown formatting for preview rendering.
  * Removes inline code backticks, bold/italic markers, and leading bullet markers.
  */
 private fun stripMarkdownForPreview(body: String): String {
     return body
-        .replace(Regex("```[\\s\\S]*?```"), "[code]")     // code blocks
-        .replace(Regex("`([^`]+)`"), "$1")                  // inline code
-        .replace(Regex("\\*\\*(.+?)\\*\\*"), "$1")          // bold
-        .replace(Regex("\\*(.+?)\\*"), "$1")                // italic
-        .replace(Regex("__(.+?)__"), "$1")                  // bold underline
-        .replace(Regex("_(.+?)_"), "$1")                    // italic underline
-        .replace(Regex("~~(.+?)~~"), "$1")                  // strikethrough
-        .replace(Regex("^#{1,6}\\s+", RegexOption.MULTILINE), "") // headings
-        .replace(Regex("^\\s*[-*+]\\s+", RegexOption.MULTILINE), "• ") // bullets
-        .replace(Regex("^\\s*\\d+\\.\\s+", RegexOption.MULTILINE), "• ") // ordered lists
-        .replace(Regex("!\\[.*?]\\(.*?\\)"), "[image]")     // images
-        .replace(Regex("\\[([^]]+)]\\([^)]+\\)"), "$1")     // links → text only
-        .replace(Regex("^---+$", RegexOption.MULTILINE), "—") // horizontal rules
+        .replace(RE_CODE_BLOCK, "[code]")
+        .replace(RE_INLINE_CODE, "$1")
+        .replace(RE_BOLD, "$1")
+        .replace(RE_ITALIC_STAR, "$1")
+        .replace(RE_BOLD_UNDER, "$1")
+        .replace(RE_ITALIC_UNDER, "$1")
+        .replace(RE_STRIKE, "$1")
+        .replace(RE_HEADING, "")
+        .replace(RE_BULLET, "• ")
+        .replace(RE_ORDERED, "• ")
+        .replace(RE_IMAGE, "[image]")
+        .replace(RE_LINK, "$1")
+        .replace(RE_HR, "—")
         .trim()
 }
 
@@ -119,14 +134,20 @@ private fun MarkwonText(
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
 
     val markwon = remember(context) {
-        val textSizePx = (14f * context.resources.displayMetrics.density).toInt()
+        val density = context.resources.displayMetrics.density
+        val fontScale = context.resources.configuration.fontScale
+        // Markwon codeTextSize/codeBlockTextSize are in raw pixels.
+        // Convert from sp (14sp) to px, respecting user font scale.
+        val textSizePx = (14f * density * fontScale).toInt()
         Markwon.builder(context)
             .usePlugin(CorePlugin.create())
             .usePlugin(StrikethroughPlugin.create())
             .usePlugin(HtmlPlugin.create())
             .usePlugin(object : io.noties.markwon.AbstractMarkwonPlugin() {
                 override fun configureTheme(builder: MarkwonTheme.Builder) {
-                    // Normalize heading sizes to body text size (all multipliers = 1.0)
+                    // Heading multipliers all 1.0: notifications are short-form text,
+                    // not documents — headings should not be visually larger than body.
+                    // Bold styling is preserved via HeadingSpan's fakeBoldText.
                     builder.headingTextSizeMultipliers(floatArrayOf(1f, 1f, 1f, 1f, 1f, 1f))
                     builder.codeTextSize(textSizePx)
                     builder.codeBlockTextSize(textSizePx)

@@ -140,6 +140,10 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.CreditCard
 
+// ── Constants ──
+private const val TOPIC_PREVIEW_MAX_CHARS = 200
+private val TOPIC_CARD_VERTICAL_PADDING = 14.dp
+
 // ── Topic Grouping ──
 private data class TopicGroup(
     val key: String,
@@ -811,7 +815,7 @@ fun MainScreen(
                         val unreadCount = group.messages.count { !it.read }
                         val displayName = group.topicDisplayName ?: group.topicName ?: I18n["no_topic"]
                         val topicDesc = group.topicDescription ?: ""
-                        val preview = latest.body.ifBlank { latest.title }.take(200)
+                        val preview = latest.body.ifBlank { latest.title }.take(TOPIC_PREVIEW_MAX_CHARS)
 
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { value ->
@@ -858,7 +862,7 @@ fun MainScreen(
                                         .fillMaxWidth()
                                         .background(MaterialTheme.colorScheme.surface)
                                         .clickable { topicDetailKey = group.key }
-                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                        .padding(horizontal = 16.dp, vertical = TOPIC_CARD_VERTICAL_PADDING),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     TopicAvatar(
