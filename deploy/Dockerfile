@@ -8,6 +8,7 @@ RUN cd crates && cargo build --release --bin notifyhub-server
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /app/crates/target/release/notifyhub-server ./notifyhub-server
