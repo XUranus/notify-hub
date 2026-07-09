@@ -113,7 +113,6 @@ const summary = lastAssistantMessage || "(empty)";
 
 const body = [
   summary,
-  "",
   "---",
   `📁 \`${cwdDisplay}\``,
 ].join("\n");
