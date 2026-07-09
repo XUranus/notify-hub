@@ -181,7 +181,7 @@ function TopicCard({ group, T, formatRelativeTime, onDelete }: {
   const unreadCount = (group as any).unreadCount || 0
   const displayName = group.topicDisplayName || group.topicName || T.noTopic
   const relTime = latest ? formatRelativeTime(latest.received_at) : ''
-  const preview = latest ? (latest.title || latest.body || '').substring(0, 80) : ''
+  const preview = latest ? (latest.body || latest.title || '').substring(0, 80) : ''
 
   return (
     <div className="topic-card" data-topic-key={group.key}>
