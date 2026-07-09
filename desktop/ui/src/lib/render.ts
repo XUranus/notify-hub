@@ -62,6 +62,8 @@ export function renderMarkdown(md: string): string {
   html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>')
   html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>')
   html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>')
+  // Horizontal rule (---, ***, ___)
+  html = html.replace(/^(?:---+|\*\*\*+|___+)\s*$/gm, '<hr>')
   // Line breaks
   html = html.replace(/\n/g, '<br>')
   return html
