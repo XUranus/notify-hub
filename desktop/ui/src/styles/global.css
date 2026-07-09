@@ -245,7 +245,7 @@
     .msg-card.unread { background: var(--accent-soft); }
     .msg-card.selected { background: var(--accent-soft); border-left: 3px solid var(--accent); }
     .msg-card.msg-new { animation: msgFadeIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards; }
-    .msg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .msg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
     .msg-dot.info { background: var(--accent); }
     .msg-dot.warning { background: var(--warn); }
     .msg-dot.error { background: var(--error); }

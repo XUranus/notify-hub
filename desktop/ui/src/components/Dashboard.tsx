@@ -137,9 +137,7 @@ const MessageCard = React.memo(function MessageCard({ m, isSelectMode, isSelecte
   return (
     <div className={`msg-card ${!m.read ? 'unread' : ''} ${isSelected ? 'selected' : ''} ${isNew ? 'msg-new' : ''}`} data-id={m.id}>
       {isSelectMode && <input type="checkbox" className="msg-checkbox" data-id={m.id} checked={isSelected} readOnly />}
-      <div className={`msg-avatar ${m.level || ''}`}>
-        <Avatar icon={m.topic_icon} name={m.topic_name} displayName={m.topic_display_name} />
-      </div>
+      <div className={`msg-dot ${m.level || ''}`} />
       <div className="msg-content" data-id={m.id}>
         <div className="msg-title-row"><span className="msg-title-text">{m.title || T.untitled}</span></div>
         <div className="msg-body-preview">{(m.body || '').substring(0, 200)}</div>
