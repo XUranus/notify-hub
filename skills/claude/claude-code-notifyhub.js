@@ -54,7 +54,7 @@ const input = JSON.parse(fs.readFileSync(0, "utf-8") || "{}");
 async function ensureTopic(sessionId) {
   const topicName = `claudecode_${sessionId}`;
   const topicDisplayName = `Claude Code ${sessionId.split('-')[0]}`
-  const description = `Claude Code session ${sessionId}`
+  const description = `Session ${sessionId}`
 
   // 1. Search if already exists
   const listRes = await api("GET", `/api/v1/topic?search=${encodeURIComponent(topicName)}`);
