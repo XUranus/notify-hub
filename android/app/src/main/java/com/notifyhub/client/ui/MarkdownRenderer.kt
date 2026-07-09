@@ -31,6 +31,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.style.TextOverflow
 import io.noties.markwon.Markwon
 import io.noties.markwon.core.CorePlugin
+import io.noties.markwon.core.MarkwonTheme
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
 import io.noties.markwon.html.HtmlPlugin
 
@@ -118,10 +119,19 @@ private fun MarkwonText(
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
 
     val markwon = remember(context) {
+        val textSizePx = (14f * context.resources.displayMetrics.density).toInt()
         Markwon.builder(context)
             .usePlugin(CorePlugin.create())
             .usePlugin(StrikethroughPlugin.create())
             .usePlugin(HtmlPlugin.create())
+            .usePlugin(object : io.noties.markwon.AbstractMarkwonPlugin() {
+                override fun configureTheme(builder: MarkwonTheme.Builder) {
+                    // Normalize heading sizes to body text size (all multipliers = 1.0)
+                    builder.headingTextSizeMultipliers(floatArrayOf(1f, 1f, 1f, 1f, 1f, 1f))
+                    builder.codeTextSize(textSizePx)
+                    builder.codeBlockTextSize(textSizePx)
+                }
+            })
             .build()
     }
 
