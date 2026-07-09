@@ -225,6 +225,7 @@ pub async fn process_message(
         topic_id: msg.topic_id.clone(),
         topic_name: msg.topic_name.clone(),
         topic_display_name: msg.topic_display_name.clone(),
+        topic_description: msg.topic_description.clone(),
         topic_icon: msg.topic_icon.clone(),
     };
     if msg_store.add(local.clone()) {

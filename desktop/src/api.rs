@@ -34,6 +34,8 @@ pub struct PushMessage {
     #[serde(default)]
     pub topic_display_name: Option<String>,
     #[serde(default)]
+    pub topic_description: Option<String>,
+    #[serde(default)]
     pub topic_icon: Option<String>,
 }
 

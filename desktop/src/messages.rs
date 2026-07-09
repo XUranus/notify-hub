@@ -43,6 +43,8 @@ pub struct LocalMessage {
     pub topic_name: Option<String>,
     #[serde(default, alias = "topicDisplayName")]
     pub topic_display_name: Option<String>,
+    #[serde(default, alias = "topicDescription")]
+    pub topic_description: Option<String>,
     #[serde(default, alias = "topicIcon")]
     pub topic_icon: Option<String>,
 }
@@ -78,6 +80,7 @@ fn init_db(conn: &Connection) {
             topic_id TEXT,
             topic_name TEXT,
             topic_display_name TEXT,
+            topic_description TEXT,
             topic_icon TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_messages_received_at ON messages(received_at);",
@@ -103,7 +106,8 @@ fn row_to_message(row: &rusqlite::Row) -> rusqlite::Result<LocalMessage> {
         topic_id: row.get(13)?,
         topic_name: row.get(14)?,
         topic_display_name: row.get(15)?,
-        topic_icon: row.get(16)?,
+        topic_description: row.get(16)?,
+        topic_icon: row.get(17)?,
     })
 }
 
@@ -147,8 +151,8 @@ impl MessageStore {
             "INSERT OR REPLACE INTO messages (
                 id, title, body, level, received_at, read, flagged,
                 tags, priority, url, attachment, format,
-                local_image_path, topic_id, topic_name, topic_display_name, topic_icon
-            ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)",
+                local_image_path, topic_id, topic_name, topic_display_name, topic_description, topic_icon
+            ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18)",
             params![
                 msg.id,
                 msg.title,
@@ -166,6 +170,7 @@ impl MessageStore {
                 msg.topic_id,
                 msg.topic_name,
                 msg.topic_display_name,
+                msg.topic_description,
                 msg.topic_icon,
             ],
         ) {
@@ -192,7 +197,7 @@ impl MessageStore {
         debug!("[db] Loading all messages");
         let conn = lock_mutex(&self.conn);
         let mut stmt = conn
-            .prepare("SELECT id, title, body, level, received_at, read, flagged, tags, priority, url, attachment, format, local_image_path, topic_id, topic_name, topic_display_name, topic_icon FROM messages ORDER BY received_at DESC")
+            .prepare("SELECT id, title, body, level, received_at, read, flagged, tags, priority, url, attachment, format, local_image_path, topic_id, topic_name, topic_display_name, topic_description, topic_icon FROM messages ORDER BY received_at DESC")
             .expect("failed to prepare get_all");
         stmt.query_map([], row_to_message)
             .expect("failed to query messages")
@@ -231,7 +236,7 @@ impl MessageStore {
         // Query first
         let msg = {
             let mut stmt = match conn
-                .prepare("SELECT id, title, body, level, received_at, read, flagged, tags, priority, url, attachment, format, local_image_path, topic_id, topic_name, topic_display_name, topic_icon FROM messages WHERE id = ?1")
+                .prepare("SELECT id, title, body, level, received_at, read, flagged, tags, priority, url, attachment, format, local_image_path, topic_id, topic_name, topic_display_name, topic_description, topic_icon FROM messages WHERE id = ?1")
             {
                 Ok(stmt) => stmt,
                 Err(e) => {
