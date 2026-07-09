@@ -10,10 +10,8 @@ use axum::http::{header, Method};
 use axum::middleware::{self, Next};
 use axum::Router;
 use sqlx::SqlitePool;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
-use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::prelude::*;
 
@@ -108,22 +106,6 @@ async fn main() -> anyhow::Result<()> {
                 next.run(req).await
             }
         }))
-        // Serve frontend static files from ./public (SPA fallback to index.html)
-        .fallback_service({
-            let public_dir = std::env::current_dir()
-                .unwrap_or_else(|_| PathBuf::from("."))
-                .join("public");
-            let fallback_file = if public_dir.exists() {
-                tracing::info!("Serving frontend from {}", public_dir.display());
-                public_dir.join("index.html")
-            } else {
-                tracing::info!("No frontend directory found at {}", public_dir.display());
-                PathBuf::from("/nonexistent")
-            };
-            ServeDir::new(&public_dir)
-                .append_index_html_on_directories(true)
-                .fallback(ServeFile::new(fallback_file))
-        })
         .layer({
             let cors_layer = if let Some(ref origin) = state.config.cors_origin {
                 CorsLayer::new()

@@ -1,12 +1,29 @@
 services:
-  notifyhub:
+  # ── Nginx: single public-facing port ──
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    container_name: notifyhub-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./frontend-dist:/usr/share/nginx/html:ro
+
+  # ── Backend: Rust server (internal only) ──
+  backend:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    container_name: notifyhub
+      target: server
+    container_name: notifyhub-backend
     restart: unless-stopped
-    ports:
-      - "${PORT:-9527}:9527"
+    expose:
+      - "9527"
     volumes:
       - ${DB_PATH:-notifyhub-data}:/app/data
     environment:

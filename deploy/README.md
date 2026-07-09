@@ -1,102 +1,140 @@
 # NotifyHub Docker Deployment
 
+## Architecture
+
+Production deployment uses **nginx as reverse proxy** with a single public-facing port:
+
+```
+                          ┌──────────────────────────┐
+                          │      Public Internet      │
+                          └────────────┬─────────────┘
+                                       │ :80 (or 443)
+                          ┌────────────▼─────────────┐
+                          │         Nginx             │
+                          │  • Static frontend files  │
+                          │  • /api/* → backend       │
+                          │  • /ws    → backend       │
+                          └──┬───────────────────┬────┘
+                             │ /api, /ws         │ /
+                       ┌─────▼─────┐      ┌─────▼──────┐
+                       │  Backend   │      │  Frontend   │
+                       │  (Rust)   │      │  (React)    │
+                       │  :9527    │      │  static     │
+                       │ internal  │      │  files      │
+                       └─────┬─────┘      └────────────┘
+                             │
+                       ┌─────▼─────┐
+                       │  SQLite    │
+                       │  Volume    │
+                       └───────────┘
+```
+
+**Key rule:** Only nginx exposes a port to the host. The backend (Rust) is internal-only, accessed via Docker's internal network.
+
 ## Quick Start
 
 ```bash
-# From the repository root
 cd deploy
 
 # Copy and edit configuration
 cp .env.docker .env
 # Edit .env with your preferred settings
 
-# Start with Docker Compose
-docker compose up -d
+# Full deploy (build frontend + Docker images + start)
+./deploy.sh
 
-# Check status
-docker compose ps
-docker compose logs -f
+# Or step by step:
+./deploy.sh build    # Build frontend + Docker images
+./deploy.sh start    # Start containers
 ```
 
-The server starts on port **9527** by default. Open `http://localhost:9527` to access the admin dashboard.
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `./deploy.sh` | Full deploy (build + start) |
+| `./deploy.sh build` | Build frontend and Docker images only |
+| `./deploy.sh start` | Start containers |
+| `./deploy.sh stop` | Stop containers |
+| `./deploy.sh restart` | Restart containers |
+| `./deploy.sh logs` | Tail logs |
+| `./deploy.sh status` | Show container status |
 
 ## Configuration
 
-Environment variables (edit `.env` or set directly):
+Environment variables (edit `.env`):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `9527` | Server listen port |
+| `NGINX_PORT` | `80` | Public-facing port (nginx) |
 | `DB_PATH` | `notifyhub-data` | Database storage (Docker volume name or host path) |
 | `JWT_SECRET` | *(auto-generated)* | Secret for signing JWT tokens. Set explicitly for production. |
 
 ### Using Host Paths for Storage
 
-To store data on the host filesystem instead of Docker volumes:
-
 ```env
 DB_PATH=/path/to/your/data
 ```
 
-### Using Docker Volumes (Default)
+## Nginx Configuration
 
-By default, a Docker volume named `notifyhub-data` is used.
+The nginx config (`nginx.conf`) handles:
 
-## Commands
+- **`/`** → Serves frontend static files (React SPA)
+- **`/api/*`** → Proxies to Rust backend
+- **`/ws`** → WebSocket proxy (with upgrade headers)
+- **`/uploads/*`** → Proxies uploaded file access
+- **`/nginx-health`** → Nginx health check
 
-```bash
-# Start
-docker compose up -d
+### Adding HTTPS
 
-# Stop
-docker compose down
+1. Obtain SSL certificates (Let's Encrypt, etc.)
+2. Mount certificates into nginx container
+3. Update `nginx.conf` with SSL server block
+4. Change `NGINX_PORT` to `443`
 
-# View logs
-docker compose logs -f
-
-# Restart
-docker compose restart
-
-# Rebuild and start (after code changes)
-docker compose up -d --build
-
-# Backup database
-docker compose exec notifyhub cp /app/data/notifyhub.db /app/data/backup.db
+```yaml
+# In docker-compose.yml, add to nginx volumes:
+- /path/to/cert.pem:/etc/ssl/cert.pem:ro
+- /path/to/key.pem:/etc/ssl/key.pem:ro
 ```
 
-## Architecture
+## Docker Compose Services
 
-```
-┌─────────────────────────────────┐
-│         Docker Container        │
-│                                 │
-│  ┌───────────────────────────┐  │
-│  │   Rust Server (Axum)      │  │
-│  │   - Serves API + static   │  │
-│  │   - SQLite database       │  │
-│  └───────────────────────────┘  │
-│                                 │
-│  /app/public/  ← Web frontend   │
-│  /app/data/    ← SQLite + uploads│
-└─────────────────────────────────┘
-         │ port 9527
-```
+| Service | Description | Exposed Port |
+|---------|-------------|-------------|
+| `nginx` | Reverse proxy + static files | `80` (configurable) |
+| `backend` | Rust API server | **None** (internal only) |
 
-- **Frontend**: React SPA served as static files by the Rust server
-- **Backend**: Rust API server (Axum)
-- **Database**: SQLite (stored in `/app/data`)
+## Development vs Production
 
-Only port 9527 is exposed. The backend API and frontend are served on the same port.
+| | Development | Production |
+|---|---|---|
+| Frontend | Vite dev server (`:4321`) | Nginx static files (`:80`) |
+| Backend | `cargo run` (`:3000`) | Docker container (internal `:9527`) |
+| API proxy | Vite dev proxy | Nginx reverse proxy |
+| Hot reload | ✅ | ❌ (rebuild required) |
 
 ## Data Persistence
 
-- **Database**: Stored in `/app/data/notifyhub.db`
-- **Uploads**: Stored in `/app/data/uploads/`
+- **Database**: `/app/data/notifyhub.db` (Docker volume `notifyhub-data`)
+- **Uploads**: `/app/data/uploads/`
 
-Both are mounted as a Docker volume for persistence.
+## Troubleshooting
 
-## Security Notes
+```bash
+# Check container status
+docker compose ps
 
-1. Set a strong `JWT_SECRET` for production
-2. Use HTTPS in production (add a reverse proxy like Nginx or Caddy)
-3. Restrict port access to trusted networks
+# View backend logs
+docker compose logs backend
+
+# View nginx logs
+docker compose logs nginx
+
+# Health check
+curl http://localhost:80/api/health
+
+# Rebuild after code changes
+./deploy.sh
+```
