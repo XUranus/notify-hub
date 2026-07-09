@@ -116,10 +116,11 @@ function ImageAttachment({ att, T }: { att: { name: string; url: string }; T: an
 }
 
 // ── MessageCard component ──
-const MessageCard = React.memo(function MessageCard({ m, isSelectMode, isSelected, isNew, T, formatRelativeTime, parseTags, parseAttachment }: {
+const MessageCard = React.memo(function MessageCard({ m, isSelectMode, isSelected, isNew, T, formatRelativeTime, parseTags, parseAttachment, showTopicIcon }: {
   m: Message; isSelectMode: boolean; isSelected: boolean; isNew: boolean
   T: any; formatRelativeTime: (d: string) => string
   parseTags: (m: Message) => string[]; parseAttachment: (m: Message) => any
+  showTopicIcon?: boolean
 }) {
   const tags = parseTags(m)
   const att = parseAttachment(m)
@@ -137,7 +138,13 @@ const MessageCard = React.memo(function MessageCard({ m, isSelectMode, isSelecte
   return (
     <div className={`msg-card ${!m.read ? 'unread' : ''} ${isSelected ? 'selected' : ''} ${isNew ? 'msg-new' : ''}`} data-id={m.id}>
       {isSelectMode && <input type="checkbox" className="msg-checkbox" data-id={m.id} checked={isSelected} readOnly />}
-      <div className={`msg-dot ${m.level || ''}`} />
+      {showTopicIcon && m.topic_icon ? (
+        <div className="msg-topic-icon">
+          <Avatar icon={m.topic_icon} name={m.topic_name} displayName={m.topic_display_name} />
+        </div>
+      ) : (
+        <div className={`msg-dot ${m.level || ''}`} />
+      )}
       <div className="msg-content" data-id={m.id}>
         <div className="msg-title-row"><span className="msg-title-text">{m.title || T.untitled}</span></div>
         <div className="msg-body-preview">{(m.body || '').substring(0, 200)}</div>
@@ -841,6 +848,7 @@ export function Dashboard({ app }: Props) {
                         formatRelativeTime={formatRelativeTime}
                         parseTags={parseTags}
                         parseAttachment={parseAttachment}
+                        showTopicIcon={!app.topicDetailKey}
                       />
                     </div>
                   ))
