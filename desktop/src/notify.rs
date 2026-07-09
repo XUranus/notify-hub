@@ -331,7 +331,8 @@ pub fn show_notification_with_icon(title: &str, body: &str, content_icon_path: O
         .summary(title)
         .body(&display_body)
         .appname("NotifyHub")
-        .timeout(10000);
+        .timeout(10000)
+        .sound_name("message-new-instant");
 
     // App icon (top-left corner) — always the product logo
     // D-Bus spec requires file:// URI or theme icon name
