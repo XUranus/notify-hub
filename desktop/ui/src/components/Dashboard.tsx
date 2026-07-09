@@ -156,9 +156,9 @@ const MessageCard = React.memo(function MessageCard({ m, isSelectMode, isSelecte
         {att && <span className="msg-att-icon">📎</span>}
         {m.url && <span className="msg-att-icon">🔗</span>}
         <span className="msg-time">{relTime}</span>
-        <span className={`msg-flag-icon ${m.flagged ? 'flagged' : ''}`} data-action="flag" data-id={m.id} title={m.flagged ? T.unflag : T.flag}>⚑</span>
       </div>
       <div className="msg-right">
+        <span className={`msg-flag-icon ${m.flagged ? 'flagged' : ''}`} data-action="flag" data-id={m.id} title={m.flagged ? T.unflag : T.flag}>⚑</span>
         <button className="msg-del-btn" data-action="delete" data-id={m.id} title={T.delete}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
         </button>
