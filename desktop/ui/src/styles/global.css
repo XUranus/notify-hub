@@ -16,6 +16,7 @@
       --outline: #9ca3af; --outline-variant: #d4d4d4;
       --tertiary: #8b5cf6; --tertiary-container: #ede9fe; --on-tertiary-container: #581c87;
       --inverse-surface: #322f35; --inverse-foreground: #f5eff7;
+      --hl-keyword: #8b5cf6; --hl-string: #16a34a; --hl-comment: #9ca3af; --hl-number: #d97706; --hl-func: #2563eb;
       --app-font-size: 14px;
       --app-font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
@@ -38,6 +39,7 @@
         --outline: #6b7280; --outline-variant: #22252e;
         --tertiary: #7c3aed; --tertiary-container: #581c87; --on-tertiary-container: #ede9fe;
         --inverse-surface: #e5e7eb; --inverse-foreground: #111318;
+        --hl-keyword: #a78bfa; --hl-string: #4ade80; --hl-comment: #6b7280; --hl-number: #fbbf24; --hl-func: #60a5fa;
       }
     }
     /* ── Color Schemes (aligned with Android) ── */
@@ -72,6 +74,7 @@
       --outline: #6b7280; --outline-variant: #22252e;
       --tertiary: #7c3aed; --tertiary-container: #581c87; --on-tertiary-container: #ede9fe;
       --inverse-surface: #e5e7eb; --inverse-foreground: #111318;
+      --hl-keyword: #a78bfa; --hl-string: #4ade80; --hl-comment: #6b7280; --hl-number: #fbbf24; --hl-func: #60a5fa;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { overflow: hidden; }
@@ -338,7 +341,8 @@
     .msg-full-card-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
     .msg-full-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
     .msg-full-card-body { font-size: 13px; line-height: 1.6; color: var(--text2); white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; padding: 10px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
-    .msg-full-card-body pre { white-space: pre-wrap; word-break: break-all; overflow-wrap: anywhere; max-width: 100%; }
+    .msg-full-card-body pre { white-space: pre-wrap; word-break: break-all; overflow-wrap: anywhere; max-width: 100%; background: var(--badge-bg); padding: 8px 10px; border-radius: 6px; margin: 4px 0; font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 12px; }
+    .msg-full-card-body code { font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 12px; background: var(--badge-bg); padding: 1px 4px; border-radius: 3px; }
     .msg-full-card-body table { display: block; overflow-x: auto; max-width: 100%; }
     .msg-full-card-body.markdown { font-family: inherit; }
     .msg-full-card-body.json { font-family: 'SF Mono','Fira Code',monospace; font-size: 12px; }
@@ -412,7 +416,8 @@
     .detail-content-header span { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; }
     .detail-format-label { font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace; letter-spacing: 0.5px; }
     .detail-content-body { padding: 14px; font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; min-width: 0; }
-    .detail-content-body pre { white-space: pre-wrap; word-break: break-all; overflow-wrap: anywhere; max-width: 100%; }
+    .detail-content-body pre { white-space: pre-wrap; word-break: break-all; overflow-wrap: anywhere; max-width: 100%; background: var(--badge-bg); padding: 8px 10px; border-radius: 6px; margin: 4px 0; font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 12px; }
+    .detail-content-body code { font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 12px; background: var(--badge-bg); padding: 1px 4px; border-radius: 3px; }
     .detail-content-body table { display: block; overflow-x: auto; max-width: 100%; }
     .detail-content-body.markdown { font-family: inherit; }
     .detail-content-body.markdown table,
@@ -427,6 +432,11 @@
     .msg-full-card-body.markdown tr:hover { background: var(--hover); }
     .detail-content-body.markdown hr,
     .msg-full-card-body.markdown hr { border: none; border-top: 1px solid var(--outline); margin: 12px 0; opacity: 0.5; }
+    .hl-keyword { color: var(--hl-keyword); font-weight: 600; }
+    .hl-string { color: var(--hl-string); }
+    .hl-comment { color: var(--hl-comment); font-style: italic; }
+    .hl-number { color: var(--hl-number); }
+    .hl-func { color: var(--hl-func); }
     .detail-content-body.json { font-family: 'SF Mono','Fira Code',monospace; font-size: 12px; background: var(--badge-bg); border-radius: 6px; padding: 12px; }
     .detail-content-body.html-content { font-family: inherit; padding: 16px 20px; }
     .detail-section-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.05em; }

@@ -23,7 +23,10 @@ export function parseTags(raw: unknown): string[] {
 export function renderMarkdown(md: string): string {
   let html = escapeHtml(md)
   // Code blocks (must be first to avoid inner processing)
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="lang-$1">$2</code></pre>')
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang: string, code: string) => {
+    const highlighted = highlightCode(code, lang)
+    return `<pre><code class="lang-${lang}">${highlighted}</code></pre>`
+  })
   // Tables
   html = html.replace(/(?:^|\n)((?:\|[^\n]+\|\n)+)/g, (_match, tableBlock: string) => {
     const lines = tableBlock.trim().split('\n')
@@ -69,6 +72,51 @@ export function renderMarkdown(md: string): string {
   // Remove <br> immediately after <hr>
   html = html.replace(/<hr><br>/g, '<hr>')
   return html
+}
+
+// Basic syntax highlighting for code blocks
+function highlightCode(code: string, lang: string): string {
+  // Keywords per language family
+  const keywords: Record<string, string[]> = {
+    js: ['const','let','var','function','return','if','else','for','while','do','switch','case','break','continue','new','delete','typeof','instanceof','in','of','class','extends','super','this','import','export','from','default','async','await','try','catch','finally','throw','yield','static','get','set','true','false','null','undefined','void','with','debugger','interface','type','enum','implements','package','private','protected','public','abstract','as','constructor','declare','is','keyof','namespace','readonly','require','module','infer'],
+    ts: ['const','let','var','function','return','if','else','for','while','do','switch','case','break','continue','new','delete','typeof','instanceof','in','of','class','extends','super','this','import','export','from','default','async','await','try','catch','finally','throw','yield','static','get','set','true','false','null','undefined','void','with','debugger','interface','type','enum','implements','package','private','protected','public','abstract','as','constructor','declare','is','keyof','namespace','readonly','require','module','infer'],
+    py: ['def','class','return','if','elif','else','for','while','break','continue','pass','import','from','as','try','except','finally','raise','with','yield','lambda','and','or','not','in','is','True','False','None','global','nonlocal','assert','del','async','await','print','self','cls'],
+    rs: ['fn','let','mut','const','pub','struct','enum','impl','trait','type','use','mod','crate','super','self','if','else','match','for','while','loop','break','continue','return','move','ref','async','await','dyn','where','as','in','true','false','unsafe','extern','static','box','abstract','become','do','final','macro','override','priv','typeof','unsized','virtual','try'],
+    go: ['func','var','const','type','struct','interface','map','chan','package','import','return','if','else','for','range','switch','case','default','break','continue','go','defer','select','fallthrough','goto','nil','true','false','iota','make','new','len','cap','append','copy','delete','close','complex','real','imag','panic','recover','print','println','error','string','int','int8','int16','int32','int64','uint','uint8','uint16','uint32','uint64','float32','float64','complex64','complex128','bool','byte','rune'],
+    java: ['abstract','assert','boolean','break','byte','case','catch','char','class','continue','default','do','double','else','enum','extends','final','finally','float','for','if','implements','import','instanceof','int','interface','long','native','new','package','private','protected','public','return','short','static','strictfp','super','switch','synchronized','this','throw','throws','transient','try','void','volatile','while','true','false','null'],
+    rb: ['def','end','class','module','if','elsif','else','unless','while','until','for','in','do','return','yield','break','next','redo','retry','begin','rescue','ensure','raise','and','or','not','true','false','nil','self','super','require','include','extend','attr_accessor','attr_reader','attr_writer','puts','print','lambda','proc','block_given?'],
+    sh: ['if','then','else','elif','fi','for','while','do','done','case','esac','in','function','return','exit','export','source','local','readonly','declare','typeset','unset','shift','set','unset','alias','unalias','echo','printf','read','test','true','false'],
+    sql: ['SELECT','FROM','WHERE','INSERT','INTO','VALUES','UPDATE','SET','DELETE','CREATE','TABLE','ALTER','DROP','INDEX','JOIN','LEFT','RIGHT','INNER','OUTER','ON','AND','OR','NOT','IN','LIKE','BETWEEN','IS','NULL','AS','ORDER','BY','GROUP','HAVING','LIMIT','OFFSET','UNION','ALL','DISTINCT','COUNT','SUM','AVG','MIN','MAX','EXISTS','CASE','WHEN','THEN','ELSE','END','PRIMARY','KEY','FOREIGN','REFERENCES','CONSTRAINT','DEFAULT','AUTO_INCREMENT','VARCHAR','INT','INTEGER','TEXT','BOOLEAN','DATE','TIMESTAMP','DESC','ASC','TRUE','FALSE'],
+    json: [],
+    html: [],
+    css: [],
+    bash: ['if','then','else','elif','fi','for','while','do','done','case','esac','in','function','return','exit','export','source','local','readonly','declare','typeset','unset','shift','set','unset','alias','unalias','echo','printf','read','test','true','false'],
+  }
+  // Map common aliases
+  const aliasMap: Record<string, string> = { javascript: 'js', typescript: 'ts', python: 'py', rust: 'rs', golang: 'go', ruby: 'rb', shell: 'sh', zsh: 'sh', powershell: 'sh', ps1: 'sh', yml: 'yaml', md: 'markdown' }
+  const key = aliasMap[lang] || lang
+  const kwList = keywords[key] || keywords['js'] || []
+
+  let result = code
+  // Strings (double and single quoted)
+  result = result.replace(/(["'])(?:(?!\1|\\).|\\.)*\1/g, '<span class="hl-string">$&</span>')
+  // Template literals
+  result = result.replace(/`(?:[^`\\]|\\.)*`/g, '<span class="hl-string">$&</span>')
+  // Comments (line)
+  result = result.replace(/(\/\/.*)/g, '<span class="hl-comment">$1</span>')
+  result = result.replace(/(#.*)/g, '<span class="hl-comment">$1</span>')
+  // Comments (block)
+  result = result.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="hl-comment">$1</span>')
+  // Numbers
+  result = result.replace(/\b(\d+\.?\d*(?:e[+-]?\d+)?)\b/gi, '<span class="hl-number">$1</span>')
+  // Keywords
+  if (kwList.length > 0) {
+    const kwRegex = new RegExp('\\b(' + kwList.join('|') + ')\\b', 'g')
+    result = result.replace(kwRegex, '<span class="hl-keyword">$1</span>')
+  }
+  // Function calls
+  result = result.replace(/\b([a-zA-Z_]\w*)\s*(?=\()/g, '<span class="hl-func">$1</span>')
+  return result
 }
 
 // Apply inline formatting (bold, italic, code) to table cell content
