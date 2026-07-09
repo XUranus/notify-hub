@@ -142,7 +142,7 @@ const MessageCard = React.memo(function MessageCard({ m, isSelectMode, isSelecte
       </div>
       <div className="msg-content" data-id={m.id}>
         <div className="msg-title-row"><span className="msg-title-text">{m.title || T.untitled}</span></div>
-        <div className="msg-body-preview">{(m.body || '').substring(0, 120)}</div>
+        <div className="msg-body-preview">{(m.body || '').substring(0, 200)}</div>
       </div>
       {thumbUrl && (
         <img className="msg-thumb" src={thumbUrl} alt="" />
