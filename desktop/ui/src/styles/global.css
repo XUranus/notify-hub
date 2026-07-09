@@ -240,7 +240,7 @@
     .msg-empty-icon { margin-bottom: 12px; color: var(--text3); opacity: 0.5; }
     .msg-empty-icon svg { width: 48px; height: 48px; }
     .msg-viewport { position: relative; width: 100%; }
-    .msg-card { display: flex; align-items: center; gap: 10px; padding: 4px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; min-height: 100%; box-sizing: border-box; }
+    .msg-card { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; min-height: 100%; box-sizing: border-box; }
     .msg-card:hover { background: var(--accent-soft); }
     .msg-card.unread { background: var(--accent-soft); }
     .msg-card.selected { background: var(--accent-soft); border-left: 3px solid var(--accent); }
@@ -322,7 +322,7 @@
 
     /* ── Cards View ── */
     .cards-container { display: flex; flex-direction: column; padding: 0; }
-    .msg-full-card { padding: 12px 14px; transition: background 0.15s, border-color 0.15s; cursor: pointer; border-bottom: 1px solid var(--border); overflow: hidden; min-width: 0; }
+    .msg-full-card { padding: 12px 8px; transition: background 0.15s, border-color 0.15s; cursor: pointer; border-bottom: 1px solid var(--border); overflow: hidden; min-width: 0; }
     .msg-full-card:hover { background: var(--hover); }
     .msg-full-card:hover .msg-del-btn { opacity: 1; }
     .msg-full-card.unread { border-left: 3px solid var(--accent); }
