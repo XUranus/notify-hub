@@ -32,5 +32,6 @@ data class MessageEntity(
     @ColumnInfo(name = "topic_id") val topicId: String? = null,
     @ColumnInfo(name = "topic_name") val topicName: String? = null,
     @ColumnInfo(name = "topic_display_name") val topicDisplayName: String? = null,
+    @ColumnInfo(name = "topic_description") val topicDescription: String? = null,
     @ColumnInfo(name = "topic_icon") val topicIcon: String? = null,
 )

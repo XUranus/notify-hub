@@ -209,6 +209,7 @@ pub struct CreateTopicRequest {
     pub name: String,
     #[validate(length(max = 100))]
     pub display_name: Option<String>,
+    pub description: Option<String>,
     pub icon: Option<String>,
 }
 
@@ -217,6 +218,7 @@ pub struct CreateTopicRequest {
 pub struct UpdateTopicRequest {
     pub name: Option<String>,
     pub display_name: Option<Option<String>>,
+    pub description: Option<Option<String>>,
     pub icon: Option<Option<String>>,
 }
 

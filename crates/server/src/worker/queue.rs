@@ -210,9 +210,9 @@ async fn create_push_messages(
     let tags_str = tags.as_deref().unwrap_or("[]");
 
     // Look up topic info if topic_id is present
-    let (topic_name, topic_display_name, topic_icon): (Option<String>, Option<String>, Option<String>) = if let Some(ref tid) = topic_id {
-        match sqlx::query_as::<_, (Option<String>, Option<String>, Option<String>)>(
-            "SELECT name, display_name, icon FROM topics WHERE id = ?"
+    let (topic_name, topic_display_name, topic_description, topic_icon): (Option<String>, Option<String>, Option<String>, Option<String>) = if let Some(ref tid) = topic_id {
+        match sqlx::query_as::<_, (Option<String>, Option<String>, Option<String>, Option<String>)>(
+            "SELECT name, display_name, description, icon FROM topics WHERE id = ?"
         )
         .bind(tid)
         .fetch_optional(pool)
@@ -220,15 +220,15 @@ async fn create_push_messages(
             Ok(Some(row)) => row,
             Ok(None) => {
                 tracing::warn!("[worker] Topic {} not found", tid);
-                (None, None, None)
+                (None, None, None, None)
             }
             Err(e) => {
                 tracing::warn!("[worker] Failed to query topic: {e}");
-                (None, None, None)
+                (None, None, None, None)
             }
         }
     } else {
-        (None, None, None)
+        (None, None, None, None)
     };
 
     if clients.is_empty() {
@@ -290,6 +290,7 @@ async fn create_push_messages(
                 data.insert("topicId".to_string(), topic_id.clone().unwrap_or_default());
                 data.insert("topicName".to_string(), topic_name.clone().unwrap_or_default());
                 data.insert("topicDisplayName".to_string(), topic_display_name.clone().unwrap_or_default());
+                data.insert("topicDescription".to_string(), topic_description.clone().unwrap_or_default());
                 data.insert("topicIcon".to_string(), topic_icon.clone().unwrap_or_default());
 
                 match channels::send_fcm(fcm_cfg, token, data).await {
@@ -317,6 +318,7 @@ async fn create_push_messages(
             "topicId": topic_id,
             "topicName": topic_name,
             "topicDisplayName": topic_display_name,
+            "topicDescription": topic_description,
             "topicIcon": topic_icon,
         });
         push_state.notify(client_uuid, msg).await;

@@ -142,6 +142,7 @@ private data class TopicGroup(
     val topicId: String?,
     val topicName: String?,
     val topicDisplayName: String?,
+    val topicDescription: String?,
     val topicIcon: String?,
     val messages: List<LocalMessage>,
 )
@@ -159,6 +160,7 @@ private fun groupByTopic(messages: List<LocalMessage>): List<TopicGroup> {
             topicId = first.topicId,
             topicName = first.topicName,
             topicDisplayName = first.topicDisplayName,
+            topicDescription = first.topicDescription,
             topicIcon = first.topicIcon,
             messages = msgs.sortedByDescending { it.receivedAt },
         )
@@ -662,13 +664,24 @@ fun MainScreen(
                             size = 28,
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            topicGroup.topicDisplayName ?: topicGroup.topicName ?: I18n["no_topic"],
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                topicGroup.topicDisplayName ?: topicGroup.topicName ?: I18n["no_topic"],
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (!topicGroup.topicDescription.isNullOrEmpty()) {
+                                Text(
+                                    topicGroup.topicDescription,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -9,14 +9,14 @@ const invoke = window.__TAURI_INTERNALS__.invoke as (cmd: string, args?: Record<
 export interface Message {
   id: string; title: string; body: string; level: string; read: boolean; flagged: boolean
   tags: string | null; channel: string | null; topic_id: string | null; topic_name: string | null
-  topic_display_name: string | null; topic_icon: string | null; url: string | null
+  topic_display_name: string | null; topic_description: string | null; topic_icon: string | null; url: string | null
   attachment: string | null; format: string | null; priority: string | null
   received_at: string; client_uuid: string | null
 }
 
 export interface TopicGroup {
   key: string; topicId: string | null; topicName: string | null
-  topicDisplayName: string | null; topicIcon: string | null; messages: Message[]
+  topicDisplayName: string | null; topicDescription: string | null; topicIcon: string | null; messages: Message[]
 }
 
 // ── Constants ──
@@ -185,7 +185,7 @@ export function useApp() {
     for (const m of messages) {
       const key = m.topic_id || '__no_topic__'
       if (!groups.has(key)) {
-        groups.set(key, { key, topicId: m.topic_id || null, topicName: m.topic_name || null, topicDisplayName: m.topic_display_name || null, topicIcon: m.topic_icon || null, messages: [] })
+        groups.set(key, { key, topicId: m.topic_id || null, topicName: m.topic_name || null, topicDisplayName: m.topic_display_name || null, topicDescription: m.topic_description || null, topicIcon: m.topic_icon || null, messages: [] })
       }
       groups.get(key)!.messages.push(m)
     }

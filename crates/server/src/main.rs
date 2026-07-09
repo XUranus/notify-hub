@@ -209,6 +209,7 @@ async fn seed_preset_topics(pool: &SqlitePool) -> anyhow::Result<()> {
     struct PresetTopic {
         name: String,
         display: String,
+        description: Option<String>,
         icon: String,
     }
 
@@ -229,11 +230,12 @@ async fn seed_preset_topics(pool: &SqlitePool) -> anyhow::Result<()> {
             let display = if preset.display.is_empty() { None } else { Some(preset.display.clone()) };
 
             sqlx::query(
-                "INSERT INTO topics (id, user_id, name, display_name, icon, preset, created_at, updated_at) VALUES (?, 0, ?, ?, ?, 1, ?, ?)"
+                "INSERT INTO topics (id, user_id, name, display_name, description, icon, preset, created_at, updated_at) VALUES (?, 0, ?, ?, ?, ?, 1, ?, ?)"
             )
             .bind(&id)
             .bind(&preset.name)
             .bind(&display)
+            .bind(&preset.description)
             .bind(&icon)
             .bind(now)
             .bind(now)
@@ -241,6 +243,17 @@ async fn seed_preset_topics(pool: &SqlitePool) -> anyhow::Result<()> {
             .await?;
 
             tracing::info!("[init] Created preset topic: {}", preset.name);
+        }
+    }
+
+    // Update description for existing preset topics that don't have one yet
+    for preset in &presets {
+        if let Some(ref desc) = preset.description {
+            sqlx::query("UPDATE topics SET description = ? WHERE name = ? AND preset = 1 AND (description IS NULL OR description = '')")
+                .bind(desc)
+                .bind(&preset.name)
+                .execute(pool)
+                .await?;
         }
     }
 

@@ -63,6 +63,7 @@ object MessageStore {
         topicId = topicId,
         topicName = topicName,
         topicDisplayName = topicDisplayName,
+        topicDescription = topicDescription,
         topicIcon = topicIcon,
     )
 
@@ -83,6 +84,7 @@ object MessageStore {
         topicId = topicId,
         topicName = topicName,
         topicDisplayName = topicDisplayName,
+        topicDescription = topicDescription,
         topicIcon = topicIcon,
     )
 
@@ -103,6 +105,7 @@ object MessageStore {
         topicId = topicId,
         topicName = topicName,
         topicDisplayName = topicDisplayName,
+        topicDescription = topicDescription,
         topicIcon = topicIcon,
     )
 

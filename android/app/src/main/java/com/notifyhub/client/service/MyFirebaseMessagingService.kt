@@ -83,6 +83,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val topicId = data["topicId"]
         val topicName = data["topicName"]
         val topicDisplayName = data["topicDisplayName"]
+        val topicDescription = data["topicDescription"]
         val topicIcon = data["topicIcon"]
 
         // Save to local database and always ACK to prevent server retries
@@ -103,6 +104,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                     topicId = topicId,
                     topicName = topicName,
                     topicDisplayName = topicDisplayName,
+                    topicDescription = topicDescription,
                     topicIcon = topicIcon,
                     createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault()).format(Date())
                 )

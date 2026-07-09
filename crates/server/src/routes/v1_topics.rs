@@ -21,6 +21,7 @@ pub struct TopicQueryParams {
 pub struct CreateTopicRequest {
     pub name: String,
     pub display_name: Option<String>,
+    pub description: Option<String>,
     pub icon: Option<String>,
     /// If set, fork from an existing topic (copies display_name and icon from source)
     pub fork_from: Option<String>,
@@ -31,6 +32,7 @@ pub struct CreateTopicRequest {
 pub struct UpdateTopicRequest {
     pub name: Option<String>,
     pub display_name: Option<String>,
+    pub description: Option<String>,
     pub icon: Option<String>,
 }
 
@@ -92,16 +94,16 @@ async fn create_topic(
     let user_id = auth.claims.sub.parse::<i64>()
         .map_err(|_| AppError::BadRequest("invalid user id".into()))?;
 
-    let (display_name, icon) = if let Some(ref fork_id) = req.fork_from {
-        // Fork from existing topic: copy display_name and icon from source
+    let (display_name, description, icon) = if let Some(ref fork_id) = req.fork_from {
+        // Fork from existing topic: copy display_name, description, and icon from source
         let source: Option<TopicRow> = sqlx::query_as("SELECT * FROM topics WHERE id = ?")
             .bind(fork_id)
             .fetch_optional(&state.pool)
             .await?;
         let source = source.ok_or_else(|| AppError::NotFound("fork source topic not found".into()))?;
-        (source.display_name, source.icon)
+        (source.display_name, source.description, source.icon)
     } else {
-        (req.display_name.clone(), req.icon.clone())
+        (req.display_name.clone(), req.description.clone(), req.icon.clone())
     };
 
     // Check name uniqueness for this user
@@ -118,12 +120,13 @@ async fn create_topic(
     let now = chrono::Utc::now().timestamp();
 
     sqlx::query(
-        "INSERT INTO topics (id, user_id, name, display_name, icon, preset, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
+        "INSERT INTO topics (id, user_id, name, display_name, description, icon, preset, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)",
     )
     .bind(&id)
     .bind(user_id)
     .bind(&req.name)
     .bind(&display_name)
+    .bind(&description)
     .bind(&icon)
     .bind(now)
     .bind(now)
@@ -131,7 +134,7 @@ async fn create_topic(
     .await?;
 
     Ok(Json(ApiResponse::ok(Topic {
-        id, user_id, name: req.name, display_name,
+        id, user_id, name: req.name, display_name, description,
         icon, preset: false, created_at: now, updated_at: now,
     })))
 }
@@ -178,6 +181,11 @@ async fn update_topic(
     if let Some(ref icon) = req.icon {
         sqlx::query("UPDATE topics SET icon = ?, updated_at = ? WHERE id = ?")
             .bind(icon.as_str()).bind(now).bind(&id)
+            .execute(&state.pool).await?;
+    }
+    if let Some(ref description) = req.description {
+        sqlx::query("UPDATE topics SET description = ?, updated_at = ? WHERE id = ?")
+            .bind(description.as_str()).bind(now).bind(&id)
             .execute(&state.pool).await?;
     }
 
@@ -230,6 +238,7 @@ struct TopicRow {
     user_id: i64,
     name: String,
     display_name: Option<String>,
+    description: Option<String>,
     icon: Option<String>,
     preset: bool,
     created_at: i64,
@@ -238,6 +247,6 @@ struct TopicRow {
 
 impl From<TopicRow> for Topic {
     fn from(r: TopicRow) -> Self {
-        Topic { id: r.id, user_id: r.user_id, name: r.name, display_name: r.display_name, icon: r.icon, preset: r.preset, created_at: r.created_at, updated_at: r.updated_at }
+        Topic { id: r.id, user_id: r.user_id, name: r.name, display_name: r.display_name, description: r.description, icon: r.icon, preset: r.preset, created_at: r.created_at, updated_at: r.updated_at }
     }
 }

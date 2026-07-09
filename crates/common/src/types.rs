@@ -73,6 +73,7 @@ pub struct Topic {
     pub user_id: i64,
     pub name: String,
     pub display_name: Option<String>,
+    pub description: Option<String>,
     pub icon: Option<String>,
     pub preset: bool,
     pub created_at: i64,

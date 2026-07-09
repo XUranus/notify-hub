@@ -704,16 +704,25 @@ export function Dashboard({ app }: Props) {
         <div className="card-body-scroll" style={{ opacity: viewVisible ? 1 : 0, transition: 'opacity 0.15s ease' }}>
           {/* Topic detail bar — driven by topicDetailKey state instead of DOM manipulation */}
           {app.topicDetailKey && detailTopicGroup && (
-            <div id="topicDetailBar" style={{display:'flex',padding:'8px 14px',borderBottom:'1px solid var(--border)',flexShrink:0,alignItems:'center',gap:'10px'}}>
-              <button className="icon-btn" id="topicDetailBackBtn" title="Back" style={{flexShrink:0}} onClick={closeTopicDetail}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg>
-              </button>
-              <div className="topic-detail-avatar">
-                <TopicAvatar icon={detailTopicGroup.topicIcon} name={detailTopicGroup.topicName} displayName={detailTopicGroup.topicDisplayName} />
+            <div id="topicDetailBar" style={{display:'flex',flexDirection:'column',padding:'8px 14px',borderBottom:'1px solid var(--border)',flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                <button className="icon-btn" id="topicDetailBackBtn" title="Back" style={{flexShrink:0}} onClick={closeTopicDetail}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg>
+                </button>
+                <div className="topic-detail-avatar">
+                  <TopicAvatar icon={detailTopicGroup.topicIcon} name={detailTopicGroup.topicName} displayName={detailTopicGroup.topicDisplayName} />
+                </div>
+                <div style={{flex:1,overflow:'hidden'}}>
+                  <div style={{fontSize:'14px',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    {detailTopicGroup.topicDisplayName || detailTopicGroup.topicName || T.noTopic}
+                  </div>
+                  {detailTopicGroup.topicDescription && (
+                    <div style={{fontSize:'12px',color:'var(--text-secondary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:'2px'}}>
+                      {detailTopicGroup.topicDescription}
+                    </div>
+                  )}
+                </div>
               </div>
-              <span style={{fontSize:'14px',fontWeight:600,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                {detailTopicGroup.topicDisplayName || detailTopicGroup.topicName || T.noTopic}
-              </span>
             </div>
           )}
 

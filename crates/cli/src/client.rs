@@ -29,6 +29,8 @@ pub struct PushMessage {
     pub topic_name: Option<String>,
     #[serde(alias = "topicDisplayName")]
     pub topic_display_name: Option<String>,
+    #[serde(alias = "topicDescription")]
+    pub topic_description: Option<String>,
     #[serde(alias = "topicIcon")]
     pub topic_icon: Option<String>,
 }

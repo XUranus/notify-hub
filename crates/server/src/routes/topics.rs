@@ -79,12 +79,13 @@ async fn create_topic(
     }
 
     sqlx::query(
-        "INSERT INTO topics (id, user_id, name, display_name, icon, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO topics (id, user_id, name, display_name, description, icon, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(user_id)
     .bind(&req.name)
     .bind(&req.display_name)
+    .bind(&req.description)
     .bind(&req.icon)
     .bind(now)
     .bind(now)
@@ -92,7 +93,7 @@ async fn create_topic(
     .await?;
 
     Ok(Json(ApiResponse::ok(Topic {
-        id, user_id, name: req.name, display_name: req.display_name,
+        id, user_id, name: req.name, display_name: req.display_name, description: req.description,
         icon: req.icon, preset: false, created_at: now, updated_at: now,
     })))
 }
@@ -146,6 +147,11 @@ async fn update_topic(
     if let Some(ref icon) = req.icon {
         sqlx::query("UPDATE topics SET icon = ?, updated_at = ? WHERE id = ?")
             .bind(icon.as_ref()).bind(now).bind(&id)
+            .execute(&state.pool).await?;
+    }
+    if let Some(ref description) = req.description {
+        sqlx::query("UPDATE topics SET description = ?, updated_at = ? WHERE id = ?")
+            .bind(description.as_ref()).bind(now).bind(&id)
             .execute(&state.pool).await?;
     }
 
@@ -227,12 +233,13 @@ async fn fork_topic(
     let new_id = uuid::Uuid::new_v4().to_string();
 
     sqlx::query(
-        "INSERT INTO topics (id, user_id, name, display_name, icon, preset, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
+        "INSERT INTO topics (id, user_id, name, display_name, description, icon, preset, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)",
     )
     .bind(&new_id)
     .bind(user_id)
     .bind(&req.name)
     .bind(&source.display_name)
+    .bind(&source.description)
     .bind(&source.icon)
     .bind(now)
     .bind(now)
@@ -332,6 +339,7 @@ struct TopicRow {
     user_id: i64,
     name: String,
     display_name: Option<String>,
+    description: Option<String>,
     icon: Option<String>,
     preset: bool,
     created_at: i64,
@@ -340,6 +348,6 @@ struct TopicRow {
 
 impl From<TopicRow> for Topic {
     fn from(r: TopicRow) -> Self {
-        Topic { id: r.id, user_id: r.user_id, name: r.name, display_name: r.display_name, icon: r.icon, preset: r.preset, created_at: r.created_at, updated_at: r.updated_at }
+        Topic { id: r.id, user_id: r.user_id, name: r.name, display_name: r.display_name, description: r.description, icon: r.icon, preset: r.preset, created_at: r.created_at, updated_at: r.updated_at }
     }
 }

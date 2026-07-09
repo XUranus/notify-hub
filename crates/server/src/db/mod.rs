@@ -63,5 +63,19 @@ async fn run_incremental_migrations(pool: &SqlitePool) -> anyhow::Result<()> {
             .await?;
     }
 
+    // Add description column to topics table if it doesn't exist
+    let has_description_column: bool = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM pragma_table_info('topics') WHERE name = 'description'"
+    )
+    .fetch_one(pool)
+    .await? > 0;
+
+    if !has_description_column {
+        tracing::info!("[db] Adding description column to topics table...");
+        sqlx::raw_sql("ALTER TABLE topics ADD COLUMN description TEXT")
+            .execute(pool)
+            .await?;
+    }
+
     Ok(())
 }

@@ -20,6 +20,7 @@ data class PushMessage(
     val topicId: String? = null,
     val topicName: String? = null,
     val topicDisplayName: String? = null,
+    val topicDescription: String? = null,
     val topicIcon: String? = null,
 )
 
@@ -46,5 +47,6 @@ data class LocalMessage(
     val topicId: String? = null,
     val topicName: String? = null,
     val topicDisplayName: String? = null,
+    val topicDescription: String? = null,
     val topicIcon: String? = null,
 )
