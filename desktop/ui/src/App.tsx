@@ -36,6 +36,8 @@ export default function App() {
         onClearAll={() => app.showDeleteConfirm(app.T.clearConfirm, () => app.clearAll())}
         currentFilter={app.currentFilter}
         onSetFilter={app.setCurrentFilter}
+        detailMsg={app.detailMsg}
+        topicDetailKey={app.topicDetailKey}
       />
 
       {app.currentView === 'connect' && (

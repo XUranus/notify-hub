@@ -17,8 +17,10 @@ interface Props {
   onClearAll: () => void
   currentFilter: string
   onSetFilter: (f: string) => void
+  detailMsg?: any
+  topicDetailKey?: string | null
 }
-export function TitleBar({ T, invoke, connStatus, onCompose, onViewToggle, viewMode, onSettings, setErrorDetailOpen, showSearch, onToggleSearch, unreadCount, hasMessages, onMarkAllRead, onClearAll, currentFilter, onSetFilter }: Props) {
+export function TitleBar({ T, invoke, connStatus, onCompose, onViewToggle, viewMode, onSettings, setErrorDetailOpen, showSearch, onToggleSearch, unreadCount, hasMessages, onMarkAllRead, onClearAll, currentFilter, onSetFilter, detailMsg, topicDetailKey }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -97,7 +99,7 @@ export function TitleBar({ T, invoke, connStatus, onCompose, onViewToggle, viewM
             </div>
           )}
         </div>
-        <button className={`titlebar-btn ${viewMode !== 'messages' ? 'active' : ''}`} title={viewMode === 'messages' ? T.topicView : viewMode === 'topics' ? T.cardView : T.messageView} onClick={onViewToggle}>
+        <button className={`titlebar-btn ${viewMode !== 'messages' ? 'active' : ''} ${detailMsg || topicDetailKey ? 'disabled' : ''}`} title={viewMode === 'messages' ? T.topicView : viewMode === 'topics' ? T.cardView : T.messageView} onClick={() => { if (!detailMsg && !topicDetailKey) onViewToggle() }}>
           {viewMode === 'messages'
             ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" /></svg>
             : viewMode === 'topics'

@@ -109,6 +109,7 @@
     #titlebar .titlebar-controls button.active { color: var(--accent); }
     #titlebar .titlebar-controls svg { width: 16px; height: 16px; pointer-events: none; }
     #titlebar .titlebar-btn { position: relative; }
+    #titlebar .titlebar-btn.disabled { opacity: 0.3; pointer-events: none; }
     #titlebar .titlebar-menu-wrapper { position: relative; }
     #titlebar .titlebar-menu-wrapper > .titlebar-btn::after { display: none; }
     #titlebar .titlebar-dropdown {
