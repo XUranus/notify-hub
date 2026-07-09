@@ -76,6 +76,33 @@ Environment variables (edit `.env`):
 DB_PATH=/path/to/your/data
 ```
 
+## Configuration Reference
+
+### Items You Must / Should Configure
+
+| Item | File | What to Change |
+|------|------|----------------|
+| **Public port** | `.env` | `NGINX_PORT` — the only exposed port. Default `80`, change to `8080`, `443`, etc. as needed |
+| **JWT secret** | `.env` | `JWT_SECRET` — **required for production**. Set a strong random string. Auto-generated if omitted (not safe for multi-instance) |
+| **Data storage path** | `.env` | `DB_PATH` — use an absolute host path (e.g. `/data/notifyhub`) for production. Default is a Docker volume |
+| **Domain name** | `nginx.conf` | `server_name` — change from `_` (match all) to your actual domain (e.g. `notify.example.com`) |
+| **Firewall** | VPS provider | Open `NGINX_PORT` in your firewall / security group |
+| **HTTPS** (optional) | `nginx.conf` | Add SSL certificate paths and redirect HTTP → HTTPS |
+
+### Items with Sensible Defaults (No Changes Needed)
+
+| Item | Default | Description |
+|------|---------|-------------|
+| Backend internal port | `9527` | Not exposed. Nginx proxies to it via Docker network |
+| API proxy | `/api/*` → `backend:9527` | Handled by Docker internal DNS |
+| WebSocket proxy | `/ws` → `backend:9527` | Upgrade headers + 24h timeout configured |
+| Uploaded files proxy | `/uploads/*` → `backend:9527` | 7-day cache |
+| Static asset caching | JS/CSS/images 30 days | `Cache-Control: public, immutable` |
+| Gzip compression | Enabled | Text, JSON, JS, CSS, SVG |
+| Health checks | 30s interval, 3 retries | Both nginx and backend have health checks |
+| Auto-restart | `unless-stopped` | Containers restart on crash or reboot |
+| SPA fallback | `try_files $uri /index.html` | All routes fall back to React router |
+
 ## Nginx Configuration
 
 The nginx config (`nginx.conf`) handles:
