@@ -182,7 +182,7 @@ function TopicCard({ group, T, formatRelativeTime, onDelete }: {
   const displayName = group.topicDisplayName || group.topicName || T.noTopic
   const relTime = latest ? formatRelativeTime(latest.received_at) : ''
   const topicDesc = group.topicDescription || ''
-  const lastMsgPreview = latest ? (latest.body || latest.title || '').substring(0, 150) : ''
+  const lastMsgPreview = latest ? (latest.body || latest.title || '').substring(0, 200) : ''
 
   return (
     <div className="topic-card" data-topic-key={group.key}>
