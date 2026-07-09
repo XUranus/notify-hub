@@ -342,7 +342,7 @@
     .msg-full-card-meta { display: flex; align-items: center; gap: 8px; }
     .msg-full-card-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
     .msg-full-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
-    .msg-full-card-body { font-size: 13px; line-height: 1.6; color: var(--text2); white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; padding: 10px; border-radius: 8px; min-width: 0; }
+    .msg-full-card-body { font-size: 13px; line-height: 1.6; color: var(--text2); white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; padding: 10px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
     .msg-full-card-body pre { white-space: pre-wrap; word-break: break-all; overflow-wrap: anywhere; max-width: 100%; background: var(--badge-bg); padding: 8px 10px; border-radius: 6px; margin: 4px 0; font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 12px; }
     .msg-full-card-body code { font-family: 'SF Mono','Fira Code','Cascadia Code',monospace; font-size: 12px; background: var(--badge-bg); padding: 1px 4px; border-radius: 3px; }
     .msg-full-card-body table { display: block; overflow-x: auto; max-width: 100%; }
