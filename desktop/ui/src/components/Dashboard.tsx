@@ -180,9 +180,9 @@ function TopicCard({ group, T, formatRelativeTime, onDelete }: {
   const totalCount = (group as any).totalCount || group.messages.length
   const unreadCount = (group as any).unreadCount || 0
   const displayName = group.topicDisplayName || group.topicName || T.noTopic
-  const description = group.topicDescription || ''
   const relTime = latest ? formatRelativeTime(latest.received_at) : ''
-  const preview = latest ? (latest.body || latest.title || '').substring(0, 160) : ''
+  const topicDesc = group.topicDescription || ''
+  const lastMsgPreview = latest ? (latest.body || latest.title || '').substring(0, 150) : ''
 
   return (
     <div className="topic-card" data-topic-key={group.key}>
@@ -192,11 +192,11 @@ function TopicCard({ group, T, formatRelativeTime, onDelete }: {
       <div className="topic-body">
         <div className="topic-title-row">
           <span className="topic-name">{displayName}</span>
-          {description && <span className="topic-desc">{description}</span>}
           <span className="topic-count-badge">{totalCount}</span>
           {unreadCount > 0 && <span className="topic-unread-badge">{unreadCount}</span>}
         </div>
-        <div className="topic-preview">{preview}</div>
+        {topicDesc && <div className="topic-desc">{topicDesc}</div>}
+        {lastMsgPreview && <div className="topic-preview">{lastMsgPreview}</div>}
       </div>
       <span className="topic-time">{relTime}</span>
       {onDelete && (
