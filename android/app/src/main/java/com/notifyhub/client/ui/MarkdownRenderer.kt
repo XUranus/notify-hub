@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.text.style.TextOverflow
 import io.noties.markwon.Markwon
 import io.noties.markwon.core.CorePlugin
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
@@ -36,6 +37,10 @@ import io.noties.markwon.html.HtmlPlugin
 /**
  * MarkdownText renders markdown using Markwon, with pipe tables handled by
  * Compose so column widths can stay compact and the table can scroll sideways.
+ *
+ * When maxLines is limited (preview mode), renders as plain Compose Text for
+ * consistent sizing — Markwon's MetricAffectingSpan can cause inconsistent
+ * text sizes that are hard to override.
  */
 @Composable
 fun MarkdownText(
@@ -43,6 +48,24 @@ fun MarkdownText(
     modifier: Modifier = Modifier,
     maxLines: Int = Int.MAX_VALUE,
 ) {
+    val isPreview = maxLines < Int.MAX_VALUE
+
+    if (isPreview) {
+        // Preview mode: plain text with consistent Compose styling
+        val stripped = remember(body) { stripMarkdownForPreview(body) }
+        Text(
+            text = stripped,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis,
+            modifier = modifier
+        )
+        return
+    }
+
+    // Full rendering mode: use Markwon for rich markdown
     val blocks = remember(body) { splitMarkdownBlocks(body) }
 
     Column(
@@ -53,23 +76,43 @@ fun MarkdownText(
             when (block) {
                 is MarkdownBlock.Markdown -> MarkwonText(
                     body = block.text,
-                    maxLines = maxLines,
                     modifier = Modifier.fillMaxWidth()
                 )
                 is MarkdownBlock.Table -> MarkdownTable(
                     table = block.table,
-                    maxRows = if (maxLines < Int.MAX_VALUE) maxLines else 50
+                    maxRows = 50
                 )
             }
         }
     }
 }
 
+/**
+ * Strip markdown formatting for preview rendering.
+ * Removes inline code backticks, bold/italic markers, and leading bullet markers.
+ */
+private fun stripMarkdownForPreview(body: String): String {
+    return body
+        .replace(Regex("```[\\s\\S]*?```"), "[code]")     // code blocks
+        .replace(Regex("`([^`]+)`"), "$1")                  // inline code
+        .replace(Regex("\\*\\*(.+?)\\*\\*"), "$1")          // bold
+        .replace(Regex("\\*(.+?)\\*"), "$1")                // italic
+        .replace(Regex("__(.+?)__"), "$1")                  // bold underline
+        .replace(Regex("_(.+?)_"), "$1")                    // italic underline
+        .replace(Regex("~~(.+?)~~"), "$1")                  // strikethrough
+        .replace(Regex("^#{1,6}\\s+", RegexOption.MULTILINE), "") // headings
+        .replace(Regex("^\\s*[-*+]\\s+", RegexOption.MULTILINE), "• ") // bullets
+        .replace(Regex("^\\s*\\d+\\.\\s+", RegexOption.MULTILINE), "• ") // ordered lists
+        .replace(Regex("!\\[.*?]\\(.*?\\)"), "[image]")     // images
+        .replace(Regex("\\[([^]]+)]\\([^)]+\\)"), "$1")     // links → text only
+        .replace(Regex("^---+$", RegexOption.MULTILINE), "—") // horizontal rules
+        .trim()
+}
+
 @Composable
 private fun MarkwonText(
     body: String,
     modifier: Modifier = Modifier,
-    maxLines: Int = Int.MAX_VALUE,
 ) {
     val context = LocalContext.current
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
@@ -101,7 +144,6 @@ private fun MarkwonText(
         update = { textView ->
             textView.setTextColor(textColor)
             textView.text = spanned ?: body
-            textView.maxLines = maxLines
         },
         modifier = modifier
     )

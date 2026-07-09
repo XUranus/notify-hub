@@ -1582,8 +1582,17 @@ private fun MessageCard(
                     Spacer(Modifier.width(12.dp))
                 }
 
-                // Topic name + title
+                // Title + topic name
                 Column(modifier = Modifier.weight(1f)) {
+                    val displayTitle = if (msg.title.isNotBlank()) msg.title else I18n["untitled"]
+                    Text(
+                        displayTitle,
+                        fontWeight = if (msg.read) FontWeight.Medium else FontWeight.Bold,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = if (msg.title.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     val topicName = msg.topicDisplayName ?: msg.topicName
                     if (!topicName.isNullOrEmpty()) {
                         Text(
@@ -1595,15 +1604,6 @@ private fun MessageCard(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    val displayTitle = if (msg.title.isNotBlank()) msg.title else I18n["untitled"]
-                    Text(
-                        displayTitle,
-                        fontWeight = if (msg.read) FontWeight.Medium else FontWeight.Bold,
-                        fontSize = 15.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = if (msg.title.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
 
                 Spacer(Modifier.width(8.dp))
