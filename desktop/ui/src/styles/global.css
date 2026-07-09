@@ -325,7 +325,7 @@
 
     /* ── Cards View ── */
     .cards-container { display: flex; flex-direction: column; padding: 0; gap: 2px; }
-    .msg-full-card { padding: 12px 10px; transition: background 0.15s, border-color 0.15s; cursor: pointer; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; min-width: 0; }
+    .msg-full-card { padding: 12px 10px; transition: background 0.15s, border-color 0.15s; cursor: pointer; border: none; border-bottom: 1px solid var(--border); overflow: hidden; min-width: 0; }
     .msg-full-card:hover { background: var(--hover); }
     .msg-full-card:hover .msg-del-btn { opacity: 1; }
     .msg-full-card.unread { border-left: 3px solid var(--accent); }
