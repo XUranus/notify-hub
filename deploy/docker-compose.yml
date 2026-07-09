@@ -19,7 +19,6 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-      target: server
     container_name: notifyhub-backend
     restart: unless-stopped
     expose:
