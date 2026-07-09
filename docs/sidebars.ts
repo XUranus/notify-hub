@@ -23,6 +23,8 @@ const sidebars: SidebarsConfig = {
       items: [
         'api/send',
         'api/messages',
+        'api/topics',
+        'api/user',
         'api/admin',
       ],
     },

@@ -242,7 +242,7 @@ Retrieve your topics with pagination and search.
 
 <span className="method-badge method-post">POST</span> `/api/user/topics`
 
-Create a new topic.
+Create a new topic, optionally forking from an existing one.
 
 **Request Body:**
 
@@ -250,7 +250,9 @@ Create a new topic.
 | ------------- | -------- | -------- | ------------------------------ |
 | `name`        | `string` | Yes      | Unique topic name.             |
 | `displayName` | `string` | No       | Human-readable display name.   |
-| `icon`        | `string` | No       | Icon URL or emoji.             |
+| `description` | `string` | No       | Topic description.             |
+| `icon`        | `string` | No       | Icon URL or data URI.          |
+| `forkFrom`    | `string` | No       | Source topic ID to fork from. Copies displayName, description, and icon unless overridden. |
 
 ### Get Topic
 
@@ -260,9 +262,25 @@ Create a new topic.
 
 <span className="method-badge method-put">PUT</span> `/api/user/topics/{id}`
 
+**Request Body:** All fields optional — `name`, `displayName`, `description`, `icon`.
+
 ### Delete Topic
 
 <span className="method-badge method-delete">DELETE</span> `/api/user/topics/{id}`
+
+### Fork Topic
+
+<span className="method-badge method-post">POST</span> `/api/user/topics/{id}/fork`
+
+Create a new topic by forking from an existing topic. Copies the source topic's icon. `displayName` and `description` can be overridden.
+
+**Request Body:**
+
+| Field         | Type     | Required | Description                    |
+| ------------- | -------- | -------- | ------------------------------ |
+| `name`        | `string` | Yes      | New topic name (must be unique). |
+| `displayName` | `string` | No       | Override display name.          |
+| `description` | `string` | No       | Override description.           |
 
 ---
 

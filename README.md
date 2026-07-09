@@ -176,6 +176,39 @@ notify-hub send --channel push --to device-uuid \
 notify-hub status 1
 ```
 
+### Topics
+
+Topics categorize messages. Preset topics (claudecode, codex, openclaw, opencode) come with icons.
+
+```bash
+# List topics
+curl http://localhost:9527/api/v1/topic \
+  -H "Authorization: Bearer nh_your_token_here"
+
+# Create a topic (fork from preset)
+curl -X POST http://localhost:9527/api/v1/topic \
+  -H "Authorization: Bearer nh_your_token_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "my-alerts",
+    "displayName": "My Alerts",
+    "description": "Custom alert topic",
+    "forkFrom": "<preset-topic-id>"
+  }'
+
+# Send to a topic
+curl -X POST http://localhost:9527/api/v1/send \
+  -H "Authorization: Bearer nh_your_token_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel": "push",
+    "to": "*",
+    "subject": "Alert",
+    "body": "CPU at 95%",
+    "topic": "my-alerts"
+  }'
+```
+
 ### Push Clients
 
 **Desktop (Tauri):**
@@ -263,17 +296,26 @@ Authorization: Bearer nh_<token>
 |--------|------|-------------|
 | POST | `/api/v1/send` | Send a notification |
 | POST | `/api/v1/send/batch` | Send multiple notifications |
+| GET | `/api/v1/messages` | List messages |
 | GET | `/api/v1/messages/:id` | Get message status |
-| POST | `/api/auth/login` | Admin login (returns JWT) |
-| GET | `/api/v1/push/poll` | Poll for push messages |
-| GET | `/api/v1/push/stream` | SSE stream for push messages |
-| GET | `/api/v1/push/ws` | WebSocket for push messages |
-| POST | `/api/v1/push/register` | Register a push client |
-| POST | `/api/v1/push/ack` | Acknowledge received messages |
-| GET | `/api/admin/stats/overview` | Get statistics |
+| GET | `/api/v1/topic` | List topics |
+| POST | `/api/v1/topic` | Create topic (supports `forkFrom`) |
+| GET | `/api/v1/topic/:id` | Get topic |
+| PUT | `/api/v1/topic/:id` | Update topic |
+| DELETE | `/api/v1/topic/:id` | Delete topic |
+| POST | `/api/auth/login` | Login (returns JWT) |
+| POST | `/api/auth/register` | Register new user |
+| GET | `/api/user/push/poll` | Poll for push messages |
+| GET | `/api/user/push/stream` | SSE stream for push messages |
+| GET | `/api/user/push/ws` | WebSocket for push messages |
+| POST | `/api/user/push/register` | Register a push client |
+| POST | `/api/user/push/ack` | Acknowledge received messages |
+| GET | `/api/user/stats/overview` | Get statistics |
+| CRUD | `/api/user/tokens` | Manage API tokens |
+| CRUD | `/api/user/topics` | Manage topics (with fork) |
 | CRUD | `/api/admin/channels` | Manage channels |
-| CRUD | `/api/admin/tokens` | Manage API tokens |
 | CRUD | `/api/admin/templates` | Manage templates |
+| CRUD | `/api/admin/users` | Manage users |
 
 ### Send Request
 
@@ -285,8 +327,8 @@ Authorization: Bearer nh_<token>
   "body": "message body",
   "template": "template_name",
   "variables": { "key": "value" },
-  "idempotency_key": "unique-key",
-  "scheduled_at": "2026-06-20T10:00:00Z",
+  "idempotencyKey": "unique-key",
+  "scheduledAt": "2026-06-20T10:00:00Z",
   "tags": ["deploy", "production"],
   "priority": 80,
   "url": "https://example.com",

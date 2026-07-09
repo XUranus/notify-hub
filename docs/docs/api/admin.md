@@ -1014,6 +1014,72 @@ Permanently delete a message.
 
 ---
 
+## Topic Management
+
+Admin topic endpoints provide instance-wide topic management.
+
+### List All Topics
+
+<span className="method-badge method-get">GET</span> `/api/admin/topics`
+
+Retrieve all topics across all users. Admin only.
+
+**Query Parameters:**
+
+| Parameter | Type     | Default | Description                          |
+| --------- | -------- | ------- | ------------------------------------ |
+| `limit`   | `number` | `50`    | Items per page (max 200).           |
+| `offset`  | `number` | `0`     | Offset for pagination.              |
+| `search`  | `string` | --      | Search by name or display name.     |
+
+**Response -- 200 OK:**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "userId": 0,
+      "name": "claudecode",
+      "displayName": "Claude Code",
+      "description": "Claude Code notifications",
+      "icon": "data:image/png;base64,...",
+      "preset": true,
+      "createdAt": 1719849600,
+      "updatedAt": 1719849600
+    }
+  ]
+}
+```
+
+### Get Topic (Admin)
+
+<span className="method-badge method-get">GET</span> `/api/admin/topics/{id}`
+
+Retrieve a single topic by ID. Admin only.
+
+### Delete Topic (Admin)
+
+<span className="method-badge method-delete">DELETE</span> `/api/admin/topics/{id}`
+
+Delete a topic by ID. Cannot delete preset topics. Messages associated with the topic have their `topic_id` set to `NULL`. Admin only.
+
+**Response -- 200 OK:**
+
+```json
+{ "success": true }
+```
+
+**Errors:**
+
+| HTTP Status | Error | Description |
+|-------------|-------|-------------|
+| `403` | `cannot delete preset topic` | Preset topics cannot be deleted. |
+| `404` | `topic not found` | The specified topic does not exist. |
+
+---
+
 ## Statistics
 
 ### Overview Statistics
