@@ -265,9 +265,16 @@ export function useApp() {
     refreshMessages()
   }, [refreshMessages])
 
-  const markAllRead = useCallback(async () => {
-    for (const m of allMessages) { if (!m.read) await invoke('mark_as_read', { id: m.id }) }
-    setAllMessages(prev => prev.map(m => ({ ...m, read: true })))
+  const markAllRead = useCallback(async (topicId?: string) => {
+    const targets = topicId
+      ? allMessages.filter(m => (m.topic_id || '__no_topic__') === topicId && !m.read)
+      : allMessages.filter(m => !m.read)
+    for (const m of targets) { await invoke('mark_as_read', { id: m.id }) }
+    if (topicId) {
+      setAllMessages(prev => prev.map(m => (m.topic_id || '__no_topic__') === topicId ? { ...m, read: true } : m))
+    } else {
+      setAllMessages(prev => prev.map(m => ({ ...m, read: true })))
+    }
   }, [allMessages])
 
   const clearAll = useCallback(async () => {

@@ -640,7 +640,7 @@ fun MainScreen(
                                     text = { Text(i18n("mark_all_read")) },
                                     onClick = {
                                         showFilterMenu = false
-                                        scope.launch { MessageStore.markAllAsRead(context) }
+                                        scope.launch { MessageStore.markAllAsRead(context, topicDetailKey) }
                                     },
                                     leadingIcon = { Icon(Icons.Default.DoneAll, contentDescription = null) }
                                 )

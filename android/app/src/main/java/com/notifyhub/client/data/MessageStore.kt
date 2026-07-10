@@ -236,8 +236,9 @@ object MessageStore {
         AppDatabase.getInstance(context).messageDao().markAsRead(id)
     }
 
-    suspend fun markAllAsRead(context: Context) {
-        AppDatabase.getInstance(context).messageDao().markAllAsRead()
+    suspend fun markAllAsRead(context: Context, topicId: String? = null) {
+        val dao = AppDatabase.getInstance(context).messageDao()
+        if (topicId != null) dao.markTopicAsRead(topicId) else dao.markAllAsRead()
     }
 
     suspend fun toggleFlag(context: Context, id: String) {

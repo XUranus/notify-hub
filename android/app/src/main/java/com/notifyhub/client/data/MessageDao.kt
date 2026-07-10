@@ -33,6 +33,9 @@ interface MessageDao {
     @Query("UPDATE messages SET is_read = 1 WHERE is_read = 0")
     suspend fun markAllAsRead()
 
+    @Query("UPDATE messages SET is_read = 1 WHERE is_read = 0 AND (topic_id = :topicId OR (topic_id IS NULL AND :topicId = '__no_topic__'))")
+    suspend fun markTopicAsRead(topicId: String)
+
     @Query("UPDATE messages SET flagged = :flagged WHERE id = :id")
     suspend fun setFlagged(id: String, flagged: Boolean)
 

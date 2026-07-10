@@ -32,7 +32,7 @@ export default function App() {
         }}
         unreadCount={unreadCount}
         hasMessages={app.allMessages.length > 0}
-        onMarkAllRead={() => app.markAllRead()}
+        onMarkAllRead={() => app.markAllRead(app.topicDetailKey || undefined)}
         onClearAll={() => app.showDeleteConfirm(app.T.clearConfirm, () => app.clearAll())}
         currentFilter={app.currentFilter}
         onSetFilter={app.setCurrentFilter}
