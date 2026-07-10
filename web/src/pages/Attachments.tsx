@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { attachmentsApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
+import { COPY_TIMEOUT_MS } from '@/lib/constants'
 import { toDate, copyToClipboard, formatBytes } from '@/lib/utils'
 import {
   Upload, Trash2, Copy, Check, File, Image as ImageIcon, FileText, FileArchive,
@@ -139,7 +140,7 @@ export default function Attachments() {
     const ok = await copyToClipboard(full)
     if (ok) {
       setCopiedId(id)
-      setTimeout(() => setCopiedId(null), 2000)
+      setTimeout(() => setCopiedId(null), COPY_TIMEOUT_MS)
     }
   }
 

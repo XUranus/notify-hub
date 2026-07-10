@@ -14,6 +14,17 @@ pub fn lock_mutex<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+/// Detect desktop environment on Linux
+pub fn detect_desktop_env() -> String {
+    if cfg!(target_os = "linux") {
+        std::env::var("XDG_CURRENT_DESKTOP")
+            .or_else(|_| std::env::var("DESKTOP_SESSION"))
+            .unwrap_or_else(|_| "unknown".to_string())
+    } else {
+        "native".to_string()
+    }
+}
+
 pub const RECONNECT_BASE_MS: u64 = 5000;
 pub const RECONNECT_MAX_MS: u64 = 120000; // 2 minutes
 
@@ -275,7 +286,7 @@ pub async fn try_refresh_jwt(
     let new_api = ApiClient::new(server_url, &new_jwt);
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
-    let desktop = crate::detect_desktop_env();
+    let desktop = detect_desktop_env();
     let version = env!("CARGO_PKG_VERSION");
     if let Err(e) = new_api.register(uuid, name, os, arch, &desktop, version).await {
         log::warn!("[{}] Re-register after JWT refresh failed: {}", source, e);

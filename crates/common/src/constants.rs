@@ -138,6 +138,35 @@ pub const CLIENT_JWT_EXPIRY_DAYS: u64 = 90;
 pub const DEFAULT_ADMIN_USERNAME: &str = "admin";
 pub const DEFAULT_ADMIN_PASSWORD: &str = "admin123";
 
+// ── Default Server Configuration ──
+pub const DEFAULT_SERVER_PORT: u16 = 3000;
+pub const DEFAULT_SERVER_HOST: &str = "localhost";
+pub const DEFAULT_SERVER_URL: &str = "http://localhost:3000";
+pub const DEFAULT_DESKTOP_SERVER_URL: &str = "http://localhost:4321";
+pub const DEFAULT_DOCKER_BACKEND_PORT: u16 = 9527;
+pub const DEFAULT_DOCKER_NGINX_PORT: u16 = 80;
+
+// ── Timeout Constants (seconds) ──
+pub const CONNECT_TIMEOUT_SECS: u64 = 10;
+pub const READ_TIMEOUT_SECS: u64 = 30;
+pub const WRITE_TIMEOUT_SECS: u64 = 30;
+pub const SSE_TIMEOUT_SECS: u64 = 300;
+pub const WS_CONNECT_TIMEOUT_SECS: u64 = 10;
+pub const WS_PING_INTERVAL_SECS: u64 = 30;
+pub const HTTP_CLIENT_TIMEOUT_SECS: u64 = 30;
+
+// ── Polling Intervals (milliseconds) ──
+pub const POLL_INTERVAL_MS: u64 = 3000;
+pub const STATUS_CHECK_INTERVAL_MS: u64 = 3000;
+pub const NEW_MESSAGE_CHECK_INTERVAL_MS: u64 = 1500;
+pub const REFRESH_INTERVAL_MS: u64 = 30000;
+
+// ── UI Timeouts (milliseconds) ──
+pub const TOAST_TIMEOUT_MS: u64 = 3000;
+pub const UNDO_TIMEOUT_MS: u64 = 5000;
+pub const COPY_TIMEOUT_MS: u64 = 2000;
+pub const ANIMATION_TIMEOUT_MS: u64 = 500;
+
 // ── Body format ──
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

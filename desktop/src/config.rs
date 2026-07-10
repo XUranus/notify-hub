@@ -1,4 +1,5 @@
 use log::{debug, error, info, warn};
+use notifyhub_common::constants::DEFAULT_DESKTOP_SERVER_URL;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -214,7 +215,7 @@ impl AppConfig {
         info!("[config] Creating default config with uuid={}", uuid);
         Self {
             server: ServerConfig {
-                url: "http://localhost:4321".to_string(),
+                url: DEFAULT_DESKTOP_SERVER_URL.to_string(),
                 username: String::new(),
                 password: String::new(),
                 jwt: String::new(),

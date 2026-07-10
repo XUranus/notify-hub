@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.NotificationCompat
+import com.notifyhub.client.Constants
 import com.notifyhub.client.MainActivity
 import com.notifyhub.client.R
 import com.notifyhub.client.data.ApiClient
@@ -837,50 +838,57 @@ class PollService : Service() {
 
     private fun tryAutoDownloadImage(msg: PushMessage) {
         if (msg.attachment == null) return
-        try {
-            val att: Map<*, *> = Gson().fromJson(msg.attachment, Map::class.java)
-            val url = att["url"]?.toString() ?: return
-            val name = att["name"]?.toString() ?: "image"
-            val size = (att["size"] as? Number)?.toLong() ?: 0
+        scope.launch(Dispatchers.IO) {
+            try {
+                val att: Map<*, *> = Gson().fromJson(msg.attachment, Map::class.java)
+                val url = att["url"]?.toString() ?: return@launch
+                val name = att["name"]?.toString() ?: "image"
+                val size = (att["size"] as? Number)?.toLong() ?: 0
 
-            // Only download images
-            val isImage = name.lowercase().let {
-                it.endsWith(".png") || it.endsWith(".jpg") || it.endsWith(".jpeg") ||
-                it.endsWith(".gif") || it.endsWith(".webp") || it.endsWith(".svg") || it.endsWith(".bmp")
-            }
-            if (!isImage) return
+                // Only download images
+                val isImage = name.lowercase().let {
+                    it.endsWith(".png") || it.endsWith(".jpg") || it.endsWith(".jpeg") ||
+                    it.endsWith(".gif") || it.endsWith(".webp") || it.endsWith(".svg") || it.endsWith(".bmp")
+                }
+                if (!isImage) return@launch
 
-            // Size check
-            if (size > MAX_AUTO_DOWNLOAD_SIZE) return
+                // Size check
+                if (size > MAX_AUTO_DOWNLOAD_SIZE) return@launch
 
-            // Build full URL
-            val serverUrl = ConfigStore.load(this).serverUrl.trimEnd('/')
-            val fullUrl = if (url.startsWith("http")) url else "$serverUrl$url"
+                // Build full URL
+                val serverUrl = ConfigStore.load(this@PollService).serverUrl.trimEnd('/')
+                val fullUrl = if (url.startsWith("http")) url else "$serverUrl$url"
 
-            // Download
-            val bytes = URL(fullUrl).readBytes()
-            if (bytes.size > MAX_AUTO_DOWNLOAD_SIZE) return
+                // Download with OkHttp (has proper timeouts)
+                val downloadClient = OkHttpClient.Builder()
+                    .connectTimeout(Constants.CONNECT_TIMEOUT_SECS, TimeUnit.SECONDS)
+                    .readTimeout(Constants.READ_TIMEOUT_SECS, TimeUnit.SECONDS)
+                    .build()
+                val request = Request.Builder().url(fullUrl).build()
+                val response = downloadClient.newCall(request).execute()
+                if (!response.isSuccessful) return@launch
+                val bytes = response.body?.bytes() ?: return@launch
+                if (bytes.size > MAX_AUTO_DOWNLOAD_SIZE) return@launch
 
-            // Save to internal storage
-            val imagesDir = File(filesDir, "notifyhub_images")
-            imagesDir.mkdirs()
-            val ext = name.substringAfterLast('.', "jpg")
-            val safeName = url.replace(Regex("[^a-zA-Z0-9_-]"), "_").take(64)
-            val file = File(imagesDir, "$safeName.$ext")
-            file.writeBytes(bytes)
-            AppLogger.d(TAG, "Auto-downloaded image: $name -> ${file.absolutePath}")
+                // Save to internal storage
+                val imagesDir = File(filesDir, "notifyhub_images")
+                imagesDir.mkdirs()
+                val ext = name.substringAfterLast('.', "jpg")
+                val safeName = url.replace(Regex("[^a-zA-Z0-9_-]"), "_").take(64)
+                val file = File(imagesDir, "$safeName.$ext")
+                file.writeBytes(bytes)
+                AppLogger.d(TAG, "Auto-downloaded image: $name -> ${file.absolutePath}")
 
-            // Update message entity with local path (tied to service lifecycle)
-            scope.launch {
+                // Update message entity with local path (tied to service lifecycle)
                 try {
                     val dao = AppDatabase.getInstance(this@PollService).messageDao()
                     dao.setLocalImagePath(msg.id, file.absolutePath)
                 } catch (e: Exception) {
                     AppLogger.e(TAG, "Failed to update local image path", e)
                 }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Auto-download image failed", e)
             }
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "Auto-download image failed", e)
         }
     }
 }

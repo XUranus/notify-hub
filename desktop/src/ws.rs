@@ -4,6 +4,7 @@ use crate::messages::MessageStore;
 use crate::notify::show_notification;
 use crate::poll::{PollState, NotificationDebounce, ReconnectState, process_message, lock_mutex};
 use futures_util::{SinkExt, StreamExt};
+use notifyhub_common::constants::WS_CONNECT_TIMEOUT_SECS;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio_tungstenite::connect_async;
@@ -49,8 +50,13 @@ pub fn start_ws(
             );
 
             let ws_ok = rt.block_on(async {
-                match connect_async(&ws_url).await {
-                    Ok((ws_stream, _response)) => {
+                let connect_result = tokio::time::timeout(
+                    Duration::from_secs(WS_CONNECT_TIMEOUT_SECS),
+                    connect_async(&ws_url),
+                ).await;
+
+                match connect_result {
+                    Ok(Ok((ws_stream, _response))) => {
                         // Mark connected
                         {
                             let mut s = lock_mutex(&state);
@@ -106,7 +112,7 @@ pub fn start_ws(
                         }))).await;
                         true
                     }
-                    Err(tungstenite::Error::Http(resp)) => {
+                    Ok(Err(tungstenite::Error::Http(resp))) => {
                         let status = resp.status();
                         if status == 401 || status == 403 {
                             match crate::poll::try_refresh_jwt(&server_url, &username, &password, &uuid, &name, "ws").await {
@@ -128,7 +134,7 @@ pub fn start_ws(
                         }
                         false
                     }
-                    Err(e) => {
+                    Ok(Err(e)) => {
                         let err_msg = e.to_string();
                         // Fallback: string match for auth errors
                         if err_msg.contains("401") || err_msg.contains("403") {
@@ -150,6 +156,16 @@ pub fn start_ws(
                             }
                             s.error = Some(format!("WS: {}", err_msg));
                         }
+                        false
+                    }
+                    Err(_) => {
+                        log::warn!("[ws] Connection timed out (10s)");
+                        let mut s = lock_mutex(&state);
+                        if s.was_connected {
+                            show_notification("NotifyHub", "Connection lost");
+                            s.was_connected = false;
+                        }
+                        s.error = Some("WS: connection timeout".to_string());
                         false
                     }
                 }

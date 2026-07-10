@@ -3,11 +3,10 @@ use crate::config::AppConfig;
 use crate::messages::MessageStore;
 use crate::notify::show_notification;
 use crate::poll::{PollState, NotificationDebounce, ReconnectState, process_message, lock_mutex};
+use notifyhub_common::constants::{CONNECT_TIMEOUT_SECS, SSE_TIMEOUT_SECS};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::timeout;
-
-const SSE_TIMEOUT_SECS: u64 = 90;
 
 /// Start SSE connection for real-time message delivery.
 /// Falls back to poll on failure.
@@ -45,7 +44,10 @@ pub fn start_sse(
                 uuid
             );
 
-            let client = reqwest::Client::new();
+            let client = reqwest::Client::builder()
+                .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT_SECS))
+                .build()
+                .unwrap_or_default();
 
             let sse_ok = rt.block_on(async {
                 let resp = match client

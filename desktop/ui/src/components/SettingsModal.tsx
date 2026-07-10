@@ -27,6 +27,7 @@ export function SettingsModal({ app }: Props) {
   const [autostart, setAutostart] = useState(false)
   const [autoDownload, setAutoDownload] = useState(false)
   const [connectionMode, setConnectionMode] = useState('sse')
+  const [modeSwitching, setModeSwitching] = useState(false)
   const [logLevel, setLogLevel] = useState('info')
   const [logRetention, setLogRetention] = useState(30)
   const [logFilePath, setLogFilePath] = useState('')
@@ -140,11 +141,34 @@ export function SettingsModal({ app }: Props) {
               </div>
               <div className="appearance-row" style={{ marginTop: '12px' }}>
                 <label className="appearance-label">{T.connectionMode}</label>
-                <select className="appearance-select" value={connectionMode} onChange={async e => { setConnectionMode(e.target.value); try { await invoke('set_connection_mode', { mode: e.target.value }) } catch {} }}>
+                <select className="appearance-select" value={connectionMode} disabled={modeSwitching} onChange={async e => {
+                  const newMode = e.target.value
+                  if (newMode === connectionMode) return
+                  setConnectionMode(newMode)
+                  setModeSwitching(true)
+                  try {
+                    await invoke('set_connection_mode', { mode: newMode })
+                  } catch (err) {
+                    console.error('Failed to switch mode:', err)
+                  } finally {
+                    setModeSwitching(false)
+                  }
+                }}>
                   <option value="sse">SSE (Server-Sent Events)</option>
                   <option value="ws">WebSocket</option>
                   <option value="poll">Polling (5s interval)</option>
                 </select>
+                {modeSwitching && (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    marginLeft: '8px', fontSize: '12px', color: 'var(--text-secondary, #888)'
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" style={{ animation: 'spin 1s linear infinite' }}>
+                      <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="31.4" strokeDashoffset="10" />
+                    </svg>
+                    {T.connecting || 'Connecting...'}
+                  </span>
+                )}
               </div>
             </div>
             <div className="modal-footer">

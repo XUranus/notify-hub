@@ -1,6 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { detectLang, getTranslations, type Locale, type Translations } from '../lib/i18n'
+import {
+  TOAST_TIMEOUT_MS,
+  UNDO_TIMEOUT_MS,
+  STATUS_CHECK_INTERVAL_MS,
+  NEW_MESSAGE_CHECK_INTERVAL_MS,
+  REFRESH_INTERVAL_MS,
+} from '../lib/constants'
 
 // ── Tauri invoke ──
 const invoke = window.__TAURI_INTERNALS__.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<any>
@@ -94,7 +101,7 @@ export function useApp() {
   const showToast = useCallback((text: string, type = 'info') => {
     if (toastTimer.current) clearTimeout(toastTimer.current)
     setToast({ text, type, visible: true })
-    toastTimer.current = window.setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000)
+    toastTimer.current = window.setTimeout(() => setToast(prev => ({ ...prev, visible: false })), TOAST_TIMEOUT_MS)
   }, [])
 
   // ── View State ──
@@ -245,7 +252,7 @@ export function useApp() {
     lastDeletedRef.current = entry
     setLastDeletedTick(t => t + 1)
     if (undoTimer.current) clearTimeout(undoTimer.current)
-    undoTimer.current = window.setTimeout(() => { lastDeletedRef.current = null; setLastDeletedTick(t => t + 1) }, 5000)
+    undoTimer.current = window.setTimeout(() => { lastDeletedRef.current = null; setLastDeletedTick(t => t + 1) }, UNDO_TIMEOUT_MS)
   }, [allMessages, T, showToast])
 
   const undoDelete = useCallback(async () => {
@@ -302,6 +309,9 @@ export function useApp() {
       connection_mode: cfg.connection_mode || 'sse'
     }
     await invoke('save_config', { cfg: newCfg })
+    // Save to localStorage for auto-fill on next login
+    localStorage.setItem('serverUrl', url)
+    localStorage.setItem('username', username)
     await invoke('reconnect')
     setCurrentView('dashboard'); refreshMessages()
   }, [refreshMessages])
@@ -327,7 +337,7 @@ export function useApp() {
           invoke('update_tray_status', { connected: true, mode, error: null })
         }
       } catch {}
-    }, 3000)
+    }, STATUS_CHECK_INTERVAL_MS)
     return () => clearInterval(timer)
   }, [currentView])
 
@@ -351,9 +361,9 @@ export function useApp() {
         const hasNew = await invoke('drain_has_new')
         if (hasNew) refreshMessages()
       } catch {}
-    }, 1500)
+    }, NEW_MESSAGE_CHECK_INTERVAL_MS)
     // Also refresh periodically to sync read/flag state
-    const refreshTimer = setInterval(() => { if (currentView === 'dashboard') refreshMessages() }, 30000)
+    const refreshTimer = setInterval(() => { if (currentView === 'dashboard') refreshMessages() }, REFRESH_INTERVAL_MS)
     return () => { if (unlisten) unlisten(); clearInterval(checkNewTimer); clearInterval(refreshTimer) }
   }, [])
 

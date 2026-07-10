@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { messagesApi, topicsApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
+import { POLL_INTERVAL_MS, COPY_TIMEOUT_MS } from '@/lib/constants'
 import { RefreshCw, RotateCw, Trash2, Download, Paperclip, ExternalLink, SlidersHorizontal, ChevronDown, Copy, Check } from 'lucide-react'
 import { formatDate, toDate } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -193,7 +194,7 @@ export default function Messages() {
     try {
       await navigator.clipboard.writeText(text)
       setCopiedField(field)
-      setTimeout(() => setCopiedField(null), 2000)
+      setTimeout(() => setCopiedField(null), COPY_TIMEOUT_MS)
     } catch {
       // fallback
       const ta = document.createElement('textarea')
@@ -203,7 +204,7 @@ export default function Messages() {
       document.execCommand('copy')
       document.body.removeChild(ta)
       setCopiedField(field)
-      setTimeout(() => setCopiedField(null), 2000)
+      setTimeout(() => setCopiedField(null), COPY_TIMEOUT_MS)
     }
   }
 
@@ -268,7 +269,7 @@ export default function Messages() {
 
   // Auto-refresh every 30s (load reads from refs, so no stale closure)
   useEffect(() => {
-    const timer = setInterval(load, 30_000)
+    const timer = setInterval(load, POLL_INTERVAL_MS)
     return () => clearInterval(timer)
   }, [])
 

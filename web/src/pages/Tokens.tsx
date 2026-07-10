@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { tokensApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
+import { COPY_TIMEOUT_MS } from '@/lib/constants'
 import { Plus, Copy, Check, Trash2, Key, Code2, RotateCw, Timer } from 'lucide-react'
 import { formatDate, toDate, copyToClipboard } from '@/lib/utils'
 import { CodeBlock } from '@/components/ui/code-block'
@@ -307,7 +308,7 @@ export default function Tokens() {
     const ok = await copyToClipboard(token)
     if (ok) {
       setCopiedId(id)
-      setTimeout(() => setCopiedId(null), 2000)
+      setTimeout(() => setCopiedId(null), COPY_TIMEOUT_MS)
     }
   }
 

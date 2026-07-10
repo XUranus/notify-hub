@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Copy, Check } from 'lucide-react'
 import { cn, copyToClipboard } from '@/lib/utils'
+import { COPY_TIMEOUT_MS } from '@/lib/constants'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
@@ -18,7 +19,7 @@ export function CodeBlock({ code, language = 'bash', className }: CodeBlockProps
     const ok = await copyToClipboard(code)
     if (ok) {
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setTimeout(() => setCopied(false), COPY_TIMEOUT_MS)
     }
   }
 

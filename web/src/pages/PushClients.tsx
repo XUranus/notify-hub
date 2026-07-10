@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { pushApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
+import { POLL_INTERVAL_MS } from '@/lib/constants'
 import { Trash2, Monitor, RefreshCw } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { type PushClient, osLabels, osIcons, isOnline } from '@/lib/push-clients'
@@ -33,7 +34,7 @@ export default function PushClients() {
 
   // Auto-refresh every 30s
   useEffect(() => {
-    const timer = setInterval(load, 30_000)
+    const timer = setInterval(load, POLL_INTERVAL_MS)
     return () => clearInterval(timer)
   }, [])
 

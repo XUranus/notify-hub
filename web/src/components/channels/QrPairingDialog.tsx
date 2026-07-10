@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useTranslation } from '@/lib/i18n'
 import { pushApi } from '@/lib/api'
+import { DEFAULT_SERVER_URL } from '@/lib/constants'
 import { osLabels, type PushClient } from '@/lib/push-clients'
 import { toDate } from '@/lib/utils'
 import { QRCodeSVG } from 'qrcode.react'
@@ -104,7 +105,7 @@ export function QrPairingDialog({ open, onOpenChange, qrData, onRegistered }: Qr
                   value={serverUrl}
                   onChange={(e) => setServerUrl(e.target.value)}
                   className="font-mono text-xs"
-                  placeholder="http://192.168.x.x:9527"
+                  placeholder={DEFAULT_SERVER_URL}
                 />
                 {qrData.editable && (
                   <p className="text-xs text-amber-600">

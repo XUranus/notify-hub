@@ -1,4 +1,5 @@
 use log::{debug, error, info, warn};
+use notifyhub_common::constants::HTTP_CLIENT_TIMEOUT_SECS;
 use reqwest::Client;
 use reqwest::multipart;
 use serde::{Deserialize, Serialize};
@@ -57,7 +58,7 @@ impl ApiClient {
         debug!("[api] Client created for {}", base_url);
         Self {
             client: Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
+                .timeout(std::time::Duration::from_secs(HTTP_CLIENT_TIMEOUT_SECS))
                 .build()
                 .unwrap_or_default(),
             base_url: base_url.trim_end_matches('/').to_string(),

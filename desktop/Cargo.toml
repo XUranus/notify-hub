@@ -31,6 +31,7 @@ csv = "1"
 rusqlite = { version = "0.31", features = ["bundled"] }
 log = "0.4"
 simplelog = "0.12"
+notifyhub-common = { path = "../crates/common" }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

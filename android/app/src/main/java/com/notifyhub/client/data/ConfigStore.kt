@@ -36,6 +36,7 @@ object ConfigStore {
     private const val KEY_JWT_TOKEN = "jwt_token"
     private const val KEY_CLIENT_UUID = "client_uuid"
     private const val KEY_CLIENT_NAME = "client_name"
+    private const val KEY_LAST_USERNAME = "last_username"
 
     private fun prefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -48,9 +49,13 @@ object ConfigStore {
             uuid = DeviceId.generate(context)
             p.edit().putString(KEY_CLIENT_UUID, uuid).apply()
         }
+        // Use last username for auto-fill if current username is empty
+        val username = p.getString(KEY_USERNAME, "")?.ifBlank {
+            p.getString(KEY_LAST_USERNAME, "") ?: ""
+        } ?: ""
         val config = ClientConfig(
             serverUrl = p.getString(KEY_SERVER_URL, "") ?: "",
-            username = p.getString(KEY_USERNAME, "") ?: "",
+            username = username,
             password = p.getString(KEY_PASSWORD, "") ?: "",
             jwtToken = p.getString(KEY_JWT_TOKEN, "") ?: "",
             clientUuid = uuid,
@@ -77,10 +82,13 @@ object ConfigStore {
     }
 
     fun clearJwt(context: Context) {
+        // Save username for auto-fill on next login
+        val savedUsername = prefs(context).getString(KEY_USERNAME, "") ?: ""
         prefs(context).edit()
             .putString(KEY_JWT_TOKEN, "")
             .putString(KEY_USERNAME, "")
             .putString(KEY_PASSWORD, "")
+            .putString(KEY_LAST_USERNAME, savedUsername)
             .apply()
         AppLogger.i("ConfigStore", "JWT cleared")
     }

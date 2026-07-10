@@ -40,6 +40,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.notifyhub.client.Constants
 import com.notifyhub.client.R
 import com.notifyhub.client.data.ClientConfig
 import com.notifyhub.client.data.ConfigStore
@@ -300,7 +301,7 @@ fun ConfigScreen(
                             value = serverUrl,
                             onValueChange = { serverUrl = it },
                             label = { Text(i18n("config_server_url")) },
-                            placeholder = { Text("http://192.168.x.x:9527") },
+                            placeholder = { Text(Constants.DEFAULT_SERVER_URL) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             isError = serverUrl.isBlank(),

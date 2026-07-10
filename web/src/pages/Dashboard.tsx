@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { statsApi, messagesApi } from '@/lib/api'
 import { useTranslation } from '@/lib/i18n'
+import { POLL_INTERVAL_MS } from '@/lib/constants'
 import { formatDate, toDate } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -169,7 +170,7 @@ export default function Dashboard() {
 
   // Auto-refresh every 30s
   useEffect(() => {
-    const timer = setInterval(load, 30_000)
+    const timer = setInterval(load, POLL_INTERVAL_MS)
     return () => clearInterval(timer)
   }, [])
 

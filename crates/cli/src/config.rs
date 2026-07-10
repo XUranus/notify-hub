@@ -1,4 +1,5 @@
 use clap::Subcommand;
+use notifyhub_common::constants::DEFAULT_SERVER_URL;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -35,7 +36,7 @@ fn default_mode() -> String {
 impl Default for CliConfig {
     fn default() -> Self {
         Self {
-            server: "http://localhost:3000".to_string(),
+            server: DEFAULT_SERVER_URL.to_string(),
             token: String::new(),
             format: "text".to_string(),
             uuid: String::new(),
