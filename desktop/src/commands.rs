@@ -1,11 +1,10 @@
 use crate::config::AppConfig;
 use crate::messages::{LocalMessage, MessageStore};
-use crate::poll::{PollState, NotificationDebounce};
-use log::{info, error, debug};
+use crate::poll::{PollState, lock_mutex};
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
-// ── Snapshot types for Tauri serialization ──
+// ── Snapshot types ──
 
 #[derive(Clone, serde::Serialize)]
 pub struct PollStateSnapshot {
@@ -29,28 +28,7 @@ pub struct AppInfo {
     pub messages_path: String,
 }
 
-// ── Window Commands ──
-
-#[tauri::command]
-pub fn window_minimize(window: tauri::Window) -> Result<(), String> {
-    window.minimize().map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn window_toggle_maximize(window: tauri::Window) -> Result<(), String> {
-    if window.is_maximized().unwrap_or(false) {
-        window.unmaximize().map_err(|e| e.to_string())
-    } else {
-        window.maximize().map_err(|e| e.to_string())
-    }
-}
-
-#[tauri::command]
-pub fn window_close(window: tauri::Window) -> Result<(), String> {
-    window.close().map_err(|e| e.to_string())
-}
-
-// ── Config Commands ──
+// ── Commands ──
 
 #[tauri::command]
 pub fn get_config() -> Option<AppConfig> {
@@ -71,11 +49,9 @@ pub fn set_language(language: String) -> Result<(), String> {
     Ok(())
 }
 
-// ── Poll State Commands ──
-
 #[tauri::command]
 pub fn get_poll_state(state: State<'_, Arc<Mutex<PollState>>>) -> PollStateSnapshot {
-    let s = crate::poll::lock_mutex(&state);
+    let s = lock_mutex(&state);
     PollStateSnapshot {
         running: s.running,
         mode: s.mode.clone(),
@@ -83,8 +59,6 @@ pub fn get_poll_state(state: State<'_, Arc<Mutex<PollState>>>) -> PollStateSnaps
         error: s.error.clone(),
     }
 }
-
-// ── System Commands ──
 
 #[tauri::command]
 pub fn get_system_info() -> SystemInfo {
@@ -133,8 +107,6 @@ pub fn get_system_fonts() -> Vec<String> {
     fonts
 }
 
-// ── Autostart Commands ──
-
 #[tauri::command]
 pub fn get_autostart() -> bool {
     AppConfig::load().map(|c| c.autostart).unwrap_or(false)
@@ -153,8 +125,6 @@ pub fn set_autostart(enabled: bool, auto_launch: State<'_, tauri_plugin_autostar
     }
     Ok(())
 }
-
-// ── Message Commands ──
 
 #[tauri::command]
 pub fn get_messages(store: State<'_, Arc<MessageStore>>) -> Vec<LocalMessage> {
@@ -200,8 +170,6 @@ pub fn delete_message(id: String, store: State<'_, Arc<MessageStore>>) {
 pub fn clear_messages(store: State<'_, Arc<MessageStore>>) {
     store.clear();
 }
-
-// ── URL/File Commands ──
 
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
@@ -320,20 +288,36 @@ pub async fn fetch_image_data_url(url: String) -> Result<String, String> {
     Ok(format!("data:{};base64,{}", mime, b64))
 }
 
-// ── Connection Commands ──
+#[tauri::command]
+pub fn window_minimize(window: tauri::Window) -> Result<(), String> {
+    window.minimize().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn window_toggle_maximize(window: tauri::Window) -> Result<(), String> {
+    if window.is_maximized().unwrap_or(false) {
+        window.unmaximize().map_err(|e| e.to_string())
+    } else {
+        window.maximize().map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
+pub fn window_close(window: tauri::Window) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
+}
 
 #[tauri::command]
 pub async fn reconnect(
     state: State<'_, Arc<Mutex<PollState>>>,
     msg_store: State<'_, Arc<MessageStore>>,
-    debounce: State<'_, Arc<NotificationDebounce>>,
+    debounce: State<'_, crate::poll::NotificationDebounce>,
 ) -> Result<(), String> {
     log::info!("[cmd] Reconnect");
     let cfg = AppConfig::load().ok_or("No config")?;
 
-    // Stop old transport
     let old_handle = {
-        let mut s = crate::poll::lock_mutex(&state);
+        let mut s = lock_mutex(&state);
         let handle = s.transport_handle.take();
         s.running = false;
         s.mode = "poll".to_string();
@@ -346,7 +330,6 @@ pub async fn reconnect(
         }).await.map_err(|e| format!("Join failed: {}", e))?;
     }
 
-    // Start new transport
     let mode = cfg.connection_mode.clone();
     let handle = match mode.as_str() {
         "sse" => Some(crate::sse::start_sse(cfg, state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone())),
@@ -355,7 +338,7 @@ pub async fn reconnect(
     };
 
     {
-        let mut s = crate::poll::lock_mutex(&state);
+        let mut s = lock_mutex(&state);
         s.running = true;
         s.mode = mode;
         s.error = None;
@@ -370,7 +353,7 @@ pub async fn reconnect(
 pub async fn stop_polling(state: State<'_, Arc<Mutex<PollState>>>) -> Result<(), String> {
     log::info!("[cmd] Stop polling");
     let old_handle = {
-        let mut s = crate::poll::lock_mutex(&state);
+        let mut s = lock_mutex(&state);
         s.running = false;
         s.transport_handle.take()
     };
@@ -386,7 +369,7 @@ pub async fn stop_polling(state: State<'_, Arc<Mutex<PollState>>>) -> Result<(),
 pub fn logout(state: State<'_, Arc<Mutex<PollState>>>) -> Result<(), String> {
     log::info!("[cmd] Logout");
     {
-        let mut s = crate::poll::lock_mutex(&state);
+        let mut s = lock_mutex(&state);
         s.running = false;
         s.last_poll = None;
         s.error = None;
@@ -406,16 +389,15 @@ pub async fn set_connection_mode(
     mode: String,
     state: State<'_, Arc<Mutex<PollState>>>,
     msg_store: State<'_, Arc<MessageStore>>,
-    debounce: State<'_, Arc<NotificationDebounce>>,
+    debounce: State<'_, crate::poll::NotificationDebounce>,
 ) -> Result<(), String> {
     log::info!("[cmd] Set connection mode: {}", mode);
     let mut cfg = AppConfig::load().ok_or("No config")?;
     cfg.connection_mode = mode.clone();
     cfg.save()?;
 
-    // Stop old transport
     let old_handle = {
-        let mut s = crate::poll::lock_mutex(&state);
+        let mut s = lock_mutex(&state);
         let handle = s.transport_handle.take();
         s.running = false;
         s.mode = "poll".to_string();
@@ -428,7 +410,6 @@ pub async fn set_connection_mode(
         }).await.map_err(|e| format!("Join failed: {}", e))?;
     }
 
-    // Start new transport
     let cfg = AppConfig::load().ok_or("No config")?;
     let handle = match mode.as_str() {
         "sse" => Some(crate::sse::start_sse(cfg, state.inner().clone(), msg_store.inner().clone(), debounce.inner().clone())),
@@ -437,7 +418,7 @@ pub async fn set_connection_mode(
     };
 
     {
-        let mut s = crate::poll::lock_mutex(&state);
+        let mut s = lock_mutex(&state);
         s.running = true;
         s.mode = mode;
         s.error = None;
@@ -447,8 +428,6 @@ pub async fn set_connection_mode(
 
     Ok(())
 }
-
-// ── Client Info Commands ──
 
 #[tauri::command]
 pub fn get_client_uuid() -> String {
@@ -467,18 +446,84 @@ pub fn update_client_name(name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn export_messages_csv(store: State<'_, Arc<MessageStore>>) -> Result<String, String> {
+pub fn backup_messages_json(store: State<'_, Arc<MessageStore>>) -> String {
     let messages = store.get_all();
-    let mut wtr = csv::Writer::from_writer(vec![]);
-    for msg in &messages {
-        wtr.serialize((&msg.id, &msg.title, &msg.body, &msg.level, &msg.received_at))
-            .map_err(|e| e.to_string())?;
-    }
-    String::from_utf8(wtr.into_inner().map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+    serde_json::to_string_pretty(&messages).unwrap_or_else(|_| "[]".to_string())
 }
 
 #[tauri::command]
-pub fn export_messages_json(store: State<'_, Arc<MessageStore>>) -> String {
-    let messages = store.get_all();
-    serde_json::to_string_pretty(&messages).unwrap_or_else(|_| "[]".to_string())
+pub fn update_tray_status(tray_items: State<'_, TrayMenuItems>, connected: bool, mode: Option<String>, error: Option<String>) {
+    let text = if let Some(ref err) = error {
+        format!("● Error: {}", if err.len() > 30 { &err[..30] } else { err })
+    } else if connected {
+        match mode.as_deref() {
+            Some("sse") => "● Connected (SSE)".to_string(),
+            Some("ws") => "● Connected (WS)".to_string(),
+            _ => "● Connected (Poll)".to_string(),
+        }
+    } else {
+        tray_items.translations.connecting.clone()
+    };
+    let _ = tray_items.status.set_text(&text);
+}
+
+#[tauri::command]
+pub fn update_tray_unread(tray_items: State<'_, TrayMenuItems>, count: usize) {
+    let text = if count == 0 {
+        tray_items.translations.no_unread.clone()
+    } else {
+        format!("Unread: {}", count)
+    };
+    let _ = tray_items.unread.set_text(&text);
+}
+
+// ── Tray Menu Items (shared state for dynamic updates) ──
+
+pub struct TrayMenuItems {
+    pub status: tauri::menu::MenuItem<tauri::Wry>,
+    pub unread: tauri::menu::MenuItem<tauri::Wry>,
+    pub translations: TrayTranslations,
+}
+
+#[derive(Clone)]
+pub struct TrayTranslations {
+    pub connecting: String,
+    pub no_unread: String,
+    pub toggle_window: String,
+    pub reconnect: String,
+    pub quit: String,
+}
+
+// ── Log Settings Commands ──
+
+#[tauri::command]
+pub fn get_log_settings() -> serde_json::Value {
+    let config = AppConfig::load().unwrap_or_default();
+    serde_json::json!({
+        "level": config.log_level,
+        "retentionDays": config.log_retention_days,
+    })
+}
+
+#[tauri::command]
+pub fn set_log_level(level: String) -> Result<(), String> {
+    let mut config = AppConfig::load().unwrap_or_default();
+    config.log_level = level.clone();
+    config.save()?;
+    // Re-init logger with new level
+    crate::logging::init_log(&level, config.log_retention_days);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_log_retention(days: u32) -> Result<(), String> {
+    let mut config = AppConfig::load().unwrap_or_default();
+    config.log_retention_days = days;
+    config.save()?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_log_file_path() -> String {
+    crate::logging::today_log_path().to_string_lossy().to_string()
 }
