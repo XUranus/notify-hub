@@ -192,7 +192,81 @@ fn prefer_x11_for_window_positioning() {
         && std::env::var_os("DISPLAY").is_some()
         && std::env::var_os("GDK_BACKEND").is_none()
     {
+        // Wayland compositors do not allow normal apps to set absolute window positions.
+        // XWayland is required for the docked sidebar behavior.
         std::env::set_var("GDK_BACKEND", "x11");
+        std::env::set_var("WINIT_UNIX_BACKEND", "x11");
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn prefer_x11_for_window_positioning() {}
+
+fn dock_window_to_right(win: &tauri::WebviewWindow, animate: bool) {
+    // Some window managers ignore size/position changes while the window is hidden.
+    let _ = win.show();
+
+    let monitor = match win.current_monitor() {
+        Ok(Some(monitor)) => Some(monitor),
+        _ => win.primary_monitor().ok().flatten(),
+    };
+
+    let Some(monitor) = monitor else {
+        let _ = win.show();
+        let _ = win.set_focus();
+        return;
+    };
+
+    let work_area = monitor.work_area();
+    let width = SIDEBAR_WIDTH;
+    let height = work_area.size.height;
+    let pos_y = work_area.position.y;
+    let target_x = work_area.position.x + work_area.size.width as i32 - width as i32;
+
+    if let Err(e) = win.set_size(tauri::PhysicalSize::new(width, height)) {
+        log::warn!("[window] Failed to set sidebar size: {}", e);
+    }
+    if let Err(e) = win.set_resizable(false) {
+        log::warn!("[window] Failed to disable resize: {}", e);
+    }
+    let _ = win.set_decorations(false);
+    let _ = win.set_always_on_top(true);
+    let _ = win.set_shadow(false);
+    let _ = win.set_skip_taskbar(true);
+
+    if !animate {
+        if let Err(e) = win.set_position(tauri::PhysicalPosition::new(target_x, pos_y)) {
+            log::warn!("[window] Failed to set sidebar position: {}", e);
+        }
+        let _ = win.set_focus();
+        return;
+    }
+
+    let start_x = work_area.position.x + work_area.size.width as i32;
+    if let Err(e) = win.set_position(tauri::PhysicalPosition::new(start_x, pos_y)) {
+        log::warn!("[window] Failed to set sidebar start position: {}", e);
+    }
+    let _ = win.set_focus();
+
+    let win_clone = win.clone();
+    std::thread::spawn(move || {
+        let steps: i32 = 15;
+        let delay = std::time::Duration::from_millis(16);
+        for i in 0..=steps {
+            let progress = i as f64 / steps as f64;
+            let eased = 1.0 - (1.0 - progress).powi(3);
+            let x = start_x + ((target_x - start_x) as f64 * eased) as i32;
+            let _ = win_clone.set_position(tauri::PhysicalPosition::new(x, pos_y));
+            std::thread::sleep(delay);
+        }
+    });
+}
+
+fn toggle_docked_window(win: &tauri::WebviewWindow) {
+    if win.is_visible().unwrap_or(false) {
+        let _ = win.hide();
+    } else {
+        dock_window_to_right(win, false);
     }
 }
 
@@ -316,12 +390,7 @@ fn main() {
                 match event.id.as_ref() {
                     "tray-toggle" => {
                         if let Some(window) = app.get_webview_window("main") {
-                            if window.is_visible().unwrap_or(false) {
-                                let _ = window.hide();
-                            } else {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
+                            toggle_docked_window(&window);
                         }
                     }
                     "tray-reconnect" => {
@@ -346,12 +415,16 @@ fn main() {
                 {
                     let app = tray.app_handle();
                     if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
+                        toggle_docked_window(&window);
                     }
                 }
             })
             .build(app)?;
+
+            // Position window on the right side of the screen with slide-in animation
+            if let Some(win) = app.get_webview_window("main") {
+                dock_window_to_right(&win, true);
+            }
 
             // ── Start polling ──
             info!("[main] Starting initial poll");
@@ -377,6 +450,10 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // Window
+            window_minimize,
+            window_toggle_maximize,
+            window_close,
             // Config
             get_config,
             save_config,
