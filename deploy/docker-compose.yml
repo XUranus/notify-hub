@@ -4,6 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.nginx
+    image: notifyhub-frontend
     container_name: notifyhub-nginx
     restart: unless-stopped
     ports:
@@ -19,6 +20,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+    image: notifyhub-backend
     container_name: notifyhub-backend
     restart: unless-stopped
     expose:

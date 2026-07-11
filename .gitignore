@@ -37,3 +37,8 @@ android/.cxx/
 # Runtime data
 data/
 crates/data/
+
+# Docker build artifacts
+deploy/frontend-dist/
+deploy/notifyhub-server
+deploy/Dockerfile.simple

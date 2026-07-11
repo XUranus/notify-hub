@@ -1,0 +1,36 @@
+# Build artifacts
+target/
+desktop/
+crates/target/
+web/dist/
+web/node_modules/
+deploy/frontend-dist/
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude/
+
+# Documentation
+*.md
+LICENSE
+
+# Android
+android/
+
+# Node modules
+node_modules/
