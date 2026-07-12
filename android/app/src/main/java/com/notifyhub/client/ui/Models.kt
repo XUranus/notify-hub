@@ -1,6 +1,7 @@
 package com.notifyhub.client.ui
 
 import androidx.compose.ui.unit.dp
+import com.notifyhub.client.data.I18n
 import com.notifyhub.client.data.LocalMessage
 
 // ── Constants ──
@@ -39,17 +40,30 @@ fun groupByTopic(messages: List<LocalMessage>): List<TopicGroup> {
 }
 
 fun formatRelativeTime(dateStr: String): String {
-    try {
-        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
-        val date = fmt.parse(dateStr) ?: return dateStr
-        val diff = System.currentTimeMillis() - date.time
-        if (diff < 60_000) return I18n["just_now"]
-        if (diff < 3600_000) return "${diff / 60_000} ${I18n["min_ago"]}"
-        if (diff < 86400_000) return "${diff / 3600_000} ${I18n["hr_ago"]}"
-        if (diff < 2592000_000) return "${diff / 86400_000} ${I18n["days_ago"]}"
-        val cal = java.util.Calendar.getInstance().apply { time = date }
-        return "${cal.get(java.util.Calendar.MONTH) + 1}/${cal.get(java.util.Calendar.DAY_OF_MONTH)}"
+    return try {
+        val date = try {
+            // ISO 8601 with 'Z' (UTC) — parse as UTC then display in local time
+            val utcFmt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault()).apply {
+                timeZone = java.util.TimeZone.getTimeZone("UTC")
+            }
+            utcFmt.parse(dateStr.take(19))
+        } catch (_: Exception) {
+            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).parse(dateStr)
+        } ?: return dateStr
+        val now = System.currentTimeMillis()
+        val diff = now - date.time
+
+        when {
+            diff < 60_000 -> I18n["time_just_now"]
+            diff < 3_600_000 -> "${(diff / 60_000).toInt()} ${I18n["time_minutes_ago"]}"
+            diff < 86_400_000 -> "${(diff / 3_600_000).toInt()} ${I18n["time_hours_ago"]}"
+            diff < 2_592_000_000 -> "${(diff / 86_400_000).toInt()} ${I18n["time_days_ago"]}"
+            else -> {
+                val outFmt = java.text.SimpleDateFormat("MM/dd", java.util.Locale.getDefault())
+                outFmt.format(date)
+            }
+        }
     } catch (_: Exception) {
-        return dateStr
+        dateStr
     }
 }
