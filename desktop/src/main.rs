@@ -964,12 +964,16 @@ fn toggle_docked_window(win: &tauri::WebviewWindow) {
 }
 
 fn main() {
-    // In AppImage, use X11 and disable GPU compositing to avoid EGL_BAD_ALLOC
-    // caused by bundled GPU libraries mismatching the host driver
-    if std::env::var("APPIMAGE").is_ok() {
+    // Use X11 and disable GPU compositing to avoid EGL_BAD_ALLOC
+    // caused by bundled GPU libraries in AppImage mismatching host drivers.
+    // Must be set BEFORE any GTK/WebKit initialization.
+    #[cfg(target_os = "linux")]
+    {
         std::env::set_var("GDK_BACKEND", "x11");
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+        std::env::set_var("WEBKIT_DISABLE_GL", "1");
+        std::env::set_var("LIBGL_ALWAYS_SOFTWARE", "1");
     }
 
     prefer_x11_for_window_positioning();
