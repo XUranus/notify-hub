@@ -137,6 +137,10 @@ pub struct AppConfig {
     /// Language: "en", "zh", "ja", "ko" (default: auto-detect)
     #[serde(default = "default_language")]
     pub language: String,
+    /// DND (Do Not Disturb) expiry timestamp in milliseconds since epoch.
+    /// 0 = DND off, -1 = DND forever (until manually disabled)
+    #[serde(default)]
+    pub dnd_until: i64,
 }
 
 fn default_connection_mode() -> String {
@@ -230,6 +234,22 @@ impl AppConfig {
             log_level: default_log_level(),
             log_retention_days: default_log_retention_days(),
             language: default_language(),
+            dnd_until: 0,
         }
+    }
+
+    /// Check if DND is currently active
+    pub fn is_dnd_active(&self) -> bool {
+        if self.dnd_until == 0 {
+            return false;
+        }
+        if self.dnd_until == -1 {
+            return true; // forever
+        }
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        now_ms < self.dnd_until
     }
 }

@@ -312,12 +312,29 @@ fn strip_md_formatting(s: &str) -> String {
     result
 }
 
+/// Check if Do Not Disturb is currently active.
+fn is_dnd_active() -> bool {
+    if let Some(cfg) = crate::config::AppConfig::load() {
+        cfg.is_dnd_active()
+    } else {
+        false
+    }
+}
+
 pub fn show_notification(title: &str, body: &str) {
+    if is_dnd_active() {
+        debug!("[notify] DND active, skipping notification: {}", title);
+        return;
+    }
     debug!("[notify] Showing notification: {}", title);
     show_notification_with_icon(title, body, None);
 }
 
 pub fn show_notification_with_icon(title: &str, body: &str, content_icon_path: Option<&str>) {
+    if is_dnd_active() {
+        debug!("[notify] DND active, skipping notification with icon: {}", title);
+        return;
+    }
     debug!("[notify] Showing notification with icon: {}", title);
     let plain_body = markdown_to_plain(body);
     let display_body = if plain_body.chars().count() > 100 {

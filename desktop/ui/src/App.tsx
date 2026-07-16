@@ -38,6 +38,7 @@ export default function App() {
         onSetFilter={app.setCurrentFilter}
         detailMsg={app.detailMsg}
         topicDetailKey={app.topicDetailKey}
+        dndActive={app.dndActive}
       />
 
       {app.currentView === 'connect' && (

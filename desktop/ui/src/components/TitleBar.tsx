@@ -19,8 +19,9 @@ interface Props {
   onSetFilter: (f: string) => void
   detailMsg?: any
   topicDetailKey?: string | null
+  dndActive?: boolean
 }
-export function TitleBar({ T, invoke, connStatus, onCompose, onViewToggle, viewMode, onSettings, setErrorDetailOpen, showSearch, onToggleSearch, unreadCount, hasMessages, onMarkAllRead, onClearAll, currentFilter, onSetFilter, detailMsg, topicDetailKey }: Props) {
+export function TitleBar({ T, invoke, connStatus, onCompose, onViewToggle, viewMode, onSettings, setErrorDetailOpen, showSearch, onToggleSearch, unreadCount, hasMessages, onMarkAllRead, onClearAll, currentFilter, onSetFilter, detailMsg, topicDetailKey, dndActive }: Props) {
   const [filterOpen, setFilterOpen] = useState(false)
   const filterRef = useRef<HTMLDivElement>(null)
 
@@ -37,6 +38,11 @@ export function TitleBar({ T, invoke, connStatus, onCompose, onViewToggle, viewM
     <div id="titlebar">
       <div className="titlebar-left">
         {unreadCount > 0 && <span className="titlebar-unread-dot" title={`${unreadCount}`}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
+        {dndActive && (
+          <span className="titlebar-dnd" title={T.dndActive || 'DND'} style={{fontSize:'11px',color:'var(--text3)',display:'flex',alignItems:'center',gap:'2px',marginLeft:'4px'}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </span>
+        )}
         <span id="connStatus" style={{fontSize:'11px',color:'var(--text3)',display:'flex',alignItems:'center',gap:'4px'}}>
           {connStatus.connected ? (
             <>

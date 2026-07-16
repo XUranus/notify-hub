@@ -118,6 +118,24 @@ export function useApp() {
     localStorage.setItem('viewMode', newMode)
   }, [viewMode, setViewMode])
 
+  // ── DND State ──
+  const [dndActive, setDndActive] = useState(false)
+
+  // Check DND status periodically
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const until = await invoke('get_dnd')
+        if (until === 0) { setDndActive(false); return }
+        if (until === -1) { setDndActive(true); return }
+        setDndActive(Date.now() < until)
+      } catch {}
+    }
+    check()
+    const timer = setInterval(check, 30000) // check every 30s
+    return () => clearInterval(timer)
+  }, [invoke])
+
   // ── Messages State ──
   const [allMessages, setAllMessages] = useState<Message[]>([])
   const allMessagesRef = useRef<Message[]>([])
@@ -427,6 +445,8 @@ export function useApp() {
     connStatus, handleConnect,
     // Client
     clientUuid,
+    // DND
+    dndActive,
     // Tauri
     invoke,
   }

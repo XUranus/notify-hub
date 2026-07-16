@@ -661,6 +661,18 @@ fn get_log_file_path() -> String {
     logging::today_log_path().to_string_lossy().to_string()
 }
 
+#[tauri::command]
+fn get_dnd() -> i64 {
+    AppConfig::load().map(|c| c.dnd_until).unwrap_or(0)
+}
+
+#[tauri::command]
+fn set_dnd(until: i64) -> Result<(), String> {
+    let mut cfg = AppConfig::load().unwrap_or_else(|| AppConfig::default_with_uuid());
+    cfg.dnd_until = until;
+    cfg.save()
+}
+
 // ── Types ──
 
 #[derive(serde::Serialize)]
@@ -1231,6 +1243,8 @@ fn main() {
             set_log_level,
             set_log_retention,
             get_log_file_path,
+            get_dnd,
+            set_dnd,
             set_language
         ])
         .run(tauri::generate_context!())

@@ -32,6 +32,7 @@ export function SettingsModal({ app }: Props) {
   const [logRetention, setLogRetention] = useState(30)
   const [logFilePath, setLogFilePath] = useState('')
   const [systemFonts, setSystemFonts] = useState<string[]>([])
+  const [dndUntil, setDndUntil] = useState(0)
 
   const loadSystemTab = useCallback(async () => {
     try { const c = await invoke('get_config'); if (c) { setCfg(c); setClientName(c.client.name) } } catch {}
@@ -42,6 +43,7 @@ export function SettingsModal({ app }: Props) {
     try { const m = await invoke('get_connection_mode'); setConnectionMode(m || 'sse') } catch {}
     try { const ls = await invoke('get_log_settings'); if (ls) { setLogLevel(ls.level || 'info'); setLogRetention(ls.retentionDays || 30); setLogFilePath(ls.logPath || '') } } catch {}
     try { const fonts = await api.getSystemFonts(); setSystemFonts(fonts || []) } catch {}
+    try { setDndUntil(await invoke('get_dnd')) } catch {}
   }, [invoke])
 
   useEffect(() => { if (app.settingsOpen) loadSystemTab() }, [app.settingsOpen, loadSystemTab])
@@ -193,6 +195,30 @@ export function SettingsModal({ app }: Props) {
               <div className="autostart-row">
                 <label className="toggle-label">{T.autoDownloadImages}</label>
                 <label className="toggle"><input type="checkbox" checked={autoDownload} onChange={toggleAutoDownload} /><span className="toggle-slider"></span></label>
+              </div>
+
+              <hr className="section-divider" />
+              <div className="detail-section-title" style={{ marginBottom: '10px' }}>{T.dnd}</div>
+              <div className="appearance-row">
+                <label className="appearance-label">{T.dnd}</label>
+                <select className="appearance-select" value={dndUntil === 0 ? 'off' : dndUntil === -1 ? 'forever' : dndUntil.toString()} onChange={async e => {
+                  const v = e.target.value
+                  let until = 0
+                  const now = Date.now()
+                  if (v === '1h') until = now + 3600000
+                  else if (v === '3h') until = now + 10800000
+                  else if (v === '8h') until = now + 28800000
+                  else if (v === 'forever') until = -1
+                  else until = 0
+                  setDndUntil(until)
+                  try { await invoke('set_dnd', { until }) } catch {}
+                }}>
+                  <option value="off">{T.dndOff}</option>
+                  <option value="1h">{T.dnd1h}</option>
+                  <option value="3h">{T.dnd3h}</option>
+                  <option value="8h">{T.dnd8h}</option>
+                  <option value="forever">{T.dndForever}</option>
+                </select>
               </div>
 
               <hr className="section-divider" />
