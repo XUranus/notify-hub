@@ -81,16 +81,25 @@ jobs:
 
       - name: Strip bundled GPU libs from AppImage
         run: |
+          sudo apt-get install -y squashfuse fuse2
           APPIMAGE=$(find desktop/target/release/bundle/appimage -name "*.AppImage" | head -1)
+          chmod +x "$APPIMAGE"
           cd /tmp
-          "$APPIMAGE" --appimage-extract
+          "$APPIMAGE" --appimage-extract || true
+          if [ ! -d squashfs-root ]; then
+            echo "Extracting with unsquashfs fallback..."
+            sudo apt-get install -y squashfs-tools
+            unsquashfs "$APPIMAGE"
+            mv squashfs-root* squashfs-root
+          fi
           find squashfs-root -name "libwayland-*.so*" -delete
           find squashfs-root -name "libEGL.so*" -delete
           find squashfs-root -name "libGL.so*" -delete
           # Repackage using appimagetool
           wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -O /tmp/appimagetool
           chmod +x /tmp/appimagetool
-          ARCH=x86_64 /tmp/appimagetool squashfs-root "$APPIMAGE"
+          /tmp/appimagetool --appimage-extract-and-run squashfs-root "$APPIMAGE" || \
+            ARCH=x86_64 /tmp/appimagetool squashfs-root "$APPIMAGE"
 
       - name: Rename artifact
         run: |
@@ -144,15 +153,24 @@ jobs:
 
       - name: Strip bundled GPU libs from AppImage
         run: |
+          sudo apt-get install -y squashfuse fuse2
           APPIMAGE=$(find desktop/target/release/bundle/appimage -name "*.AppImage" | head -1)
+          chmod +x "$APPIMAGE"
           cd /tmp
-          "$APPIMAGE" --appimage-extract
+          "$APPIMAGE" --appimage-extract || true
+          if [ ! -d squashfs-root ]; then
+            echo "Extracting with unsquashfs fallback..."
+            sudo apt-get install -y squashfs-tools
+            unsquashfs "$APPIMAGE"
+            mv squashfs-root* squashfs-root
+          fi
           find squashfs-root -name "libwayland-*.so*" -delete
           find squashfs-root -name "libEGL.so*" -delete
           find squashfs-root -name "libGL.so*" -delete
           wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage" -O /tmp/appimagetool
           chmod +x /tmp/appimagetool
-          ARCH=aarch64 /tmp/appimagetool squashfs-root "$APPIMAGE"
+          /tmp/appimagetool --appimage-extract-and-run squashfs-root "$APPIMAGE" || \
+            ARCH=aarch64 /tmp/appimagetool squashfs-root "$APPIMAGE"
 
       - name: Rename artifact
         run: |
