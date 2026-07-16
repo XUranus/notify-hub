@@ -81,25 +81,23 @@ jobs:
 
       - name: Strip bundled GPU libs from AppImage
         run: |
-          sudo apt-get install -y squashfuse fuse2
+          sudo apt-get install -y squashfs-tools
           APPIMAGE=$(find desktop/target/release/bundle/appimage -name "*.AppImage" | head -1)
           chmod +x "$APPIMAGE"
           cd /tmp
-          "$APPIMAGE" --appimage-extract || true
-          if [ ! -d squashfs-root ]; then
-            echo "Extracting with unsquashfs fallback..."
-            sudo apt-get install -y squashfs-tools
-            unsquashfs "$APPIMAGE"
-            mv squashfs-root* squashfs-root
-          fi
+          unsquashfs -force "$APPIMAGE"
+          # Delete bundled GPU libs that conflict with host drivers
           find squashfs-root -name "libwayland-*.so*" -delete
           find squashfs-root -name "libEGL.so*" -delete
           find squashfs-root -name "libGL.so*" -delete
-          # Repackage using appimagetool
-          wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" -O /tmp/appimagetool
-          chmod +x /tmp/appimagetool
-          /tmp/appimagetool --appimage-extract-and-run squashfs-root "$APPIMAGE" || \
-            ARCH=x86_64 /tmp/appimagetool squashfs-root "$APPIMAGE"
+          # Extract the ELF runtime header (everything before the squashfs)
+          SQFS_OFFSET=$(file "$APPIMAGE" | grep -oP 'startsector \K\d+')
+          SQFS_OFFSET=$((SQFS_OFFSET * 512))
+          dd if="$APPIMAGE" bs=1 count=$SQFS_OFFSET of=/tmp/runtime 2>/dev/null
+          # Repackage squashfs and append to runtime
+          mksquashfs squashfs-root /tmp/appimage.sqfs -noappend -comp gzip -all-root
+          cat /tmp/runtime /tmp/appimage.sqfs > "$APPIMAGE"
+          chmod +x "$APPIMAGE"
 
       - name: Rename artifact
         run: |
@@ -153,24 +151,20 @@ jobs:
 
       - name: Strip bundled GPU libs from AppImage
         run: |
-          sudo apt-get install -y squashfuse fuse2
+          sudo apt-get install -y squashfs-tools
           APPIMAGE=$(find desktop/target/release/bundle/appimage -name "*.AppImage" | head -1)
           chmod +x "$APPIMAGE"
           cd /tmp
-          "$APPIMAGE" --appimage-extract || true
-          if [ ! -d squashfs-root ]; then
-            echo "Extracting with unsquashfs fallback..."
-            sudo apt-get install -y squashfs-tools
-            unsquashfs "$APPIMAGE"
-            mv squashfs-root* squashfs-root
-          fi
+          unsquashfs -force "$APPIMAGE"
           find squashfs-root -name "libwayland-*.so*" -delete
           find squashfs-root -name "libEGL.so*" -delete
           find squashfs-root -name "libGL.so*" -delete
-          wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage" -O /tmp/appimagetool
-          chmod +x /tmp/appimagetool
-          /tmp/appimagetool --appimage-extract-and-run squashfs-root "$APPIMAGE" || \
-            ARCH=aarch64 /tmp/appimagetool squashfs-root "$APPIMAGE"
+          SQFS_OFFSET=$(file "$APPIMAGE" | grep -oP 'startsector \K\d+')
+          SQFS_OFFSET=$((SQFS_OFFSET * 512))
+          dd if="$APPIMAGE" bs=1 count=$SQFS_OFFSET of=/tmp/runtime 2>/dev/null
+          mksquashfs squashfs-root /tmp/appimage.sqfs -noappend -comp gzip -all-root
+          cat /tmp/runtime /tmp/appimage.sqfs > "$APPIMAGE"
+          chmod +x "$APPIMAGE"
 
       - name: Rename artifact
         run: |
