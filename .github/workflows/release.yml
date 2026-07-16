@@ -69,7 +69,9 @@ jobs:
             patchelf \
             squashfs-tools
           wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" \
-            -O /tmp/appimagetool && chmod +x /tmp/appimagetool
+            -O /tmp/appimagetool.AppImage && chmod +x /tmp/appimagetool.AppImage
+          cd /tmp && /tmp/appimagetool.AppImage --appimage-extract >/dev/null 2>&1
+          mv /tmp/squashfs-root /tmp/appimagetool-extracted
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
@@ -113,7 +115,7 @@ jobs:
           rm -f squashfs-root/usr/lib/x86_64-linux-gnu/gtk-3.0/3.0.0/immodules/im-wayland.so
           cd -
           mv "$APPIMAGE" "${APPIMAGE}.orig"
-          ARCH=x86_64 /tmp/appimagetool $TMPDIR/squashfs-root "$APPIMAGE" >/dev/null 2>&1
+          ARCH=x86_64 /tmp/appimagetool-extracted/AppRun $TMPDIR/squashfs-root "$APPIMAGE" >/dev/null 2>&1
 
       - name: Rename artifact
         run: |
@@ -155,7 +157,9 @@ jobs:
             patchelf \
             squashfs-tools
           wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage" \
-            -O /tmp/appimagetool && chmod +x /tmp/appimagetool
+            -O /tmp/appimagetool.AppImage && chmod +x /tmp/appimagetool.AppImage
+          cd /tmp && /tmp/appimagetool.AppImage --appimage-extract >/dev/null 2>&1
+          mv /tmp/squashfs-root /tmp/appimagetool-extracted
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
@@ -199,7 +203,7 @@ jobs:
           rm -f squashfs-root/usr/lib/x86_64-linux-gnu/gtk-3.0/3.0.0/immodules/im-wayland.so
           cd -
           mv "$APPIMAGE" "${APPIMAGE}.orig"
-          ARCH=aarch64 /tmp/appimagetool $TMPDIR/squashfs-root "$APPIMAGE" >/dev/null 2>&1
+          ARCH=aarch64 /tmp/appimagetool-extracted/AppRun $TMPDIR/squashfs-root "$APPIMAGE" >/dev/null 2>&1
 
       - name: Rename artifact
         run: |
