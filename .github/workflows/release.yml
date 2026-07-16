@@ -79,26 +79,6 @@ jobs:
         working-directory: desktop
         run: cargo tauri build --bundles appimage --verbose
 
-      - name: Strip bundled GPU libs from AppImage
-        run: |
-          sudo apt-get install -y squashfs-tools
-          APPIMAGE=$(find desktop/target/release/bundle/appimage -name "*.AppImage" | head -1)
-          chmod +x "$APPIMAGE"
-          cd /tmp
-          unsquashfs -force "$APPIMAGE"
-          # Delete bundled GPU libs that conflict with host drivers
-          find squashfs-root -name "libwayland-*.so*" -delete
-          find squashfs-root -name "libEGL.so*" -delete
-          find squashfs-root -name "libGL.so*" -delete
-          # Extract the ELF runtime header (everything before the squashfs)
-          SQFS_OFFSET=$(file "$APPIMAGE" | grep -oP 'startsector \K\d+')
-          SQFS_OFFSET=$((SQFS_OFFSET * 512))
-          dd if="$APPIMAGE" bs=1 count=$SQFS_OFFSET of=/tmp/runtime 2>/dev/null
-          # Repackage squashfs and append to runtime
-          mksquashfs squashfs-root /tmp/appimage.sqfs -noappend -comp gzip -all-root
-          cat /tmp/runtime /tmp/appimage.sqfs > "$APPIMAGE"
-          chmod +x "$APPIMAGE"
-
       - name: Rename artifact
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -148,23 +128,6 @@ jobs:
       - name: Build
         working-directory: desktop
         run: cargo tauri build --bundles appimage --verbose
-
-      - name: Strip bundled GPU libs from AppImage
-        run: |
-          sudo apt-get install -y squashfs-tools
-          APPIMAGE=$(find desktop/target/release/bundle/appimage -name "*.AppImage" | head -1)
-          chmod +x "$APPIMAGE"
-          cd /tmp
-          unsquashfs -force "$APPIMAGE"
-          find squashfs-root -name "libwayland-*.so*" -delete
-          find squashfs-root -name "libEGL.so*" -delete
-          find squashfs-root -name "libGL.so*" -delete
-          SQFS_OFFSET=$(file "$APPIMAGE" | grep -oP 'startsector \K\d+')
-          SQFS_OFFSET=$((SQFS_OFFSET * 512))
-          dd if="$APPIMAGE" bs=1 count=$SQFS_OFFSET of=/tmp/runtime 2>/dev/null
-          mksquashfs squashfs-root /tmp/appimage.sqfs -noappend -comp gzip -all-root
-          cat /tmp/runtime /tmp/appimage.sqfs > "$APPIMAGE"
-          chmod +x "$APPIMAGE"
 
       - name: Rename artifact
         run: |
