@@ -68,26 +68,16 @@ jobs:
             librsvg2-dev \
             patchelf \
             squashfs-tools
-
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2" --locked
-
-      - name: Install frontend dependencies
-        working-directory: desktop/ui
-        run: npm install
-
-      - name: Build
-        working-directory: desktop
-        run: cargo tauri build --bundles appimage --verbose
-
-      - name: Patch AppImage (fix EGL_BAD_ALLOC)
-        run: |
-          APPIMAGE=$(find desktop/target/release/bundle/appimage -name "*.AppImage" | head -1)
-          TMPDIR=/tmp/appimage-patch
-          rm -rf $TMPDIR && mkdir -p $TMPDIR
-          # Extract squashfs using unsquashfs (no FUSE needed)
-          unsquashfs -f -d $TMPDIR/squashfs-root "$APPIMAGE" >/dev/null 2>&1
-          cat > $TMPDIR/squashfs-root/AppRun << 'APPRUN'
+          # Install appimagetool + wrapper that patches AppDir before packaging
+          wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" \
+            -O /tmp/appimagetool-src && chmod +x /tmp/appimagetool-src
+          cd /tmp && unsquashfs -f /tmp/appimagetool-src >/dev/null 2>&1
+          cat > /usr/local/bin/appimagetool << 'WRAPPER'
+          #!/usr/bin/env bash
+          set -e
+          APPDIR="$1"
+          if [ -d "$APPDIR" ]; then
+            cat > "$APPDIR/AppRun" << 'APPRUN'
           #!/usr/bin/env bash
           set -e
           this_dir="$(readlink -f "$(dirname "$0")")"
@@ -99,24 +89,27 @@ jobs:
           export LIBGL_ALWAYS_SOFTWARE=1
           exec "$this_dir"/AppRun.wrapped "$@"
           APPRUN
-          chmod +x $TMPDIR/squashfs-root/AppRun
-          # Remove bundled Wayland libs that conflict with host Mesa drivers
-          rm -f $TMPDIR/squashfs-root/usr/lib/libwayland-egl.so.1
-          rm -f $TMPDIR/squashfs-root/usr/lib/libwayland-client.so.0
-          rm -f $TMPDIR/squashfs-root/usr/lib/libwayland-cursor.so.0
-          rm -f $TMPDIR/squashfs-root/usr/lib/libwayland-server.so.0
-          rm -f $TMPDIR/squashfs-root/usr/lib/im-waylandgtk.so
-          rm -f $TMPDIR/squashfs-root/usr/lib/im-wayland.so
-          rm -f $TMPDIR/squashfs-root/usr/lib/x86_64-linux-gnu/gtk-3.0/3.0.0/immodules/im-waylandgtk.so
-          rm -f $TMPDIR/squashfs-root/usr/lib/x86_64-linux-gnu/gtk-3.0/3.0.0/immodules/im-wayland.so
-          # Extract runtime (ELF header before squashfs) and rebuild
-          SQFS_OFFSET=$(python3 -c "f=open('$APPIMAGE','rb'); d=f.read(); f.close(); print(d.find(b'hsqs'))")
-          head -c "$SQFS_OFFSET" "$APPIMAGE" > $TMPDIR/runtime
-          chmod +x $TMPDIR/runtime
-          mv "$APPIMAGE" "${APPIMAGE}.orig"
-          mksquashfs $TMPDIR/squashfs-root $TMPDIR/new.sqfs -noappend -comp zstd -b 131072 >/dev/null 2>&1
-          cat $TMPDIR/runtime $TMPDIR/new.sqfs > "$APPIMAGE"
-          chmod +x "$APPIMAGE"
+            chmod +x "$APPDIR/AppRun"
+            rm -f "$APPDIR"/usr/lib/libwayland-egl.so.1
+            rm -f "$APPDIR"/usr/lib/libwayland-client.so.0
+            rm -f "$APPDIR"/usr/lib/libwayland-cursor.so.0
+            rm -f "$APPDIR"/usr/lib/libwayland-server.so.0
+            find "$APPDIR"/usr/lib -name "im-wayland*" -delete 2>/dev/null || true
+          fi
+          exec /tmp/squashfs-root/usr/bin/appimagetool "$@"
+          WRAPPER
+          chmod +x /usr/local/bin/appimagetool
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Install frontend dependencies
+        working-directory: desktop/ui
+        run: npm install
+
+      - name: Build
+        working-directory: desktop
+        run: cargo tauri build --bundles appimage --verbose
 
       - name: Rename artifact
         run: |
@@ -157,26 +150,16 @@ jobs:
             librsvg2-dev \
             patchelf \
             squashfs-tools
-
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2" --locked
-
-      - name: Install frontend dependencies
-        working-directory: desktop/ui
-        run: npm install
-
-      - name: Build
-        working-directory: desktop
-        run: cargo tauri build --bundles appimage --verbose
-
-      - name: Patch AppImage (fix EGL_BAD_ALLOC)
-        run: |
-          APPIMAGE=$(find desktop/target/release/bundle/appimage -name "*.AppImage" | head -1)
-          TMPDIR=/tmp/appimage-patch
-          rm -rf $TMPDIR && mkdir -p $TMPDIR
-          # Extract squashfs using unsquashfs (no FUSE needed)
-          unsquashfs -f -d $TMPDIR/squashfs-root "$APPIMAGE" >/dev/null 2>&1
-          cat > $TMPDIR/squashfs-root/AppRun << 'APPRUN'
+          # Install appimagetool + wrapper that patches AppDir before packaging
+          wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage" \
+            -O /tmp/appimagetool-src && chmod +x /tmp/appimagetool-src
+          cd /tmp && unsquashfs -f /tmp/appimagetool-src >/dev/null 2>&1
+          cat > /usr/local/bin/appimagetool << 'WRAPPER'
+          #!/usr/bin/env bash
+          set -e
+          APPDIR="$1"
+          if [ -d "$APPDIR" ]; then
+            cat > "$APPDIR/AppRun" << 'APPRUN'
           #!/usr/bin/env bash
           set -e
           this_dir="$(readlink -f "$(dirname "$0")")"
@@ -188,24 +171,27 @@ jobs:
           export LIBGL_ALWAYS_SOFTWARE=1
           exec "$this_dir"/AppRun.wrapped "$@"
           APPRUN
-          chmod +x $TMPDIR/squashfs-root/AppRun
-          # Remove bundled Wayland libs that conflict with host Mesa drivers
-          rm -f $TMPDIR/squashfs-root/usr/lib/libwayland-egl.so.1
-          rm -f $TMPDIR/squashfs-root/usr/lib/libwayland-client.so.0
-          rm -f $TMPDIR/squashfs-root/usr/lib/libwayland-cursor.so.0
-          rm -f $TMPDIR/squashfs-root/usr/lib/libwayland-server.so.0
-          rm -f $TMPDIR/squashfs-root/usr/lib/im-waylandgtk.so
-          rm -f $TMPDIR/squashfs-root/usr/lib/im-wayland.so
-          rm -f $TMPDIR/squashfs-root/usr/lib/x86_64-linux-gnu/gtk-3.0/3.0.0/immodules/im-waylandgtk.so
-          rm -f $TMPDIR/squashfs-root/usr/lib/x86_64-linux-gnu/gtk-3.0/3.0.0/immodules/im-wayland.so
-          # Extract runtime (ELF header before squashfs) and rebuild
-          SQFS_OFFSET=$(python3 -c "f=open('$APPIMAGE','rb'); d=f.read(); f.close(); print(d.find(b'hsqs'))")
-          head -c "$SQFS_OFFSET" "$APPIMAGE" > $TMPDIR/runtime
-          chmod +x $TMPDIR/runtime
-          mv "$APPIMAGE" "${APPIMAGE}.orig"
-          mksquashfs $TMPDIR/squashfs-root $TMPDIR/new.sqfs -noappend -comp zstd -b 131072 >/dev/null 2>&1
-          cat $TMPDIR/runtime $TMPDIR/new.sqfs > "$APPIMAGE"
-          chmod +x "$APPIMAGE"
+            chmod +x "$APPDIR/AppRun"
+            rm -f "$APPDIR"/usr/lib/libwayland-egl.so.1
+            rm -f "$APPDIR"/usr/lib/libwayland-client.so.0
+            rm -f "$APPDIR"/usr/lib/libwayland-cursor.so.0
+            rm -f "$APPDIR"/usr/lib/libwayland-server.so.0
+            find "$APPDIR"/usr/lib -name "im-wayland*" -delete 2>/dev/null || true
+          fi
+          exec /tmp/squashfs-root/usr/bin/appimagetool "$@"
+          WRAPPER
+          chmod +x /usr/local/bin/appimagetool
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Install frontend dependencies
+        working-directory: desktop/ui
+        run: npm install
+
+      - name: Build
+        working-directory: desktop
+        run: cargo tauri build --bundles appimage --verbose
 
       - name: Rename artifact
         run: |
