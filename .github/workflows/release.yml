@@ -71,7 +71,9 @@ jobs:
           # Install appimagetool + wrapper that patches AppDir before packaging
           wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" \
             -O /tmp/appimagetool-src && chmod +x /tmp/appimagetool-src
-          cd /tmp && unsquashfs -f /tmp/appimagetool-src >/dev/null 2>&1
+          SQFS_OFF=$(python3 -c "f=open('/tmp/appimagetool-src','rb');d=f.read();f.close();print(d.find(b'hsqs'))")
+          dd if=/tmp/appimagetool-src bs=$SQFS_OFF skip=1 of=/tmp/appimagetool.sqfs 2>/dev/null
+          cd /tmp && unsquashfs -f /tmp/appimagetool.sqfs >/dev/null 2>&1
 
       - name: Create appimagetool wrapper (patch AppDir for EGL fix)
         run: |
@@ -162,7 +164,9 @@ jobs:
           # Install appimagetool + wrapper that patches AppDir before packaging
           wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage" \
             -O /tmp/appimagetool-src && chmod +x /tmp/appimagetool-src
-          cd /tmp && unsquashfs -f /tmp/appimagetool-src >/dev/null 2>&1
+          SQFS_OFF=$(python3 -c "f=open('/tmp/appimagetool-src','rb');d=f.read();f.close();print(d.find(b'hsqs'))")
+          dd if=/tmp/appimagetool-src bs=$SQFS_OFF skip=1 of=/tmp/appimagetool.sqfs 2>/dev/null
+          cd /tmp && unsquashfs -f /tmp/appimagetool.sqfs >/dev/null 2>&1
 
       - name: Create appimagetool wrapper (patch AppDir for EGL fix)
         run: |
