@@ -110,7 +110,7 @@ jobs:
           rm -f $TMPDIR/squashfs-root/usr/lib/x86_64-linux-gnu/gtk-3.0/3.0.0/immodules/im-waylandgtk.so
           rm -f $TMPDIR/squashfs-root/usr/lib/x86_64-linux-gnu/gtk-3.0/3.0.0/immodules/im-wayland.so
           # Extract runtime (ELF header before squashfs) and rebuild
-          SQFS_OFFSET=$(grep -boa -m1 'hsqs' "$APPIMAGE" | head -1 | cut -d: -f1)
+          SQFS_OFFSET=$(python3 -c "f=open('$APPIMAGE','rb'); d=f.read(); f.close(); print(d.find(b'hsqs'))")
           head -c "$SQFS_OFFSET" "$APPIMAGE" > $TMPDIR/runtime
           chmod +x $TMPDIR/runtime
           mv "$APPIMAGE" "${APPIMAGE}.orig"
@@ -199,7 +199,7 @@ jobs:
           rm -f $TMPDIR/squashfs-root/usr/lib/x86_64-linux-gnu/gtk-3.0/3.0.0/immodules/im-waylandgtk.so
           rm -f $TMPDIR/squashfs-root/usr/lib/x86_64-linux-gnu/gtk-3.0/3.0.0/immodules/im-wayland.so
           # Extract runtime (ELF header before squashfs) and rebuild
-          SQFS_OFFSET=$(grep -boa -m1 'hsqs' "$APPIMAGE" | head -1 | cut -d: -f1)
+          SQFS_OFFSET=$(python3 -c "f=open('$APPIMAGE','rb'); d=f.read(); f.close(); print(d.find(b'hsqs'))")
           head -c "$SQFS_OFFSET" "$APPIMAGE" > $TMPDIR/runtime
           chmod +x $TMPDIR/runtime
           mv "$APPIMAGE" "${APPIMAGE}.orig"
