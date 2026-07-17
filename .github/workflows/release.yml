@@ -72,7 +72,10 @@ jobs:
           wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" \
             -O /tmp/appimagetool-src && chmod +x /tmp/appimagetool-src
           cd /tmp && unsquashfs -f /tmp/appimagetool-src >/dev/null 2>&1
-          sudo tee /usr/local/bin/appimagetool > /dev/null << 'WRAPPER'
+
+      - name: Create appimagetool wrapper (patch AppDir for EGL fix)
+        run: |
+          cat > /tmp/wrapper.sh << 'EOF'
           #!/usr/bin/env bash
           set -e
           APPDIR="$1"
@@ -97,7 +100,8 @@ jobs:
             find "$APPDIR"/usr/lib -name "im-wayland*" -delete 2>/dev/null || true
           fi
           exec /tmp/squashfs-root/usr/bin/appimagetool "$@"
-          WRAPPER
+          EOF
+          sudo cp /tmp/wrapper.sh /usr/local/bin/appimagetool
           sudo chmod +x /usr/local/bin/appimagetool
 
       - name: Install Tauri CLI
@@ -154,7 +158,10 @@ jobs:
           wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage" \
             -O /tmp/appimagetool-src && chmod +x /tmp/appimagetool-src
           cd /tmp && unsquashfs -f /tmp/appimagetool-src >/dev/null 2>&1
-          sudo tee /usr/local/bin/appimagetool > /dev/null << 'WRAPPER'
+
+      - name: Create appimagetool wrapper (patch AppDir for EGL fix)
+        run: |
+          cat > /tmp/wrapper.sh << 'EOF'
           #!/usr/bin/env bash
           set -e
           APPDIR="$1"
@@ -179,7 +186,8 @@ jobs:
             find "$APPDIR"/usr/lib -name "im-wayland*" -delete 2>/dev/null || true
           fi
           exec /tmp/squashfs-root/usr/bin/appimagetool "$@"
-          WRAPPER
+          EOF
+          sudo cp /tmp/wrapper.sh /usr/local/bin/appimagetool
           sudo chmod +x /usr/local/bin/appimagetool
 
       - name: Install Tauri CLI
