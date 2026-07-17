@@ -75,34 +75,39 @@ jobs:
 
       - name: Create appimagetool wrapper (patch AppDir for EGL fix)
         run: |
-          cat > /tmp/wrapper.sh << 'EOF'
+          sudo python3 -c "
+          import os, stat
+          wrapper = '''#!/usr/bin/env bash
+          set -e
+          APPDIR=\"\$1\"
+          if [ -d \"\$APPDIR\" ]; then
+            cat > \"\$APPDIR/AppRun\" << 'INNER'
           #!/usr/bin/env bash
           set -e
-          APPDIR="$1"
-          if [ -d "$APPDIR" ]; then
-            cat > "$APPDIR/AppRun" << 'APPRUN'
-          #!/usr/bin/env bash
-          set -e
-          this_dir="$(readlink -f "$(dirname "$0")")"
-          source "$this_dir"/apprun-hooks/"linuxdeploy-plugin-gtk.sh"
+          this_dir=\"\$(readlink -f \"\$(dirname \"\$0\")\")\"
+          source \"\$this_dir\"/apprun-hooks/\"linuxdeploy-plugin-gtk.sh\"
           export GDK_BACKEND=x11
           export WEBKIT_DISABLE_DMABUF_RENDERER=1
           export WEBKIT_DISABLE_COMPOSITING_MODE=1
           export WEBKIT_DISABLE_GL=1
           export LIBGL_ALWAYS_SOFTWARE=1
-          exec "$this_dir"/AppRun.wrapped "$@"
-          APPRUN
-            chmod +x "$APPDIR/AppRun"
-            rm -f "$APPDIR"/usr/lib/libwayland-egl.so.1
-            rm -f "$APPDIR"/usr/lib/libwayland-client.so.0
-            rm -f "$APPDIR"/usr/lib/libwayland-cursor.so.0
-            rm -f "$APPDIR"/usr/lib/libwayland-server.so.0
-            find "$APPDIR"/usr/lib -name "im-wayland*" -delete 2>/dev/null || true
+          exec \"\$this_dir\"/AppRun.wrapped \"\$@\"
+          INNER
+            chmod +x \"\$APPDIR/AppRun\"
+            rm -f \"\$APPDIR\"/usr/lib/libwayland-egl.so.1
+            rm -f \"\$APPDIR\"/usr/lib/libwayland-client.so.0
+            rm -f \"\$APPDIR\"/usr/lib/libwayland-cursor.so.0
+            rm -f \"\$APPDIR\"/usr/lib/libwayland-server.so.0
+            find \"\$APPDIR\"/usr/lib -name \"im-wayland*\" -delete 2>/dev/null || true
           fi
-          exec /tmp/squashfs-root/usr/bin/appimagetool "$@"
-          EOF
-          sudo cp /tmp/wrapper.sh /usr/local/bin/appimagetool
-          sudo chmod +x /usr/local/bin/appimagetool
+          exec /tmp/squashfs-root/usr/bin/appimagetool \"\$@\"
+          '''
+          path = '/usr/local/bin/appimagetool'
+          with open(path, 'w') as f:
+              f.write(wrapper)
+          os.chmod(path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+          print('wrapper created at', path)
+          "
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
@@ -161,34 +166,39 @@ jobs:
 
       - name: Create appimagetool wrapper (patch AppDir for EGL fix)
         run: |
-          cat > /tmp/wrapper.sh << 'EOF'
+          sudo python3 -c "
+          import os, stat
+          wrapper = '''#!/usr/bin/env bash
+          set -e
+          APPDIR=\"\$1\"
+          if [ -d \"\$APPDIR\" ]; then
+            cat > \"\$APPDIR/AppRun\" << 'INNER'
           #!/usr/bin/env bash
           set -e
-          APPDIR="$1"
-          if [ -d "$APPDIR" ]; then
-            cat > "$APPDIR/AppRun" << 'APPRUN'
-          #!/usr/bin/env bash
-          set -e
-          this_dir="$(readlink -f "$(dirname "$0")")"
-          source "$this_dir"/apprun-hooks/"linuxdeploy-plugin-gtk.sh"
+          this_dir=\"\$(readlink -f \"\$(dirname \"\$0\")\")\"
+          source \"\$this_dir\"/apprun-hooks/\"linuxdeploy-plugin-gtk.sh\"
           export GDK_BACKEND=x11
           export WEBKIT_DISABLE_DMABUF_RENDERER=1
           export WEBKIT_DISABLE_COMPOSITING_MODE=1
           export WEBKIT_DISABLE_GL=1
           export LIBGL_ALWAYS_SOFTWARE=1
-          exec "$this_dir"/AppRun.wrapped "$@"
-          APPRUN
-            chmod +x "$APPDIR/AppRun"
-            rm -f "$APPDIR"/usr/lib/libwayland-egl.so.1
-            rm -f "$APPDIR"/usr/lib/libwayland-client.so.0
-            rm -f "$APPDIR"/usr/lib/libwayland-cursor.so.0
-            rm -f "$APPDIR"/usr/lib/libwayland-server.so.0
-            find "$APPDIR"/usr/lib -name "im-wayland*" -delete 2>/dev/null || true
+          exec \"\$this_dir\"/AppRun.wrapped \"\$@\"
+          INNER
+            chmod +x \"\$APPDIR/AppRun\"
+            rm -f \"\$APPDIR\"/usr/lib/libwayland-egl.so.1
+            rm -f \"\$APPDIR\"/usr/lib/libwayland-client.so.0
+            rm -f \"\$APPDIR\"/usr/lib/libwayland-cursor.so.0
+            rm -f \"\$APPDIR\"/usr/lib/libwayland-server.so.0
+            find \"\$APPDIR\"/usr/lib -name \"im-wayland*\" -delete 2>/dev/null || true
           fi
-          exec /tmp/squashfs-root/usr/bin/appimagetool "$@"
-          EOF
-          sudo cp /tmp/wrapper.sh /usr/local/bin/appimagetool
-          sudo chmod +x /usr/local/bin/appimagetool
+          exec /tmp/squashfs-root/usr/bin/appimagetool \"\$@\"
+          '''
+          path = '/usr/local/bin/appimagetool'
+          with open(path, 'w') as f:
+              f.write(wrapper)
+          os.chmod(path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+          print('wrapper created at', path)
+          "
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
