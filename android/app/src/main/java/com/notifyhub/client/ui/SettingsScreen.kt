@@ -883,7 +883,7 @@ fun SettingsScreen(
             SettingsSectionHeader(i18n("settings_system"))
             CopyableRow(context, i18n("dash_uuid"), currentConfig.clientUuid, monospace = true)
             CopyableRow(context, i18n("dash_system"), "Android / ${System.getProperty("os.arch") ?: "arm64"}")
-            CopyableRow(context, i18n("settings_app_version"), "0.2.0")
+            CopyableRow(context, i18n("settings_app_version"), "0.6.1")
             CopyableRow(context, i18n("settings_platform"), "Android ${android.os.Build.VERSION.RELEASE}")
             CopyableRow(context, i18n("config_device_name"), currentConfig.clientName)
             CopyableRow(context, i18n("settings_sdk"), "API ${android.os.Build.VERSION.SDK_INT}")

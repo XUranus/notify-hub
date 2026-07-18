@@ -1446,7 +1446,7 @@ dependencies = [
 
 [[package]]
 name = "notifyhub-cli"
-version = "0.1.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1465,7 +1465,7 @@ dependencies = [
 
 [[package]]
 name = "notifyhub-common"
-version = "0.1.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -1481,7 +1481,7 @@ dependencies = [
 
 [[package]]
 name = "notifyhub-server"
-version = "0.1.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "argon2",
