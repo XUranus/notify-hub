@@ -25,7 +25,8 @@ Production deployment uses **nginx as reverse proxy** with a single public-facin
                              │
                        ┌─────▼─────┐
                        │  SQLite    │
-                       │  Volume    │
+                       │ Host Path  │
+                       │ /opt/.../  │
                        └───────────┘
 ```
 
@@ -67,14 +68,8 @@ Environment variables (edit `.env`):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `NGINX_PORT` | `80` | Public-facing port (nginx) |
-| `DB_PATH` | `notifyhub-data` | Database storage (Docker volume name or host path) |
-| `JWT_SECRET` | *(auto-generated)* | Secret for signing JWT tokens. Set explicitly for production. |
-
-### Using Host Paths for Storage
-
-```env
-DB_PATH=/path/to/your/data
-```
+| `DB_PATH` | `/opt/notifyhub/data` | Data directory on host (database, uploads, attachments) |
+| `JWT_SECRET` | *(auto-generated)* | Secret for signing JWT tokens. **Must set explicitly for production.** |
 
 ## Configuration Reference
 
@@ -84,7 +79,7 @@ DB_PATH=/path/to/your/data
 |------|------|----------------|
 | **Public port** | `.env` | `NGINX_PORT` — the only exposed port. Default `80`, change to `8080`, `443`, etc. as needed |
 | **JWT secret** | `.env` | `JWT_SECRET` — **required for production**. Set a strong random string. Auto-generated if omitted (not safe for multi-instance) |
-| **Data storage path** | `.env` | `DB_PATH` — use an absolute host path (e.g. `/data/notifyhub`) for production. Default is a Docker volume |
+| **Data storage path** | `.env` | `DB_PATH` — host directory for database, uploads, attachments. Default `/opt/notifyhub/data` |
 | **Domain name** | `nginx.conf` | `server_name` — change from `_` (match all) to your actual domain (e.g. `notify.example.com`) |
 | **Firewall** | VPS provider | Open `NGINX_PORT` in your firewall / security group |
 | **HTTPS** (optional) | `nginx.conf` | Add SSL certificate paths and redirect HTTP → HTTPS |
@@ -144,8 +139,62 @@ The nginx config (`nginx.conf`) handles:
 
 ## Data Persistence
 
-- **Database**: `/app/data/notifyhub.db` (Docker volume `notifyhub-data`)
-- **Uploads**: `/app/data/uploads/`
+All data is stored on the host filesystem (not inside the container):
+
+| Data | Host Path | Container Path |
+|------|-----------|----------------|
+| Database | `${DB_PATH}/notifyhub.db` | `/app/data/notifyhub.db` |
+| Uploads | `${DB_PATH}/uploads/` | `/app/data/uploads/` |
+| Attachments | `${DB_PATH}/` | `/app/data/` |
+
+Default `DB_PATH` is `/opt/notifyhub/data`. This makes backup and migration straightforward — just copy the directory.
+
+## Backup & Migration
+
+### Backup
+
+```bash
+# Backup everything (database + uploads + attachments)
+tar czf notifyhub-backup-$(date +%Y%m%d).tar.gz -C /opt/notifyhub/data .
+
+# Or just the database
+cp /opt/notifyhub/data/notifyhub.db ./notifyhub-backup.db
+```
+
+### Restore
+
+```bash
+# Extract backup to data directory
+tar xzf notifyhub-backup-YYYYMMDD.tar.gz -C /opt/notifyhub/data/
+
+# Restart to pick up restored data
+cd /opt/notifyhub/deploy && docker compose restart backend
+```
+
+### Migrate to New Server
+
+```bash
+# ── Old server ──
+# 1. Stop the backend (optional, ensures clean DB state)
+ssh old-server "cd /opt/notifyhub/deploy && docker compose stop backend"
+
+# 2. Backup
+ssh old-server "tar czf /tmp/notifyhub-data.tar.gz -C /opt/notifyhub/data ."
+scp old-server:/tmp/notifyhub-data.tar.gz .
+
+# ── New server ──
+# 3. Install
+git clone <repo> /opt/notifyhub
+cd /opt/notifyhub/deploy
+cp .env.docker .env   # Edit as needed
+
+# 4. Restore data
+mkdir -p /opt/notifyhub/data
+tar xzf notifyhub-data.tar.gz -C /opt/notifyhub/data/
+
+# 5. Deploy
+./deploy.sh
+```
 
 ## Troubleshooting
 
