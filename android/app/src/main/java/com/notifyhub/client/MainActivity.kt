@@ -226,7 +226,8 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         AppLogger.d(TAG, "onStop, bound=$bound")
-        if (bound) { unbindService(connection); bound = false }
+        // Keep binding alive when backgrounded — PollService is a foreground service,
+        // unbinding causes screenKey="loading" which destroys MainScreen state on resume.
     }
 
     private fun handleNotificationIntent() {

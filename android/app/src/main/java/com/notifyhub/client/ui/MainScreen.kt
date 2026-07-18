@@ -5,6 +5,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalConfiguration
 import com.notifyhub.client.data.ApiClient
+import com.notifyhub.client.data.AppLogger
 import com.notifyhub.client.R
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -103,6 +104,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -158,14 +162,20 @@ fun MainScreen(
     val i18n = { key: String -> I18n[key] }
 
     // Reactive state from Room (auto-updates on DB changes)
-    val allMessages by MessageStore.getAllFlow(context).collectAsState(initial = emptyList())
-    val unreadCount by MessageStore.getUnreadCountFlow(context).collectAsState(initial = 0)
-    var roomDataLoaded by remember { mutableStateOf(false) }
-    var startupDelayDone by remember { mutableStateOf(false) }
+    // Use remember to keep Flow identity stable across recompositions (prevents cursor race)
+    val allMessagesFlow = remember { MessageStore.getAllFlow(context) }
+    val allMessages by allMessagesFlow.collectAsState(initial = emptyList())
+    val unreadCountFlow = remember { MessageStore.getUnreadCountFlow(context) }
+    val unreadCount by unreadCountFlow.collectAsState(initial = 0)
+    // Use rememberSaveable so these survive Activity recreation (no skeleton re-trigger on resume)
+    var roomDataLoaded by rememberSaveable { mutableStateOf(false) }
+    var startupDelayDone by rememberSaveable { mutableStateOf(false) }
 
     // Mark Room data as loaded once the flow emits (even if empty)
-    LaunchedEffect(allMessages) {
-        if (!roomDataLoaded) roomDataLoaded = true
+    LaunchedEffect(Unit) {
+        snapshotFlow { allMessages.isNotEmpty() }
+            .first { true } // Wait for first emission (empty or not)
+        roomDataLoaded = true
     }
     // Ensure skeleton shows for at least a short duration on cold start
     LaunchedEffect(Unit) {
@@ -321,7 +331,10 @@ fun MainScreen(
                 duration = SnackbarDuration.Short
             )
             if (result == SnackbarResult.ActionPerformed) {
-                scope.launch { MessageStore.insert(context, deleted, lastDeletedIndex) }
+                scope.launch {
+                    try { MessageStore.insert(context, deleted) }
+                    catch (e: Exception) { AppLogger.e("MainScreen", "Undo insert failed", e) }
+                }
             }
             lastDeletedMessage = null
         }
@@ -337,9 +350,9 @@ fun MainScreen(
             )
             if (result == SnackbarResult.ActionPerformed) {
                 scope.launch {
-                    for (msg in deleted) {
-                        MessageStore.insert(context, msg, 0)
-                    }
+                    try {
+                        for (msg in deleted) { MessageStore.insert(context, msg) }
+                    } catch (e: Exception) { AppLogger.e("MainScreen", "Undo topic insert failed", e) }
                 }
             }
             lastDeletedTopicMessages = null
@@ -608,7 +621,10 @@ fun MainScreen(
                                     text = { Text(i18n("mark_all_read")) },
                                     onClick = {
                                         showFilterMenu = false
-                                        scope.launch { MessageStore.markAllAsRead(context, topicDetailKey) }
+                                        scope.launch {
+                                            try { MessageStore.markAllAsRead(context, topicDetailKey) }
+                                            catch (e: Exception) { AppLogger.e("MainScreen", "Mark all read failed", e) }
+                                        }
                                     },
                                     leadingIcon = { Icon(Icons.Default.DoneAll, contentDescription = null) }
                                 )
@@ -790,12 +806,11 @@ fun MainScreen(
                                 when (value) {
                                     SwipeToDismissBoxValue.EndToStart -> {
                                         scope.launch {
-                                            val topicId = group.topicId
                                             val messagesToDelete = group.messages.toList()
                                             lastDeletedTopicName = displayName
-                                            for (msg in messagesToDelete) {
-                                                MessageStore.delete(context, msg.id)
-                                            }
+                                            // Delay to let dismiss animation finish before list recomposes
+                                            kotlinx.coroutines.delay(300)
+                                            MessageStore.deleteByIds(context, messagesToDelete.map { it.id })
                                             lastDeletedTopicMessages = messagesToDelete
                                         }
                                         true
@@ -804,6 +819,12 @@ fun MainScreen(
                                 }
                             }
                         )
+                        // Reset dismiss state when topic reappears after undo
+                        LaunchedEffect(group.key) {
+                            if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
+                                dismissState.snapTo(SwipeToDismissBoxValue.Settled)
+                            }
+                        }
 
                         SwipeToDismissBox(
                             state = dismissState,
@@ -916,17 +937,25 @@ fun MainScreen(
                             confirmValueChange = { value ->
                                 when (value) {
                                     SwipeToDismissBoxValue.EndToStart -> {
+                                        val snapshotIndex = allMessages.indexOfFirst { it.id == msg.id }
                                         scope.launch {
-                                            val deleted = MessageStore.delete(context, msg.id)
-                                            if (deleted != null) {
-                                                lastDeletedMessage = deleted
-                                                lastDeletedIndex = allMessages.indexOfFirst { it.id == msg.id }
+                                            try {
+                                                val deleted = MessageStore.delete(context, msg.id)
+                                                if (deleted != null) {
+                                                    lastDeletedMessage = deleted
+                                                    lastDeletedIndex = snapshotIndex
+                                                }
+                                            } catch (e: Exception) {
+                                                AppLogger.e("MainScreen", "Delete message failed", e)
                                             }
                                         }
                                         true
                                     }
                                     SwipeToDismissBoxValue.StartToEnd -> {
-                                        scope.launch { MessageStore.toggleFlag(context, msg.id) }
+                                        scope.launch {
+                                            try { MessageStore.toggleFlag(context, msg.id) }
+                                            catch (e: Exception) { AppLogger.e("MainScreen", "Toggle flag failed", e) }
+                                        }
                                         false
                                     }
                                     else -> false
@@ -985,7 +1014,10 @@ fun MainScreen(
                                         }
                                     } else {
                                         if (!msg.read) {
-                                            scope.launch { MessageStore.markAsRead(context, msg.id) }
+                                            scope.launch {
+                                                    try { MessageStore.markAsRead(context, msg.id) }
+                                                    catch (e: Exception) { AppLogger.e("MainScreen", "Mark read failed", e) }
+                                                }
                                         }
                                         selectedMessage = msg
                                     }
@@ -1062,18 +1094,26 @@ fun MainScreen(
                                 when (value) {
                                     SwipeToDismissBoxValue.EndToStart -> {
                                         // Swipe left to delete
+                                        val snapshotIndex = allMessages.indexOfFirst { it.id == msg.id }
                                         scope.launch {
-                                            val deleted = MessageStore.delete(context, msg.id)
-                                            if (deleted != null) {
-                                                lastDeletedMessage = deleted
-                                                lastDeletedIndex = allMessages.indexOfFirst { it.id == msg.id }
+                                            try {
+                                                val deleted = MessageStore.delete(context, msg.id)
+                                                if (deleted != null) {
+                                                    lastDeletedMessage = deleted
+                                                    lastDeletedIndex = snapshotIndex
+                                                }
+                                            } catch (e: Exception) {
+                                                AppLogger.e("MainScreen", "Delete message failed", e)
                                             }
                                         }
                                         true
                                     }
                                     SwipeToDismissBoxValue.StartToEnd -> {
                                         // Swipe right to flag
-                                        scope.launch { MessageStore.toggleFlag(context, msg.id) }
+                                        scope.launch {
+                                            try { MessageStore.toggleFlag(context, msg.id) }
+                                            catch (e: Exception) { AppLogger.e("MainScreen", "Toggle flag failed", e) }
+                                        }
                                         false // Don't dismiss, just toggle flag
                                     }
                                     else -> false
@@ -1134,7 +1174,10 @@ fun MainScreen(
                                         }
                                     } else {
                                         if (!msg.read) {
-                                            scope.launch { MessageStore.markAsRead(context, msg.id) }
+                                            scope.launch {
+                                                    try { MessageStore.markAsRead(context, msg.id) }
+                                                    catch (e: Exception) { AppLogger.e("MainScreen", "Mark read failed", e) }
+                                                }
                                         }
                                         selectedMessage = msg
                                     }
@@ -1172,7 +1215,10 @@ fun MainScreen(
                     val idsToDelete = selectedIds.toList()
                     showDeleteConfirm = false
                     exitSelectionMode()
-                    scope.launch { MessageStore.deleteByIds(context, idsToDelete) }
+                    scope.launch {
+                        try { MessageStore.deleteByIds(context, idsToDelete) }
+                        catch (e: Exception) { AppLogger.e("MainScreen", "Batch delete failed", e) }
+                    }
                 }) {
                     Text(i18n("confirm"), color = MaterialTheme.colorScheme.error)
                 }
@@ -1195,13 +1241,15 @@ fun MainScreen(
                 TextButton(onClick = {
                     showClearAllConfirm = false
                     scope.launch {
-                        if (isTopicDetail) {
-                            val ids = allMessages.filter { (it.topicId ?: "__no_topic__") == topicDetailKey }.map { it.id }
-                            MessageStore.deleteByIds(context, ids)
-                            topicDetailKey = null
-                        } else {
-                            MessageStore.deleteAll(context)
-                        }
+                        try {
+                            if (isTopicDetail) {
+                                val ids = allMessages.filter { (it.topicId ?: "__no_topic__") == topicDetailKey }.map { it.id }
+                                MessageStore.deleteByIds(context, ids)
+                                topicDetailKey = null
+                            } else {
+                                MessageStore.deleteAll(context)
+                            }
+                        } catch (e: Exception) { AppLogger.e("MainScreen", "Clear messages failed", e) }
                     }
                 }) {
                     Text(i18n("confirm"), color = MaterialTheme.colorScheme.error)
@@ -1240,13 +1288,15 @@ fun MainScreen(
                     showDeleteTopicConfirm = false
                     if (topicId != null) {
                         scope.launch {
-                            val ids = allMessages.filter { it.topicId == topicId }.map { it.id }
-                            MessageStore.deleteByIds(context, ids)
-                            if (deleteTopicAlsoServer) {
-                                val api = ApiClient(config.serverUrl, config.jwtToken)
-                                api.deleteTopic(topicId)
-                            }
-                            topicDetailKey = null
+                            try {
+                                val ids = allMessages.filter { it.topicId == topicId }.map { it.id }
+                                MessageStore.deleteByIds(context, ids)
+                                if (deleteTopicAlsoServer) {
+                                    val api = ApiClient(config.serverUrl, config.jwtToken)
+                                    api.deleteTopic(topicId)
+                                }
+                                topicDetailKey = null
+                            } catch (e: Exception) { AppLogger.e("MainScreen", "Delete topic failed", e) }
                         }
                     }
                     deleteTopicAlsoServer = false

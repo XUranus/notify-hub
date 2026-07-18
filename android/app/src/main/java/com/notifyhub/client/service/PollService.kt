@@ -101,7 +101,7 @@ class PollService : Service() {
     val isOfflineMode = mutableStateOf(false)
     val showOfflineDialog = mutableStateOf(false)
     val actualConnectionMode = mutableStateOf("poll") // tracks the real active mode
-    private var wasConnected = false
+    @Volatile private var wasConnected = false
     private var reconnectJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -153,11 +153,11 @@ class PollService : Service() {
         startPolling()
     }
 
-    private var sseClient: SseClient? = null
-    private var wsClient: WsClient? = null
-    private var modeJob: Job? = null  // Tracks the active connection mode coroutine
-    private var currentApi: ApiClient? = null  // For ack'ing messages
-    private var currentUuid: String? = null
+    @Volatile private var sseClient: SseClient? = null
+    @Volatile private var wsClient: WsClient? = null
+    @Volatile private var modeJob: Job? = null  // Tracks the active connection mode coroutine
+    @Volatile private var currentApi: ApiClient? = null  // For ack'ing messages
+    @Volatile private var currentUuid: String? = null
 
     // Notification debounce: accumulate messages and notify in batches
     private val pendingMessages = mutableListOf<PushMessage>()
@@ -165,7 +165,7 @@ class PollService : Service() {
     private var debounceJob: Job? = null
 
     // Reconnect backoff delay — instance variable to avoid static leaks across service restarts
-    private var reconnectDelay = RECONNECT_BASE_MS
+    @Volatile private var reconnectDelay = RECONNECT_BASE_MS
 
     private fun startPolling() {
         if (pollJob?.isActive == true) return
@@ -428,11 +428,17 @@ class PollService : Service() {
             jwtToken = jwt,
             uuid = config.clientUuid,
             onMessage = { messages ->
-                scope.launch { handleIncomingMessages(messages, "SSE") }
+                scope.launch {
+                    try { handleIncomingMessages(messages, "SSE") }
+                    catch (e: Exception) { AppLogger.e(TAG, "SSE message handling failed", e) }
+                }
             },
             onConnected = {
                 actualConnectionMode.value = "sse"
-                scope.launch { handleConnectionRestored() }
+                scope.launch {
+                    try { handleConnectionRestored() }
+                    catch (e: Exception) { AppLogger.e(TAG, "SSE connection restored handler failed", e) }
+                }
             },
             onError = { e ->
                 AppLogger.e(TAG, "SSE error: ${e.message}")
@@ -483,11 +489,17 @@ class PollService : Service() {
             jwtToken = jwt,
             uuid = config.clientUuid,
             onMessage = { messages ->
-                scope.launch { handleIncomingMessages(messages, "WebSocket") }
+                scope.launch {
+                    try { handleIncomingMessages(messages, "WebSocket") }
+                    catch (e: Exception) { AppLogger.e(TAG, "WS message handling failed", e) }
+                }
             },
             onConnected = {
                 actualConnectionMode.value = "ws"
-                scope.launch { handleConnectionRestored() }
+                scope.launch {
+                    try { handleConnectionRestored() }
+                    catch (e: Exception) { AppLogger.e(TAG, "WS connection restored handler failed", e) }
+                }
             },
             onError = { e ->
                 AppLogger.e(TAG, "WS error: ${e.message}")

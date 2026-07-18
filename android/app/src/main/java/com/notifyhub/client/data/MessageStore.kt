@@ -3,9 +3,12 @@ package com.notifyhub.client.data
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import androidx.room.withTransaction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -150,7 +153,9 @@ object MessageStore {
     fun getAllFlow(context: Context): Flow<List<LocalMessage>> {
         ensureMigrated(context)
         return AppDatabase.getInstance(context).messageDao().getAllFlow()
+            .debounce(100)
             .map { list -> list.map { it.toLocal() } }
+            .flowOn(Dispatchers.IO)
     }
 
     fun getFilteredFlow(
@@ -167,23 +172,27 @@ object MessageStore {
             filter == MessageFilter.FLAGGED -> dao.getFlaggedFlow()
             else -> dao.getAllFlow()
         }
-        return baseFlow.map { list ->
-            list
-                .filter { entity ->
-                    when (filter) {
-                        MessageFilter.ALL -> true
-                        MessageFilter.UNREAD -> !entity.isRead
-                        MessageFilter.READ -> entity.isRead
-                        MessageFilter.FLAGGED -> entity.flagged
+        return baseFlow
+            .debounce(100)
+            .map { list ->
+                list
+                    .filter { entity ->
+                        when (filter) {
+                            MessageFilter.ALL -> true
+                            MessageFilter.UNREAD -> !entity.isRead
+                            MessageFilter.READ -> entity.isRead
+                            MessageFilter.FLAGGED -> entity.flagged
+                        }
                     }
-                }
-                .map { it.toLocal() }
-        }
+                    .map { it.toLocal() }
+            }
+            .flowOn(Dispatchers.IO)
     }
 
     fun getUnreadCountFlow(context: Context): Flow<Int> {
         ensureMigrated(context)
         return AppDatabase.getInstance(context).messageDao().getUnreadCountFlow()
+            .debounce(100)
     }
 
     suspend fun getById(context: Context, id: String): LocalMessage? {
@@ -242,24 +251,30 @@ object MessageStore {
     }
 
     suspend fun toggleFlag(context: Context, id: String) {
-        val dao = AppDatabase.getInstance(context).messageDao()
-        val entity = dao.getById(id)
-        if (entity == null) {
-            AppLogger.w(TAG, "toggleFlag: message $id not found")
-            return
+        val db = AppDatabase.getInstance(context)
+        db.withTransaction {
+            val dao = db.messageDao()
+            val entity = dao.getById(id)
+            if (entity == null) {
+                AppLogger.w(TAG, "toggleFlag: message $id not found")
+                return@withTransaction
+            }
+            dao.setFlagged(id, !entity.flagged)
         }
-        dao.setFlagged(id, !entity.flagged)
     }
 
     suspend fun delete(context: Context, id: String): LocalMessage? {
-        val dao = AppDatabase.getInstance(context).messageDao()
-        val entity = dao.getById(id)
-        if (entity == null) {
-            AppLogger.w(TAG, "delete: message $id not found")
-            return null
+        val db = AppDatabase.getInstance(context)
+        return db.withTransaction {
+            val dao = db.messageDao()
+            val entity = dao.getById(id)
+            if (entity == null) {
+                AppLogger.w(TAG, "delete: message $id not found")
+                return@withTransaction null
+            }
+            dao.deleteById(id)
+            entity.toLocal()
         }
-        dao.deleteById(id)
-        return entity.toLocal()
     }
 
     suspend fun insert(context: Context, message: LocalMessage, index: Int = 0) {
