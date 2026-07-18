@@ -1,4 +1,6 @@
-use axum::extract::State;
+use std::net::SocketAddr;
+
+use axum::extract::{ConnectInfo, State};
 use axum::routing::post;
 use axum::{Json, Router};
 
@@ -16,9 +18,36 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/send/batch", post(send_batch))
 }
 
+/// Resolve IP geolocation via ip-api.com (free, no key required)
+async fn resolve_ip_location(ip: &str) -> Option<String> {
+    // Skip private/loopback IPs
+    if ip.starts_with("127.") || ip.starts_with("10.") || ip.starts_with("192.168.")
+        || ip.starts_with("172.") || ip == "::1" || ip.starts_with("fc00:")
+        || ip.starts_with("fe80:")
+    {
+        return None;
+    }
+    let url = format!("http://ip-api.com/json/{}?fields=status,country,regionName,city", ip);
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+        .ok()?;
+    let resp = client.get(&url).send().await.ok()?;
+    let json: serde_json::Value = resp.json().await.ok()?;
+    if json.get("status")?.as_str()? != "success" {
+        return None;
+    }
+    let country = json.get("country")?.as_str()?;
+    let region = json.get("regionName")?.as_str()?;
+    let city = json.get("city")?.as_str()?;
+    let parts: Vec<&str> = [city, region, country].iter().copied().filter(|s| !s.is_empty()).collect();
+    if parts.is_empty() { None } else { Some(parts.join(", ")) }
+}
+
 async fn send_message(
     State(state): State<AppState>,
     auth: DualAuth,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(req): Json<SendMessageRequest>,
 ) -> Result<Json<ApiResponse<SendResponse>>, AppError> {
     let user_id: i64 = auth.claims.sub.parse()
@@ -110,12 +139,16 @@ async fn send_message(
         None
     };
 
+    // Capture sender IP and resolve geolocation
+    let sender_ip = addr.ip().to_string();
+    let ip_location = resolve_ip_location(&sender_ip).await;
+
     sqlx::query(
         r#"INSERT INTO messages
            (id, user_id, channel_type, channel_id, to_address, subject, body,
-            template_id, status, idempotency_key, ip_address, topic_id,
+            template_id, status, idempotency_key, ip_address, ip_location, topic_id,
             scheduled_at, created_at, tags, priority, url, attachment, format)
-           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
     )
     .bind(&id)
     .bind(user_id)
@@ -126,6 +159,8 @@ async fn send_message(
     .bind(&body_str)
     .bind(if effective_scheduled.is_some() { "queued" } else { "queued" })
     .bind(&req.idempotency_key)
+    .bind(&sender_ip)
+    .bind(&ip_location)
     .bind(&topic_id)
     .bind(effective_scheduled)
     .bind(now)
@@ -146,11 +181,12 @@ async fn send_message(
 async fn send_batch(
     State(state): State<AppState>,
     auth: DualAuth,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(req): Json<SendBatchRequest>,
 ) -> Result<Json<ApiResponse<Vec<SendResponse>>>, AppError> {
     let mut results = Vec::with_capacity(req.messages.len());
     for msg in req.messages {
-        match send_message(State(state.clone()), auth.clone(), Json(msg)).await {
+        match send_message(State(state.clone()), auth.clone(), ConnectInfo(addr), Json(msg)).await {
             Ok(resp) => {
                 if let Some(data) = resp.0.data {
                     results.push(data);

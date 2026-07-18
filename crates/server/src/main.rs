@@ -152,7 +152,7 @@ async fn main() -> anyhow::Result<()> {
     // Start server
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
     tracing::info!("Listening on {bind_addr}");
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await?;
 
     Ok(())
 }
