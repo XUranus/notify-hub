@@ -7,11 +7,11 @@ export function relativeTime(dateStr: string, t: Record<string, string>): string
   if (isNaN(ts)) return dateStr || ''
   const diff = Date.now() - ts
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return t.justNow || 'just now'
-  if (mins < 60) return `${mins}${t.minAgo || 'min ago'}`
+  if (mins < 1) return t.justNow || 'now'
+  if (mins < 60) return `${mins}${t.minAgo || 'm'}`
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}${t.hrAgo || 'hr ago'}`
-  return `${Math.floor(hrs / 24)}${t.daysAgo || 'days ago'}`
+  if (hrs < 24) return `${hrs}${t.hrAgo || 'h'}`
+  return `${Math.floor(hrs / 24)}${t.daysAgo || 'd'}`
 }
 
 export function parseTags(raw: unknown): string[] {

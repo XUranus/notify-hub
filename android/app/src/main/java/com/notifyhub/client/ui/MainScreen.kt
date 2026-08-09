@@ -1444,15 +1444,35 @@ private fun MessageItem(
         }
 
         Column(modifier = Modifier.weight(1f)) {
-            val displayTitle = if (msg.title.isNotBlank()) msg.title else I18n["untitled"]
-            Text(
-                displayTitle,
-                fontWeight = if (msg.read) FontWeight.Medium else FontWeight.Black,
-                fontSize = 14.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = if (msg.title.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // Title + time + flag on the same row
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val displayTitle = if (msg.title.isNotBlank()) msg.title else I18n["untitled"]
+                Text(
+                    displayTitle,
+                    fontWeight = if (msg.read) FontWeight.Medium else FontWeight.Black,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (msg.title.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                if (msg.flagged) {
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        Icons.Default.Flag,
+                        contentDescription = I18n["flagged"],
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    formatRelativeTime(msg.receivedAt),
+                    fontSize = 11.sp,
+                    color = if (msg.read) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                    fontWeight = if (msg.read) FontWeight.Normal else FontWeight.Black
+                )
+            }
             Spacer(Modifier.height(2.dp))
             Text(
                 msg.body,
@@ -1501,27 +1521,6 @@ private fun MessageItem(
                         }
                     }
                 }
-            }
-        }
-
-        Spacer(Modifier.width(8.dp))
-        Column(
-            horizontalAlignment = Alignment.End
-        ) {
-            Text(
-                formatRelativeTime(msg.receivedAt),
-                fontSize = 11.sp,
-                color = if (msg.read) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
-                fontWeight = if (msg.read) FontWeight.Normal else FontWeight.Black
-            )
-            if (msg.flagged) {
-                Spacer(Modifier.height(2.dp))
-                Icon(
-                    Icons.Default.Flag,
-                    contentDescription = I18n["flagged"],
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(14.dp)
-                )
             }
         }
     }

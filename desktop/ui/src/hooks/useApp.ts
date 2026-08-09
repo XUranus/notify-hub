@@ -179,9 +179,9 @@ export function useApp() {
       if (isNaN(date.getTime())) return dateStr || ''
       const diff = Date.now() - date.getTime()
       if (diff < 60000) return T.justNow
-      if (diff < 3600000) return Math.floor(diff / 60000) + ' ' + T.minAgo
-      if (diff < 86400000) return Math.floor(diff / 3600000) + ' ' + T.hrAgo
-      if (diff < 2592000000) return Math.floor(diff / 86400000) + ' ' + T.daysAgo
+      if (diff < 3600000) return Math.floor(diff / 60000) + T.minAgo
+      if (diff < 86400000) return Math.floor(diff / 3600000) + T.hrAgo
+      if (diff < 2592000000) return Math.floor(diff / 86400000) + T.daysAgo
       const m = date.getMonth() + 1, d = date.getDate()
       return (m < 10 ? '0' : '') + m + '/' + (d < 10 ? '0' : '') + d
     } catch { return dateStr || '' }

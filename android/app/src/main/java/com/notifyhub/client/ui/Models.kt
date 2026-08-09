@@ -55,9 +55,9 @@ fun formatRelativeTime(dateStr: String): String {
 
         when {
             diff < 60_000 -> I18n["time_just_now"]
-            diff < 3_600_000 -> "${(diff / 60_000).toInt()} ${I18n["time_minutes_ago"]}"
-            diff < 86_400_000 -> "${(diff / 3_600_000).toInt()} ${I18n["time_hours_ago"]}"
-            diff < 2_592_000_000 -> "${(diff / 86_400_000).toInt()} ${I18n["time_days_ago"]}"
+            diff < 3_600_000 -> "${(diff / 60_000).toInt()}${I18n["time_minutes_ago"]}"
+            diff < 86_400_000 -> "${(diff / 3_600_000).toInt()}${I18n["time_hours_ago"]}"
+            diff < 2_592_000_000 -> "${(diff / 86_400_000).toInt()}${I18n["time_days_ago"]}"
             else -> {
                 val outFmt = java.text.SimpleDateFormat("MM/dd", java.util.Locale.getDefault())
                 outFmt.format(date)

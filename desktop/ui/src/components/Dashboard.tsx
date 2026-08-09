@@ -146,7 +146,16 @@ const MessageCard = React.memo(function MessageCard({ m, isSelectMode, isSelecte
         <div className={`msg-dot ${m.level || ''}`} />
       )}
       <div className="msg-content" data-id={m.id}>
-        <div className="msg-title-row"><span className="msg-title-text">{m.title || T.untitled}</span></div>
+        <div className="msg-title-row">
+          <span className="msg-title-text">{m.title || T.untitled}</span>
+          <span className="msg-time">{relTime}</span>
+          <div className="msg-actions">
+            <span className={`msg-flag-icon ${m.flagged ? 'flagged' : ''}`} data-action="flag" data-id={m.id} title={m.flagged ? T.unflag : T.flag}>⚑</span>
+            <button className="msg-del-btn" data-action="delete" data-id={m.id} title={T.delete}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+          </div>
+        </div>
         <div className="msg-body-preview">{(m.body || '').substring(0, 200)}</div>
       </div>
       {thumbUrl && (
@@ -157,17 +166,6 @@ const MessageCard = React.memo(function MessageCard({ m, isSelectMode, isSelecte
           {tags.map(t => <span key={t} className="msg-tag">{t}</span>)}
         </div>
       )}
-      <div className="msg-info-col">
-        {att && <span className="msg-att-icon">📎</span>}
-        {m.url && <span className="msg-att-icon">🔗</span>}
-        <span className="msg-time">{relTime}</span>
-        <div className="msg-actions">
-          <span className={`msg-flag-icon ${m.flagged ? 'flagged' : ''}`} data-action="flag" data-id={m.id} title={m.flagged ? T.unflag : T.flag}>⚑</span>
-          <button className="msg-del-btn" data-action="delete" data-id={m.id} title={T.delete}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-          </button>
-        </div>
-      </div>
     </div>
   )
 }, (prev, next) => {

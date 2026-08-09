@@ -21,7 +21,7 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
     image: notifyhub-backend
-    container_name: notifyhub-backend
+    container_name: backend
     restart: unless-stopped
     expose:
       - "9527"
@@ -31,7 +31,7 @@ services:
       - PORT=9527
       - HOST=0.0.0.0
       - DATA_DIR=/app/data
-      - JWT_SECRET=${JWT_SECRET:-}
+      - JWT_SECRET=${JWT_SECRET:-xuranus12345678}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9527/api/health"]
       interval: 30s
