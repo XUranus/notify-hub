@@ -956,11 +956,21 @@ fn dock_window_to_right(win: &tauri::WebviewWindow, animate: bool) {
 }
 
 fn toggle_docked_window(win: &tauri::WebviewWindow) {
-    if win.is_visible().unwrap_or(false) {
+    let visible = win.is_visible().unwrap_or(false);
+    info!(
+        "[window] toggle requested: is_visible={} -> {}",
+        visible,
+        if visible { "hide" } else { "dock/show" }
+    );
+    if visible {
         let _ = win.hide();
     } else {
         dock_window_to_right(win, false);
     }
+    info!(
+        "[window] toggle done: is_visible={}",
+        win.is_visible().unwrap_or(false)
+    );
 }
 
 fn main() {
@@ -1003,6 +1013,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                info!("[window] CloseRequested on {} -> hide", window.label());
                 window.hide().ok();
                 api.prevent_close();
             }
@@ -1162,6 +1173,7 @@ fn main() {
                 .tooltip("NotifyHub Client")
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "toggle" => {
+                        info!("[window] tray menu 'toggle' invoked");
                         if let Some(win) = app.get_webview_window("main") {
                             toggle_docked_window(&win);
                         }
@@ -1177,7 +1189,11 @@ fn main() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button, button_state, .. } = event {
+                        info!("[window] tray icon click: button={:?} state={:?}", button, button_state);
+                    }
                     if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                        info!("[window] tray icon left-click up -> toggle");
                         let app = tray.app_handle();
                         if let Some(win) = app.get_webview_window("main") {
                             toggle_docked_window(&win);
@@ -1187,12 +1203,19 @@ fn main() {
                 .build(app)?;
 
             // Register global shortcut: Win+Space to toggle window
-            use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+            use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
             let shortcut = Shortcut::new(Some(Modifiers::SUPER), Code::Space);
             let handle = app.handle().clone();
-            let _ = app.global_shortcut().on_shortcut(shortcut, move |_app, _event, _shortcut| {
-                if let Some(win) = handle.get_webview_window("main") {
-                    toggle_docked_window(&win);
+            let _ = app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
+                info!("[window] global shortcut event: {:?}", event.state());
+                // The plugin fires on both key press and key release; toggling on
+                // both would cancel the toggle out and leave the window unchanged.
+                if event.state() != ShortcutState::Pressed {
+                    return;
+                }
+                match handle.get_webview_window("main") {
+                    Some(win) => toggle_docked_window(&win),
+                    None => info!("[window] shortcut fired but no 'main' window"),
                 }
             });
 
