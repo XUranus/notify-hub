@@ -18,7 +18,7 @@
 **References:**
 - https://github.com/niclas-niclasniclas/niclasniclasniclas/issues/1 (EGL_BAD_ALLOC with AppImage on rolling-release distros)
 
-## Super+Space sidebar toggle cancels itself out (v0.6.1)
+## Super+Space sidebar toggle cancels itself out (v0.6.2)
 
 **Symptom:** `Super+Space` looks dead — the docked sidebar flashes for ~50ms and returns to its previous state, so it never actually opens. The window sits in that state indefinitely, which is also why `import -window` failed to capture it during development (the X window reported `IsUnMapped`).
 
@@ -38,4 +38,4 @@ The callback signature made this invisible: it was written `|_app, _event, _shor
 
 **Affected:** Desktop client on all platforms — the global-shortcut plugin emits release events everywhere.
 
-**Status:** Unreleased, on `master` after v0.6.1.
+**Status:** Fixed in v0.6.2 (commit `5b49c1e`).
