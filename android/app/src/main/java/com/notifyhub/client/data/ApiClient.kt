@@ -80,7 +80,7 @@ class ApiClient(private val serverUrl: String, private val jwtToken: String) {
             "os" to "android",
             "arch" to arch,
             "desktop" to "Android",
-            "appVersion" to "0.6.1"
+            "appVersion" to "0.6.2"
         )
         if (!fcmToken.isNullOrBlank()) {
             payload["fcmToken"] = fcmToken

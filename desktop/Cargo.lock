@@ -2989,7 +2989,7 @@ dependencies = [
 
 [[package]]
 name = "notifyhub-client"
-version = "0.1.0"
+version = "0.6.2"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -3024,7 +3024,7 @@ dependencies = [
 
 [[package]]
 name = "notifyhub-common"
-version = "0.1.0"
+version = "0.6.2"
 dependencies = [
  "anyhow",
  "axum",

@@ -1,6 +1,6 @@
 {
   "productName": "NotifyHub Client",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "identifier": "com.notifyhub.client",
   "build": {
     "frontendDist": "ui/dist",
