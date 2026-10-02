@@ -11,13 +11,13 @@ importers:
   desktop/ui:
     dependencies:
       '@tauri-apps/api':
-        specifier: ^2.11.1
+        specifier: ~2.11.1
         version: 2.11.1
       '@tauri-apps/plugin-dialog':
-        specifier: ^2.7.1
+        specifier: ~2.7.1
         version: 2.7.1
       '@tauri-apps/plugin-fs':
-        specifier: ^2.5.1
+        specifier: ~2.5.1
         version: 2.5.1
       react:
         specifier: ^19.2.7

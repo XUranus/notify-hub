@@ -71,9 +71,15 @@ jobs:
           # Install appimagetool + wrapper that patches AppDir before packaging
           wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" \
             -O /tmp/appimagetool-src && chmod +x /tmp/appimagetool-src
-          SQFS_OFF=$(python3 -c "f=open('/tmp/appimagetool-src','rb');d=f.read();f.close();print(d.find(b'hsqs'))")
-          dd if=/tmp/appimagetool-src bs=$SQFS_OFF skip=1 of=/tmp/appimagetool.sqfs 2>/dev/null
-          cd /tmp && unsquashfs -f /tmp/appimagetool.sqfs >/dev/null 2>&1
+          # Extract the appimagetool the AppImage carries. The AppImage's own
+          # runtime does the unpacking here, so nothing depends on FUSE (absent on
+          # runners, hence APPIMAGE_EXTRACT_AND_RUN), on a squashfs superblock being
+          # findable, or on where the payload sits inside the ELF — the last of which
+          # is what broke the previous hand-rolled dd/unsquashfs: the first `hsqs` in
+          # the file is code in .text, not the superblock, so the superblock was never
+          # valid and the payload never extracted.
+          (cd /tmp && APPIMAGE_EXTRACT_AND_RUN=1 /tmp/appimagetool-src --appimage-extract >/dev/null)
+          test -x /tmp/squashfs-root/usr/bin/appimagetool
 
       - name: Create appimagetool wrapper (patch AppDir for EGL fix)
         run: |
@@ -164,9 +170,15 @@ jobs:
           # Install appimagetool + wrapper that patches AppDir before packaging
           wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage" \
             -O /tmp/appimagetool-src && chmod +x /tmp/appimagetool-src
-          SQFS_OFF=$(python3 -c "f=open('/tmp/appimagetool-src','rb');d=f.read();f.close();print(d.find(b'hsqs'))")
-          dd if=/tmp/appimagetool-src bs=$SQFS_OFF skip=1 of=/tmp/appimagetool.sqfs 2>/dev/null
-          cd /tmp && unsquashfs -f /tmp/appimagetool.sqfs >/dev/null 2>&1
+          # Extract the appimagetool the AppImage carries. The AppImage's own
+          # runtime does the unpacking here, so nothing depends on FUSE (absent on
+          # runners, hence APPIMAGE_EXTRACT_AND_RUN), on a squashfs superblock being
+          # findable, or on where the payload sits inside the ELF — the last of which
+          # is what broke the previous hand-rolled dd/unsquashfs: the first `hsqs` in
+          # the file is code in .text, not the superblock, so the superblock was never
+          # valid and the payload never extracted.
+          (cd /tmp && APPIMAGE_EXTRACT_AND_RUN=1 /tmp/appimagetool-src --appimage-extract >/dev/null)
+          test -x /tmp/squashfs-root/usr/bin/appimagetool
 
       - name: Create appimagetool wrapper (patch AppDir for EGL fix)
         run: |
@@ -333,8 +345,16 @@ jobs:
           distribution: zulu
           java-version: 17
 
-      - name: Setup Android SDK
+      # The runner image already ships the SDK at ANDROID_HOME, which is what the
+      # Gradle build below uses. The setup-android action is only here to accept the
+      # SDK licenses, so ask it to install nothing: its default `tools platform-tools`
+      # makes sdkmanager resolve the retired `tools` package, which has failed
+      # upstream ("Failed to find package 'tools'") since the runner moved to
+      # cmdline-tools 16.0.
+      - name: Accept Android SDK licenses
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Build APK
         working-directory: android
