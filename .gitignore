@@ -42,3 +42,7 @@ crates/data/
 deploy/frontend-dist/
 deploy/notifyhub-server
 deploy/Dockerfile.simple
+
+# Release artifacts (produced by .github/workflows/release.yml)
+NotifyHub-Desktop_*
+NotifyHub-Android_*
