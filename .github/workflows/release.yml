@@ -67,7 +67,8 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
-            squashfs-tools
+            squashfs-tools \
+            desktop-file-utils
           # Install appimagetool + wrapper that patches AppDir before packaging
           wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" \
             -O /tmp/appimagetool-src && chmod +x /tmp/appimagetool-src
@@ -136,7 +137,8 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
-            squashfs-tools
+            squashfs-tools \
+            desktop-file-utils
           # Install appimagetool + wrapper that patches AppDir before packaging
           wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage" \
             -O /tmp/appimagetool-src && chmod +x /tmp/appimagetool-src
