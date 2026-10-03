@@ -19,6 +19,11 @@ APPIMAGE="${1:?usage: patch-appimage.sh <AppImage> <x86_64|aarch64> [appimagetoo
 ARCH="${2:?usage: patch-appimage.sh <AppImage> <x86_64|aarch64> [appimagetool]}"
 TOOL="${3:-/tmp/squashfs-root/usr/bin/appimagetool}"
 
+# Absolutise before anything changes directory. The AppImage name Tauri produces
+# contains spaces ("NotifyHub Client_0.6.2_amd64.AppImage"), and the extract below
+# cd's into a scratch dir, so a relative argument would no longer resolve.
+APPIMAGE="$(readlink -f "$APPIMAGE")"
+
 [ -f "$APPIMAGE" ] || { echo "patch-appimage: no such file: $APPIMAGE" >&2; exit 1; }
 [ -x "$TOOL" ] || { echo "patch-appimage: appimagetool not executable: $TOOL" >&2; exit 1; }
 
